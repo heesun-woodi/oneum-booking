@@ -55,6 +55,7 @@ export default function Home() {
   // 예약 폼
   const [name, setName] = useState<string>('')
   const [phone, setPhone] = useState<string>('')
+  const [bookedTimes, setBookedTimes] = useState<string[]>([]) // 선택된 날짜의 예약된 시간들
   
   // 인증 폼
   const [authHousehold, setAuthHousehold] = useState<string>('')
@@ -198,6 +199,11 @@ export default function Home() {
   const handleDateClick = (date: number) => {
     setSelectedDate(date)
     setSelectedTimes([])
+    
+    // ⭐ 예약된 시간 조회
+    const times = getBookedTimesForDate(date)
+    setBookedTimes(times)
+    
     
     // 로그인 상태면 사용자 정보 자동 입력
     if (userSession.isLoggedIn) {
@@ -413,8 +419,11 @@ export default function Home() {
                 세대 전용
               </button>
             )}
-            <button disabled className="px-4 py-2 bg-gray-200 text-gray-400 rounded-lg font-medium cursor-not-allowed opacity-50" title="Phase 4에서 구현 예정">
-              예약 변경/취소
+            <button 
+              disabled={true}
+              className="px-4 py-2 bg-gray-300 text-gray-500 rounded-lg cursor-not-allowed"
+            >
+              예약 변경/취소 (준비 중)
             </button>
           </div>
         </div>
@@ -558,7 +567,6 @@ export default function Home() {
                 </label>
                 <div className="grid grid-cols-4 gap-2">
                   {timeSlots.map(time => {
-                    const bookedTimes = getBookedTimesForDate(selectedDate)
                     const isBooked = bookedTimes.includes(time)
                     
                     return (
