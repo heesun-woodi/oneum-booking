@@ -1,57 +1,186 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+
+// ===== 타입 정의 =====
+interface UserSession {
+  isLoggedIn: boolean
+  household: string // '201', '301', etc.
+  name: string
+  phone: string
+}
+
+type SpaceType = 'nolter' | 'soundroom'
+
+// Mock 예약 데이터 (Phase 3에서 DB로 대체)
+interface MockBooking {
+  date: number
+  space: SpaceType
+  times: string[]
+}
+
+const mockBookings: MockBooking[] = [
+  { date: 5, space: 'nolter', times: ['14:00', '15:00'] },
+  { date: 10, space: 'soundroom', times: ['19:00'] },
+  { date: 15, space: 'nolter', times: ['10:00', '11:00', '12:00'] },
+]
 
 export default function Home() {
-  // State 관리
-  const [isModalOpen, setIsModalOpen] = useState(false)
+  // ===== State 관리 =====
+  
+  // 사용자 세션 (localStorage에서 로드)
+  const [userSession, setUserSession] = useState<UserSession>({
+    isLoggedIn: false,
+    household: '',
+    name: '',
+    phone: ''
+  })
+  
+  // 모달 상태
+  const [isBookingModalOpen, setIsBookingModalOpen] = useState(false)
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
+  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login')
+  
+  // 달력 & 예약
+  const [currentMonth, setCurrentMonth] = useState(new Date())
+  const [selectedSpace, setSelectedSpace] = useState<SpaceType>('nolter')
   const [selectedDate, setSelectedDate] = useState<number | null>(null)
-  const [selectedTime, setSelectedTime] = useState<string>('')
-  const [memberType, setMemberType] = useState<'member' | 'non-member'>('member')
-  const [household, setHousehold] = useState<string>('')
+  const [selectedTimes, setSelectedTimes] = useState<string[]>([]) // 연속 시간 다중 선택
+  
+  // 예약 폼
   const [name, setName] = useState<string>('')
   const [phone, setPhone] = useState<string>('')
+  
+  // 인증 폼
+  const [authHousehold, setAuthHousehold] = useState<string>('')
+  const [authName, setAuthName] = useState<string>('')
+  const [authPhone, setAuthPhone] = useState<string>('')
+  const [authPassword, setAuthPassword] = useState<string>('')
 
-  // 시간대 목록 (09:00 ~ 23:00, 1시간 간격)
+  // ===== localStorage 세션 관리 =====
+  
+  useEffect(() => {
+    // 페이지 로드 시 세션 복원
+    const savedSession = localStorage.getItem('oneumSession')
+    if (savedSession) {
+      const session = JSON.parse(savedSession)
+      setUserSession(session)
+      console.log('✅ 세션 복원:', session)
+    }
+  }, [])
+
+  const saveSession = (session: UserSession) => {
+    localStorage.setItem('oneumSession', JSON.stringify(session))
+    setUserSession(session)
+    console.log('💾 세션 저장:', session)
+  }
+
+  const clearSession = () => {
+    localStorage.removeItem('oneumSession')
+    setUserSession({
+      isLoggedIn: false,
+      household: '',
+      name: '',
+      phone: ''
+    })
+    console.log('🗑️ 세션 삭제')
+  }
+
+  // ===== 상수 =====
+  
   const timeSlots = Array.from({ length: 15 }, (_, i) => {
     const hour = i + 9
     return `${hour.toString().padStart(2, '0')}:00`
   })
-
-  // 세대 목록
+  
   const households = ['201', '301', '302', '401', '402', '501']
 
-  // 날짜 클릭 핸들러
+  // ===== 월 네비게이션 함수 =====
+  
+  const goToPrevMonth = () => {
+    const newMonth = new Date(currentMonth)
+    newMonth.setMonth(newMonth.getMonth() - 1)
+    setCurrentMonth(newMonth)
+    console.log('📅 이전 달:', newMonth.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long' }))
+  }
+
+  const goToNextMonth = () => {
+    const newMonth = new Date(currentMonth)
+    newMonth.setMonth(newMonth.getMonth() + 1)
+    setCurrentMonth(newMonth)
+    console.log('📅 다음 달:', newMonth.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long' }))
+  }
+
+  // ===== 공간 탭 전환 =====
+  
+  const handleSpaceChange = (space: SpaceType) => {
+    setSelectedSpace(space)
+    console.log('🏠 공간 전환:', space === 'nolter' ? '놀터' : '방음실')
+  }
+
+  // ===== 예약 상태 확인 (Mock) =====
+  
+  const getBookingStatus = (date: number) => {
+    const booking = mockBookings.find(
+      b => b.date === date && b.space === selectedSpace
+    )
+    if (!booking) return { status: 'available', times: [] }
+    
+    const totalSlots = timeSlots.length
+    const bookedSlots = booking.times.length
+    
+    if (bookedSlots === 0) return { status: 'available', times: [] }
+    if (bookedSlots >= totalSlots) return { status: 'full', times: booking.times }
+    return { status: 'partial', times: booking.times }
+  }
+
+  // ===== 날짜 클릭 핸들러 =====
+  
   const handleDateClick = (date: number) => {
     setSelectedDate(date)
-    setIsModalOpen(true)
-    // 모달 열 때마다 초기화
-    setSelectedTime('')
-    setMemberType('member')
-    setHousehold('')
-    setName('')
-    setPhone('')
+    setSelectedTimes([])
+    
+    // 로그인 상태면 사용자 정보 자동 입력
+    if (userSession.isLoggedIn) {
+      setName(userSession.name)
+      setPhone(userSession.phone)
+    } else {
+      setName('')
+      setPhone('')
+    }
+    
+    setIsBookingModalOpen(true)
+    console.log(`📌 날짜 선택: ${currentMonth.getFullYear()}년 ${currentMonth.getMonth() + 1}월 ${date}일`)
   }
 
-  // 모달 닫기
-  const handleCloseModal = () => {
-    setIsModalOpen(false)
+  // ===== 시간 선택 핸들러 (다중 선택) =====
+  
+  const handleTimeToggle = (time: string) => {
+    setSelectedTimes(prev => {
+      if (prev.includes(time)) {
+        // 이미 선택된 시간이면 제거
+        const newTimes = prev.filter(t => t !== time)
+        console.log('⏰ 시간 선택 해제:', time, '→', newTimes)
+        return newTimes
+      } else {
+        // 새로 선택
+        const newTimes = [...prev, time].sort()
+        console.log('⏰ 시간 선택 추가:', time, '→', newTimes)
+        return newTimes
+      }
+    })
   }
 
-  // 예약하기
-  const handleSubmit = () => {
-    // 폼 검증
-    if (!selectedTime) {
+  // ===== 예약하기 =====
+  
+  const handleBookingSubmit = () => {
+    // 검증
+    if (selectedTimes.length === 0) {
       alert('시간을 선택해주세요.')
       return
     }
 
-    if (memberType === 'member' && !household) {
-      alert('세대를 선택해주세요.')
-      return
-    }
-
-    if (memberType === 'non-member') {
+    if (!userSession.isLoggedIn) {
       if (!name.trim()) {
         alert('이름을 입력해주세요.')
         return
@@ -63,50 +192,189 @@ export default function Home() {
     }
 
     // 예약 정보 출력
-    console.log('=== 예약 정보 ===')
-    console.log('날짜:', `2026년 3월 ${selectedDate}일`)
-    console.log('시간:', selectedTime)
-    console.log('회원 구분:', memberType === 'member' ? '회원' : '비회원')
-    if (memberType === 'member') {
-      console.log('세대:', household)
-    } else {
-      console.log('이름:', name)
-      console.log('전화번호:', phone)
+    console.log('=== ✅ 예약 완료 ===')
+    console.log('날짜:', `${currentMonth.getFullYear()}년 ${currentMonth.getMonth() + 1}월 ${selectedDate}일`)
+    console.log('시간:', selectedTimes.join(', '), `(총 ${selectedTimes.length}시간)`)
+    console.log('공간:', selectedSpace === 'nolter' ? '놀터' : '방음실')
+    console.log('예약자:', userSession.isLoggedIn ? `${userSession.household}호 ${name}` : name)
+    console.log('연락처:', phone)
+
+    alert(`예약이 완료되었습니다!\n\n날짜: ${currentMonth.getMonth() + 1}월 ${selectedDate}일\n시간: ${selectedTimes.join(', ')} (총 ${selectedTimes.length}시간)\n공간: ${selectedSpace === 'nolter' ? '놀터' : '방음실'}`)
+    setIsBookingModalOpen(false)
+  }
+
+  // ===== 로그인 =====
+  
+  const handleLogin = () => {
+    if (!authHousehold) {
+      alert('세대를 선택해주세요.')
+      return
+    }
+    if (!authPassword.trim()) {
+      alert('비밀번호를 입력해주세요.')
+      return
     }
 
-    // 예약 완료 알림 및 모달 닫기
-    alert('예약이 완료되었습니다!')
-    handleCloseModal()
+    // TODO: Phase 3에서 실제 인증 구현
+    // 현재는 Mock으로 바로 로그인 성공
+    const mockName = authHousehold === '201' ? '김온음' : `${authHousehold}호 주민`
+    const mockPhone = '010-0000-0000'
+
+    const session: UserSession = {
+      isLoggedIn: true,
+      household: authHousehold,
+      name: mockName,
+      phone: mockPhone
+    }
+
+    saveSession(session)
+    setIsAuthModalOpen(false)
+    alert(`${authHousehold}호님, 환영합니다!`)
+    
+    // 폼 초기화
+    setAuthHousehold('')
+    setAuthPassword('')
   }
+
+  // ===== 회원가입 =====
+  
+  const handleSignup = () => {
+    if (!authHousehold) {
+      alert('세대를 선택해주세요.')
+      return
+    }
+    if (!authName.trim()) {
+      alert('이름을 입력해주세요.')
+      return
+    }
+    if (!authPhone.trim()) {
+      alert('전화번호를 입력해주세요.')
+      return
+    }
+    if (!authPassword.trim()) {
+      alert('비밀번호를 설정해주세요.')
+      return
+    }
+
+    // TODO: Phase 3에서 DB 저장 구현
+    // 현재는 Mock으로 바로 가입 후 로그인
+    const session: UserSession = {
+      isLoggedIn: true,
+      household: authHousehold,
+      name: authName,
+      phone: authPhone
+    }
+
+    saveSession(session)
+    setIsAuthModalOpen(false)
+    alert(`${authHousehold}호 가입이 완료되었습니다!\n환영합니다, ${authName}님!`)
+    
+    // 폼 초기화
+    setAuthHousehold('')
+    setAuthName('')
+    setAuthPhone('')
+    setAuthPassword('')
+  }
+
+  // ===== 로그아웃 =====
+  
+  const handleLogout = () => {
+    if (confirm('로그아웃 하시겠습니까?')) {
+      clearSession()
+      alert('로그아웃 되었습니다.')
+    }
+  }
+
+  // ===== 달력 렌더링 =====
+  
+  const year = currentMonth.getFullYear()
+  const month = currentMonth.getMonth()
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-4xl mx-auto">
-        {/* 헤더 */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">온음 공간 예약</h1>
-          <p className="text-gray-600">놀터 & 방음실 예약 시스템</p>
+        {/* ===== 헤더 ===== */}
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">온음 공간 예약</h1>
+            <p className="text-gray-600">놀터 & 방음실 예약 시스템</p>
+          </div>
+          
+          {/* 우측 버튼들 */}
+          <div className="flex gap-3">
+            {userSession.isLoggedIn ? (
+              <>
+                <div className="text-right mr-3">
+                  <p className="text-sm font-semibold text-gray-900">{userSession.household}호</p>
+                  <p className="text-xs text-gray-600">{userSession.name}</p>
+                </div>
+                <button
+                  onClick={handleLogout}
+                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300"
+                >
+                  로그아웃
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => {
+                  setAuthMode('login')
+                  setIsAuthModalOpen(true)
+                }}
+                className="px-4 py-2 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600"
+              >
+                세대 전용
+              </button>
+            )}
+            <button className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300">
+              예약 변경/취소
+            </button>
+          </div>
         </div>
 
-        {/* 탭 */}
+        {/* ===== 달력 카드 ===== */}
         <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+          {/* 공간 선택 탭 */}
           <div className="flex gap-4 mb-6">
-            <button className="px-6 py-2 bg-blue-500 text-white rounded-lg font-medium">
+            <button
+              onClick={() => handleSpaceChange('nolter')}
+              className={`px-6 py-2 rounded-lg font-medium transition-colors ${
+                selectedSpace === 'nolter'
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
               놀터
             </button>
-            <button className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300">
+            <button
+              onClick={() => handleSpaceChange('soundroom')}
+              className={`px-6 py-2 rounded-lg font-medium transition-colors ${
+                selectedSpace === 'soundroom'
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
               방음실
             </button>
           </div>
 
-          {/* 달력 헤더 */}
+          {/* 월 네비게이션 */}
           <div className="mb-4">
             <div className="flex items-center justify-between mb-4">
-              <button className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">
+              <button
+                onClick={goToPrevMonth}
+                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded transition-colors"
+              >
                 ← 이전
               </button>
-              <h2 className="text-xl font-semibold">2026년 3월</h2>
-              <button className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">
+              <h2 className="text-xl font-semibold">
+                {year}년 {month + 1}월
+              </h2>
+              <button
+                onClick={goToNextMonth}
+                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded transition-colors"
+              >
                 다음 →
               </button>
             </div>
@@ -123,19 +391,39 @@ export default function Home() {
 
           {/* 날짜 */}
           <div className="grid grid-cols-7 gap-2">
-            {Array.from({ length: 31 }, (_, i) => (
-              <button
-                key={i + 1}
-                onClick={() => handleDateClick(i + 1)}
-                className="aspect-square border border-gray-200 rounded-lg p-2 hover:bg-blue-50 hover:border-blue-300 transition-colors"
-              >
-                <div className="text-sm font-medium">{i + 1}</div>
-              </button>
-            ))}
+            {Array.from({ length: daysInMonth }, (_, i) => {
+              const date = i + 1
+              const bookingStatus = getBookingStatus(date)
+              
+              return (
+                <button
+                  key={date}
+                  onClick={() => handleDateClick(date)}
+                  className={`aspect-square rounded-lg p-2 transition-colors ${
+                    bookingStatus.status === 'full'
+                      ? 'border-2 border-gray-400 bg-gray-100 cursor-not-allowed'
+                      : bookingStatus.status === 'partial'
+                      ? 'border-2 border-yellow-400 hover:bg-yellow-50'
+                      : 'border border-gray-200 hover:bg-blue-50 hover:border-blue-300'
+                  }`}
+                  disabled={bookingStatus.status === 'full'}
+                >
+                  <div className="text-sm font-medium">{date}</div>
+                  {bookingStatus.status === 'full' && (
+                    <div className="text-xs text-gray-500 mt-1">마감</div>
+                  )}
+                  {bookingStatus.status === 'partial' && (
+                    <div className="text-xs text-yellow-600 mt-1">
+                      {bookingStatus.times.length}건
+                    </div>
+                  )}
+                </button>
+              )
+            })}
           </div>
         </div>
 
-        {/* 예약 안내 */}
+        {/* ===== 예약 안내 ===== */}
         <div className="bg-white rounded-lg shadow-sm p-6">
           <h3 className="text-lg font-semibold mb-4">📋 예약 안내</h3>
           <div className="space-y-2 text-gray-700">
@@ -152,11 +440,11 @@ export default function Home() {
         </div>
       </div>
 
-      {/* 예약 모달 */}
-      {isModalOpen && (
+      {/* ===== 예약 모달 ===== */}
+      {isBookingModalOpen && (
         <div 
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
-          onClick={handleCloseModal}
+          onClick={() => setIsBookingModalOpen(false)}
         >
           <div 
             className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
@@ -165,10 +453,10 @@ export default function Home() {
             {/* 모달 헤더 */}
             <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex items-center justify-between">
               <h2 className="text-2xl font-bold text-gray-900">
-                예약하기 - 3월 {selectedDate}일
+                예약하기 - {month + 1}월 {selectedDate}일
               </h2>
               <button 
-                onClick={handleCloseModal}
+                onClick={() => setIsBookingModalOpen(false)}
                 className="text-gray-400 hover:text-gray-600 text-3xl leading-none"
               >
                 ×
@@ -177,18 +465,18 @@ export default function Home() {
 
             {/* 모달 본문 */}
             <div className="p-6 space-y-6">
-              {/* 시간 선택 */}
+              {/* 시간 선택 (다중) */}
               <div>
                 <label className="block text-sm font-semibold text-gray-900 mb-3">
-                  시간 선택 *
+                  시간 선택 * (연속 시간 선택 가능)
                 </label>
                 <div className="grid grid-cols-4 gap-2">
                   {timeSlots.map(time => (
                     <button
                       key={time}
-                      onClick={() => setSelectedTime(time)}
+                      onClick={() => handleTimeToggle(time)}
                       className={`py-3 px-4 rounded-lg border font-medium transition-colors ${
-                        selectedTime === time
+                        selectedTimes.includes(time)
                           ? 'bg-blue-500 text-white border-blue-500'
                           : 'bg-white text-gray-700 border-gray-300 hover:border-blue-300 hover:bg-blue-50'
                       }`}
@@ -197,59 +485,62 @@ export default function Home() {
                     </button>
                   ))}
                 </div>
+                {selectedTimes.length > 0 && (
+                  <p className="mt-3 text-sm text-blue-600 font-medium">
+                    총 {selectedTimes.length}시간 선택됨: {selectedTimes.join(', ')}
+                  </p>
+                )}
               </div>
 
-              {/* 회원 구분 */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-3">
-                  회원 구분 *
-                </label>
-                <div className="flex gap-4">
-                  <button
-                    onClick={() => setMemberType('member')}
-                    className={`flex-1 py-3 px-6 rounded-lg border font-medium transition-colors ${
-                      memberType === 'member'
-                        ? 'bg-blue-500 text-white border-blue-500'
-                        : 'bg-white text-gray-700 border-gray-300 hover:border-blue-300 hover:bg-blue-50'
-                    }`}
-                  >
-                    회원
-                  </button>
-                  <button
-                    onClick={() => setMemberType('non-member')}
-                    className={`flex-1 py-3 px-6 rounded-lg border font-medium transition-colors ${
-                      memberType === 'non-member'
-                        ? 'bg-blue-500 text-white border-blue-500'
-                        : 'bg-white text-gray-700 border-gray-300 hover:border-blue-300 hover:bg-blue-50'
-                    }`}
-                  >
-                    비회원
-                  </button>
-                </div>
-              </div>
-
-              {/* 회원 선택 시 - 세대 선택 */}
-              {memberType === 'member' && (
-                <div>
-                  <label className="block text-sm font-semibold text-gray-900 mb-3">
-                    세대 선택 *
-                  </label>
-                  <select
-                    value={household}
-                    onChange={(e) => setHousehold(e.target.value)}
-                    className="w-full py-3 px-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="">세대를 선택하세요</option>
-                    {households.map(h => (
-                      <option key={h} value={h}>{h}호</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {/* 비회원 선택 시 - 이름/전화번호 입력 */}
-              {memberType === 'non-member' && (
+              {/* 회원 로그인 상태 */}
+              {userSession.isLoggedIn ? (
                 <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-3">
+                      세대 정보
+                    </label>
+                    <div className="py-3 px-4 bg-gray-100 rounded-lg text-gray-700">
+                      {userSession.household}호
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-3">
+                      이름 *
+                    </label>
+                    <input
+                      type="text"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      className="w-full py-3 px-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-3">
+                      전화번호
+                    </label>
+                    <div className="py-3 px-4 bg-gray-100 rounded-lg text-gray-700">
+                      {userSession.phone}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* 비회원 상태 */
+                <div className="space-y-4">
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <p className="text-sm text-blue-800">
+                      💡 <strong>세대 주민이신가요?</strong>{' '}
+                      <button
+                        onClick={() => {
+                          setIsBookingModalOpen(false)
+                          setAuthMode('login')
+                          setIsAuthModalOpen(true)
+                        }}
+                        className="text-blue-600 underline font-medium hover:text-blue-700"
+                      >
+                        세대 전용으로 예약하기
+                      </button>
+                    </p>
+                  </div>
                   <div>
                     <label className="block text-sm font-semibold text-gray-900 mb-3">
                       이름 *
@@ -281,11 +572,144 @@ export default function Home() {
             {/* 모달 푸터 */}
             <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 p-6">
               <button
-                onClick={handleSubmit}
+                onClick={handleBookingSubmit}
                 className="w-full py-4 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 transition-colors"
               >
                 예약하기
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== 로그인/회원가입 모달 ===== */}
+      {isAuthModalOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+          onClick={() => setIsAuthModalOpen(false)}
+        >
+          <div 
+            className="bg-white rounded-lg shadow-xl max-w-md w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* 모달 헤더 */}
+            <div className="border-b border-gray-200 p-6 flex items-center justify-between">
+              <h2 className="text-2xl font-bold text-gray-900">
+                {authMode === 'login' ? '로그인' : '회원가입'}
+              </h2>
+              <button 
+                onClick={() => setIsAuthModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600 text-3xl leading-none"
+              >
+                ×
+              </button>
+            </div>
+
+            {/* 모달 본문 */}
+            <div className="p-6 space-y-4">
+              {/* 세대 선택 */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-900 mb-2">
+                  세대 선택 *
+                </label>
+                <select
+                  value={authHousehold}
+                  onChange={(e) => setAuthHousehold(e.target.value)}
+                  className="w-full py-3 px-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">세대를 선택하세요</option>
+                  {households.map(h => (
+                    <option key={h} value={h}>{h}호</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 회원가입 전용 필드 */}
+              {authMode === 'signup' && (
+                <>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-2">
+                      이름 *
+                    </label>
+                    <input
+                      type="text"
+                      value={authName}
+                      onChange={(e) => setAuthName(e.target.value)}
+                      placeholder="이름을 입력하세요"
+                      className="w-full py-3 px-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-2">
+                      전화번호 *
+                    </label>
+                    <input
+                      type="tel"
+                      value={authPhone}
+                      onChange={(e) => setAuthPhone(e.target.value)}
+                      placeholder="010-0000-0000"
+                      className="w-full py-3 px-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </>
+              )}
+
+              {/* 비밀번호 */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-900 mb-2">
+                  비밀번호 *
+                </label>
+                <input
+                  type="password"
+                  value={authPassword}
+                  onChange={(e) => setAuthPassword(e.target.value)}
+                  placeholder="비밀번호를 입력하세요"
+                  className="w-full py-3 px-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* 로그인 버튼 */}
+              <button
+                onClick={authMode === 'login' ? handleLogin : handleSignup}
+                className="w-full py-3 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 transition-colors"
+              >
+                {authMode === 'login' ? '로그인' : '가입하기'}
+              </button>
+
+              {/* 모드 전환 */}
+              <div className="text-center text-sm text-gray-600">
+                {authMode === 'login' ? (
+                  <>
+                    아직 회원이 아니신가요?{' '}
+                    <button
+                      onClick={() => {
+                        setAuthMode('signup')
+                        setAuthHousehold('')
+                        setAuthPassword('')
+                      }}
+                      className="text-blue-600 font-medium hover:underline"
+                    >
+                      회원가입
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    이미 회원이신가요?{' '}
+                    <button
+                      onClick={() => {
+                        setAuthMode('login')
+                        setAuthName('')
+                        setAuthPhone('')
+                        setAuthHousehold('')
+                        setAuthPassword('')
+                      }}
+                      className="text-blue-600 font-medium hover:underline"
+                    >
+                      로그인
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </div>
