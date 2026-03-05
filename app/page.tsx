@@ -162,6 +162,38 @@ export default function Home() {
   }
 
   // ===== 날짜 클릭 핸들러 =====
+  // ===== 해당 날짜에 예약된 시간대 조회 =====
+  
+  const getBookedTimesForDate = (date: number): string[] => {
+    const year = currentMonth.getFullYear()
+    const month = currentMonth.getMonth() + 1
+    const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(date).padStart(2, '0')}`
+    
+    const dayBookings = bookingsData.filter(b => b.booking_date === dateStr)
+    
+    // 각 예약의 start_time부터 end_time까지 모든 시간 슬롯 추출
+    const bookedTimes: string[] = []
+    dayBookings.forEach(booking => {
+      const start = booking.start_time.substring(0, 5) // "14:00:00" → "14:00"
+      const end = booking.end_time.substring(0, 5)
+      
+      const startHour = parseInt(start.split(':')[0])
+      const endHour = parseInt(end.split(':')[0])
+      
+      // start_time부터 end_time까지 모든 시간 추가 (end 포함 안 함)
+      // 예: 14:00-16:00 → ['14:00', '15:00']
+      for (let h = startHour; h < endHour; h++) {
+        const timeSlot = `${h.toString().padStart(2, '0')}:00`
+        if (!bookedTimes.includes(timeSlot)) {
+          bookedTimes.push(timeSlot)
+        }
+      }
+    })
+    
+    console.log(`📋 ${dateStr} 예약된 시간:`, bookedTimes)
+    return bookedTimes
+  }
+
   
   const handleDateClick = (date: number) => {
     setSelectedDate(date)
@@ -381,7 +413,7 @@ export default function Home() {
                 세대 전용
               </button>
             )}
-            <button className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300">
+            <button disabled className="px-4 py-2 bg-gray-200 text-gray-400 rounded-lg font-medium cursor-not-allowed opacity-50" title="Phase 4에서 구현 예정">
               예약 변경/취소
             </button>
           </div>
@@ -462,7 +494,7 @@ export default function Home() {
                   }`}
                   disabled={bookingStatus.status === 'full'}
                 >
-                  <div className="text-sm font-medium">{date}</div>
+                  <div className="text-sm font-medium text-gray-900">{date}</div>
                   {bookingStatus.status === 'full' && (
                     <div className="text-xs text-gray-500 mt-1">마감</div>
                   )}
@@ -495,7 +527,7 @@ export default function Home() {
       </div>
 
       {/* ===== 예약 모달 ===== */}
-      {isBookingModalOpen && (
+      {isBookingModalOpen && selectedDate !== null && (
         <div 
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
           onClick={() => setIsBookingModalOpen(false)}
@@ -525,19 +557,30 @@ export default function Home() {
                   시간 선택 * (연속 시간 선택 가능)
                 </label>
                 <div className="grid grid-cols-4 gap-2">
-                  {timeSlots.map(time => (
-                    <button
-                      key={time}
-                      onClick={() => handleTimeToggle(time)}
-                      className={`py-3 px-4 rounded-lg border font-medium transition-colors ${
-                        selectedTimes.includes(time)
-                          ? 'bg-blue-500 text-white border-blue-500'
-                          : 'bg-white text-gray-700 border-gray-300 hover:border-blue-300 hover:bg-blue-50'
-                      }`}
-                    >
-                      {time}
-                    </button>
-                  ))}
+                  {timeSlots.map(time => {
+                    const bookedTimes = getBookedTimesForDate(selectedDate)
+                    const isBooked = bookedTimes.includes(time)
+                    
+                    return (
+                      <button
+                        key={time}
+                        onClick={() => !isBooked && handleTimeToggle(time)}
+                        disabled={isBooked}
+                        className={`py-3 px-4 rounded-lg border font-medium transition-colors ${
+                          isBooked
+                            ? 'bg-gray-200 text-gray-400 border-gray-300 cursor-not-allowed'
+                            : selectedTimes.includes(time)
+                            ? 'bg-blue-500 text-white border-blue-500'
+                            : 'bg-white text-gray-700 border-gray-300 hover:border-blue-300 hover:bg-blue-50'
+                        }`}
+                      >
+                        <div>{time}</div>
+                        {isBooked && (
+                          <div className="text-xs mt-1">예약됨</div>
+                        )}
+                      </button>
+                    )
+                  })}
                 </div>
                 {selectedTimes.length > 0 && (
                   <p className="mt-3 text-sm text-blue-600 font-medium">
