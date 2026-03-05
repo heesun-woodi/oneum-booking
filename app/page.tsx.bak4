@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createBooking, getBookings, CreateBookingInput } from './actions/bookings'
+import { createBooking, getBookings } from './actions/bookings'
 
 // ===== 타입 정의 =====
 interface UserSession {

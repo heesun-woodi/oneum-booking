@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createBooking, getBookings, CreateBookingInput } from './actions/bookings'
 
 // ===== 타입 정의 =====
 interface UserSession {
@@ -13,19 +12,18 @@ interface UserSession {
 
 type SpaceType = 'nolter' | 'soundroom'
 
-interface Booking {
-  id: string
-  booking_date: string
-  start_time: string
-  end_time: string
-  space: string
-  member_type: string
-  household?: string
-  name: string
-  phone: string
-  status: string
-  amount: number
+// Mock 예약 데이터 (Phase 3에서 DB로 대체)
+interface MockBooking {
+  date: number
+  space: SpaceType
+  times: string[]
 }
+
+const mockBookings: MockBooking[] = [
+  { date: 5, space: 'nolter', times: ['14:00', '15:00'] },
+  { date: 10, space: 'soundroom', times: ['19:00'] },
+  { date: 15, space: 'nolter', times: ['10:00', '11:00', '12:00'] },
+]
 
 export default function Home() {
   // ===== State 관리 =====
@@ -37,9 +35,6 @@ export default function Home() {
     name: '',
     phone: ''
   })
-  
-  // 예약 데이터
-  const [bookingsData, setBookingsData] = useState<Booking[]>([])
   
   // 모달 상태
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false)
@@ -73,25 +68,6 @@ export default function Home() {
       console.log('✅ 세션 복원:', session)
     }
   }, [])
-
-  // ===== 예약 데이터 로드 (DB에서) =====
-  
-  useEffect(() => {
-    loadBookings()
-  }, [currentMonth, selectedSpace])
-
-  async function loadBookings() {
-    const year = currentMonth.getFullYear()
-    const month = currentMonth.getMonth() + 1
-    console.log('📥 예약 데이터 로드 중...')
-    const result = await getBookings(year, month, selectedSpace)
-    if (result.success) {
-      setBookingsData(result.data)
-      console.log('✅ 예약 데이터 로드 완료:', result.data.length, '건')
-    } else {
-      console.error('❌ 예약 데이터 로드 실패:', result.error)
-    }
-  }
 
   const saveSession = (session: UserSession) => {
     localStorage.setItem('oneumSession', JSON.stringify(session))
@@ -142,23 +118,20 @@ export default function Home() {
     console.log('🏠 공간 전환:', space === 'nolter' ? '놀터' : '방음실')
   }
 
-  // ===== 예약 상태 확인 (실제 DB 데이터) =====
+  // ===== 예약 상태 확인 (Mock) =====
   
   const getBookingStatus = (date: number) => {
-    const year = currentMonth.getFullYear()
-    const month = currentMonth.getMonth() + 1
-    const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(date).padStart(2, '0')}`
+    const booking = mockBookings.find(
+      b => b.date === date && b.space === selectedSpace
+    )
+    if (!booking) return { status: 'available', times: [] }
     
-    const dayBookings = bookingsData.filter(b => b.booking_date === dateStr)
-    
-    if (dayBookings.length === 0) return { status: 'available', count: 0 }
-    
-    // 예약된 시간 슬롯 수 계산
     const totalSlots = timeSlots.length
-    const bookedSlots = dayBookings.length
+    const bookedSlots = booking.times.length
     
-    if (bookedSlots >= totalSlots) return { status: 'full', count: bookedSlots }
-    return { status: 'partial', count: bookedSlots }
+    if (bookedSlots === 0) return { status: 'available', times: [] }
+    if (bookedSlots >= totalSlots) return { status: 'full', times: booking.times }
+    return { status: 'partial', times: booking.times }
   }
 
   // ===== 날짜 클릭 핸들러 =====
@@ -198,9 +171,9 @@ export default function Home() {
     })
   }
 
-  // ===== 예약하기 (실제 DB 저장) =====
+  // ===== 예약하기 =====
   
-  const handleBookingSubmit = async () => {
+  const handleBookingSubmit = () => {
     // 검증
     if (selectedTimes.length === 0) {
       alert('시간을 선택해주세요.')
@@ -218,43 +191,16 @@ export default function Home() {
       }
     }
 
-    const year = currentMonth.getFullYear()
-    const month = currentMonth.getMonth() + 1
-    const bookingDate = `${year}-${String(month).padStart(2, '0')}-${String(selectedDate).padStart(2, '0')}`
+    // 예약 정보 출력
+    console.log('=== ✅ 예약 완료 ===')
+    console.log('날짜:', `${currentMonth.getFullYear()}년 ${currentMonth.getMonth() + 1}월 ${selectedDate}일`)
+    console.log('시간:', selectedTimes.join(', '), `(총 ${selectedTimes.length}시간)`)
+    console.log('공간:', selectedSpace === 'nolter' ? '놀터' : '방음실')
+    console.log('예약자:', userSession.isLoggedIn ? `${userSession.household}호 ${name}` : name)
+    console.log('연락처:', phone)
 
-    // 예약 데이터 생성
-    const bookingInput: CreateBookingInput = {
-      bookingDate,
-      times: selectedTimes,
-      space: selectedSpace,
-      memberType: userSession.isLoggedIn ? 'member' as const : 'non-member' as const,
-      household: userSession.isLoggedIn ? userSession.household : undefined,
-      name,
-      phone
-    }
-
-    console.log('🚀 예약 시작:', bookingInput)
-
-    // DB에 저장
-    const result = await createBooking(bookingInput)
-
-    if (result.success) {
-      console.log('=== ✅ 예약 완료 ===')
-      console.log('날짜:', bookingDate)
-      console.log('시간:', selectedTimes.join(', '), `(총 ${selectedTimes.length}시간)`)
-      console.log('공간:', selectedSpace === 'nolter' ? '놀터' : '방음실')
-      console.log('예약자:', userSession.isLoggedIn ? `${userSession.household}호 ${name}` : name)
-      console.log('연락처:', phone)
-
-      alert(`예약이 완료되었습니다!\n\n날짜: ${month}월 ${selectedDate}일\n시간: ${selectedTimes.join(', ')} (총 ${selectedTimes.length}시간)\n공간: ${selectedSpace === 'nolter' ? '놀터' : '방음실'}`)
-      setIsBookingModalOpen(false)
-      
-      // 예약 목록 새로고침
-      loadBookings()
-    } else {
-      console.error('❌ 예약 실패:', result.error)
-      alert(`예약 실패: ${result.error}`)
-    }
+    alert(`예약이 완료되었습니다!\n\n날짜: ${currentMonth.getMonth() + 1}월 ${selectedDate}일\n시간: ${selectedTimes.join(', ')} (총 ${selectedTimes.length}시간)\n공간: ${selectedSpace === 'nolter' ? '놀터' : '방음실'}`)
+    setIsBookingModalOpen(false)
   }
 
   // ===== 로그인 =====
@@ -269,7 +215,7 @@ export default function Home() {
       return
     }
 
-    // TODO: Phase 4에서 실제 인증 구현
+    // TODO: Phase 3에서 실제 인증 구현
     // 현재는 Mock으로 바로 로그인 성공
     const mockName = authHousehold === '201' ? '김온음' : `${authHousehold}호 주민`
     const mockPhone = '010-0000-0000'
@@ -310,7 +256,7 @@ export default function Home() {
       return
     }
 
-    // TODO: Phase 4에서 DB 저장 구현
+    // TODO: Phase 3에서 DB 저장 구현
     // 현재는 Mock으로 바로 가입 후 로그인
     const session: UserSession = {
       isLoggedIn: true,
@@ -468,7 +414,7 @@ export default function Home() {
                   )}
                   {bookingStatus.status === 'partial' && (
                     <div className="text-xs text-yellow-600 mt-1">
-                      {bookingStatus.count}건
+                      {bookingStatus.times.length}건
                     </div>
                   )}
                 </button>
