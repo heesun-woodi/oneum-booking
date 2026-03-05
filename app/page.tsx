@@ -204,6 +204,7 @@ export default function Home() {
     const times = getBookedTimesForDate(date)
     setBookedTimes(times)
     
+    console.log(`🔍 DEBUG: ${date}일 예약 시간:`, times)
     
     // 로그인 상태면 사용자 정보 자동 입력
     if (userSession.isLoggedIn) {
@@ -419,9 +420,9 @@ export default function Home() {
                 세대 전용
               </button>
             )}
-            <button 
+            <button type="button" 
               disabled={true}
-              className="px-4 py-2 bg-gray-300 text-gray-500 rounded-lg cursor-not-allowed"
+              className="px-4 py-2 bg-gray-300 text-gray-500 rounded-lg cursor-not-allowed opacity-60"
             >
               예약 변경/취소 (준비 중)
             </button>
@@ -568,6 +569,9 @@ export default function Home() {
                 <div className="grid grid-cols-4 gap-2">
                   {timeSlots.map(time => {
                     const isBooked = bookedTimes.includes(time)
+                    const isSelected = selectedTimes.includes(time)
+                    
+                    console.log(`🔍 ${time}: isBooked=${isBooked}, isSelected=${isSelected}`)
                     
                     return (
                       <button
@@ -577,7 +581,7 @@ export default function Home() {
                         className={`py-3 px-4 rounded-lg border font-medium transition-colors ${
                           isBooked
                             ? 'bg-gray-200 text-gray-400 border-gray-300 cursor-not-allowed'
-                            : selectedTimes.includes(time)
+                            : isSelected
                             ? 'bg-blue-500 text-white border-blue-500'
                             : 'bg-white text-gray-700 border-gray-300 hover:border-blue-300 hover:bg-blue-50'
                         }`}
