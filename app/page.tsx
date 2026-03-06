@@ -162,7 +162,6 @@ export default function Home() {
     return { status: 'partial', count: bookedSlots }
   }
 
-  // ===== 날짜 클릭 핸들러 =====
   // ===== 해당 날짜에 예약된 시간대 조회 =====
   
   const getBookedTimesForDate = (date: number): string[] => {
@@ -179,7 +178,13 @@ export default function Home() {
       const end = booking.end_time.substring(0, 5)
       
       const startHour = parseInt(start.split(':')[0])
-      const endHour = parseInt(end.split(':')[0])
+      let endHour = parseInt(end.split(':')[0])
+      
+      // ⭐ FIX: start_time == end_time일 때 1시간으로 처리
+      if (endHour === startHour) {
+        endHour = startHour + 1
+        console.log(`🔧 ${dateStr} ${start}~${end} → 1시간으로 처리 (${start}~${endHour}:00)`)
+      }
       
       // start_time부터 end_time까지 모든 시간 추가 (end 포함 안 함)
       // 예: 14:00-16:00 → ['14:00', '15:00']
@@ -195,6 +200,7 @@ export default function Home() {
     return bookedTimes
   }
 
+  // ===== 날짜 클릭 핸들러 =====
   
   const handleDateClick = (date: number) => {
     setSelectedDate(date)
@@ -456,24 +462,22 @@ export default function Home() {
           </div>
 
           {/* 월 네비게이션 */}
-          <div className="mb-4">
-            <div className="flex items-center justify-between mb-4">
-              <button
-                onClick={goToPrevMonth}
-                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded transition-colors"
-              >
-                ← 이전
-              </button>
-              <h2 className="text-xl font-semibold">
-                {year}년 {month + 1}월
-              </h2>
-              <button
-                onClick={goToNextMonth}
-                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded transition-colors"
-              >
-                다음 →
-              </button>
-            </div>
+          <div className="flex items-center justify-between mb-4">
+            <button
+              onClick={goToPrevMonth}
+              className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded transition-colors"
+            >
+              ← 이전
+            </button>
+            <h2 className="text-lg sm:text-xl font-bold text-gray-900">
+              {year}년 {month + 1}월
+            </h2>
+            <button
+              onClick={goToNextMonth}
+              className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded transition-colors"
+            >
+              다음 →
+            </button>
           </div>
 
           {/* 요일 */}
@@ -486,7 +490,7 @@ export default function Home() {
           </div>
 
           {/* 날짜 */}
-          <div className="grid grid-cols-7 gap-1 sm:gap-2">
+          <div className="grid grid-cols-7 gap-2">
             {Array.from({ length: daysInMonth }, (_, i) => {
               const date = i + 1
               const bookingStatus = getBookingStatus(date)
@@ -495,21 +499,21 @@ export default function Home() {
                 <button
                   key={date}
                   onClick={() => handleDateClick(date)}
-                  className={`aspect-square rounded-lg p-1 sm:p-2 min-h-[60px] sm:min-h-[80px] transition-colors ${
+                  className={`aspect-square rounded-lg p-2 min-h-[70px] sm:min-h-[80px] flex flex-col items-center justify-center transition-all ${
                     bookingStatus.status === 'full'
                       ? 'border-2 border-gray-400 bg-gray-100 cursor-not-allowed'
                       : bookingStatus.status === 'partial'
-                      ? 'border-2 border-yellow-400 hover:bg-yellow-50'
-                      : 'border border-gray-200 hover:bg-blue-50 hover:border-blue-300'
+                      ? 'border-2 border-yellow-400 bg-yellow-50 hover:bg-yellow-100'
+                      : 'border-2 border-gray-200 hover:bg-blue-50 hover:border-blue-400'
                   }`}
                   disabled={bookingStatus.status === 'full'}
                 >
-                  <div className="text-xs sm:text-sm font-bold text-black">{date}</div>
+                  <div className="text-sm sm:text-base font-bold text-gray-900 mb-1">{date}</div>
                   {bookingStatus.status === 'full' && (
-                    <div className="text-xs text-gray-500 mt-1">마감</div>
+                    <div className="text-xs text-gray-500">마감</div>
                   )}
                   {bookingStatus.status === 'partial' && (
-                    <div className="text-xs text-yellow-600 mt-1">
+                    <div className="text-xs font-semibold text-yellow-700">
                       {bookingStatus.count}건
                     </div>
                   )}
