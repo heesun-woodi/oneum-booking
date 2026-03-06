@@ -150,7 +150,7 @@ export default function Home() {
     const month = currentMonth.getMonth() + 1
     const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(date).padStart(2, '0')}`
     
-    const dayBookings = bookingsData.filter(b => b.booking_date === dateStr)
+    const dayBookings = bookingsData.filter(b => b.booking_date === dateStr && b.space === selectedSpace)
     
     if (dayBookings.length === 0) return { status: 'available', count: 0 }
     
@@ -169,17 +169,22 @@ export default function Home() {
     const month = currentMonth.getMonth() + 1
     const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(date).padStart(2, '0')}`
     
-    const dayBookings = bookingsData.filter(b => b.booking_date === dateStr)
+    console.log(`🔍 DEBUG getBookedTimesForDate: targetDate = ${dateStr}, selectedSpace = ${selectedSpace}`)
+    console.log(`🔍 DEBUG: bookingsData 전체 = ${bookingsData.length}건`, bookingsData)
+    const dayBookings = bookingsData.filter(b => b.booking_date === dateStr && b.space === selectedSpace)
     
+    console.log(`🔍 DEBUG: ${dateStr} ${selectedSpace} 예약 = ${dayBookings.length}건`, dayBookings)
     // 각 예약의 start_time부터 end_time까지 모든 시간 슬롯 추출
     const bookedTimes: string[] = []
     dayBookings.forEach(booking => {
       const start = booking.start_time.substring(0, 5) // "14:00:00" → "14:00"
       const end = booking.end_time.substring(0, 5)
       
+      console.log(`🔍 DEBUG: 예약 ${booking.id}: start=${start}, end=${end}`)
       const startHour = parseInt(start.split(':')[0])
       let endHour = parseInt(end.split(':')[0])
       
+      console.log(`🔍 DEBUG: startHour=${startHour}, endHour=${endHour}`)
       // ⭐ FIX: start_time == end_time일 때 1시간으로 처리
       if (endHour === startHour) {
         endHour = startHour + 1
@@ -192,11 +197,12 @@ export default function Home() {
         const timeSlot = `${h.toString().padStart(2, '0')}:00`
         if (!bookedTimes.includes(timeSlot)) {
           bookedTimes.push(timeSlot)
+          console.log(`➕ Added time slot: ${timeSlot}`)
         }
       }
     })
     
-    console.log(`📋 ${dateStr} 예약된 시간:`, bookedTimes)
+    console.log(`📋 ${dateStr} ${selectedSpace} 최종 예약된 시간:`, bookedTimes)
     return bookedTimes
   }
 
