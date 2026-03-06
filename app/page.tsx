@@ -486,7 +486,7 @@ export default function Home() {
           </div>
 
           {/* 날짜 */}
-          <div className="grid grid-cols-7 gap-2">
+          <div className="grid grid-cols-7 gap-1 sm:gap-2">
             {Array.from({ length: daysInMonth }, (_, i) => {
               const date = i + 1
               const bookingStatus = getBookingStatus(date)
@@ -495,7 +495,7 @@ export default function Home() {
                 <button
                   key={date}
                   onClick={() => handleDateClick(date)}
-                  className={`aspect-square rounded-lg p-2 transition-colors ${
+                  className={`aspect-square rounded-lg p-1 sm:p-2 min-h-[60px] sm:min-h-[80px] transition-colors ${
                     bookingStatus.status === 'full'
                       ? 'border-2 border-gray-400 bg-gray-100 cursor-not-allowed'
                       : bookingStatus.status === 'partial'
@@ -504,7 +504,7 @@ export default function Home() {
                   }`}
                   disabled={bookingStatus.status === 'full'}
                 >
-                  <div className="text-sm font-medium text-gray-900">{date}</div>
+                  <div className="text-xs sm:text-sm font-bold text-black">{date}</div>
                   {bookingStatus.status === 'full' && (
                     <div className="text-xs text-gray-500 mt-1">마감</div>
                   )}
