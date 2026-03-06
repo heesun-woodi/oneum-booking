@@ -624,7 +624,7 @@ export default function Home() {
                       type="text"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      className="w-full py-3 px-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full py-3 px-4 border border-gray-300 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
                   <div>
@@ -663,7 +663,7 @@ export default function Home() {
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       placeholder="이름을 입력하세요"
-                      className="w-full py-3 px-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full py-3 px-4 border border-gray-300 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
                   <div>
@@ -675,7 +675,7 @@ export default function Home() {
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
                       placeholder="010-0000-0000"
-                      className="w-full py-3 px-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full py-3 px-4 border border-gray-300 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
                 </div>
@@ -728,7 +728,7 @@ export default function Home() {
                 <select
                   value={authHousehold}
                   onChange={(e) => setAuthHousehold(e.target.value)}
-                  className="w-full py-3 px-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full py-3 px-4 border border-gray-300 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">세대를 선택하세요</option>
                   {households.map(h => (
@@ -749,7 +749,7 @@ export default function Home() {
                       value={authName}
                       onChange={(e) => setAuthName(e.target.value)}
                       placeholder="이름을 입력하세요"
-                      className="w-full py-3 px-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full py-3 px-4 border border-gray-300 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
                   <div>
@@ -761,7 +761,7 @@ export default function Home() {
                       value={authPhone}
                       onChange={(e) => setAuthPhone(e.target.value)}
                       placeholder="010-0000-0000"
-                      className="w-full py-3 px-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full py-3 px-4 border border-gray-300 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
                 </>
@@ -777,7 +777,7 @@ export default function Home() {
                   value={authPassword}
                   onChange={(e) => setAuthPassword(e.target.value)}
                   placeholder="비밀번호를 입력하세요"
-                  className="w-full py-3 px-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full py-3 px-4 border border-gray-300 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
