@@ -402,8 +402,8 @@ export default function Home() {
         {/* ===== 헤더 ===== */}
         <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">온음 공간 예약</h1>
-            <p className="text-sm sm:text-base text-gray-600">놀터 & 방음실 예약 시스템</p>
+            <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-2">온음 공간 예약</h1>
+            <p className="text-base sm:text-lg text-gray-600">놀터 & 방음실 예약 시스템</p>
           </div>
           
           {/* 우측 버튼들 */}
@@ -447,9 +447,9 @@ export default function Home() {
           <div className="flex gap-4 mb-6">
             <button
               onClick={() => handleSpaceChange('nolter')}
-              className={`px-6 py-2 rounded-lg font-medium transition-colors ${
+              className={`px-6 py-3 text-base font-semibold rounded-lg transition-all duration-200 ${
                 selectedSpace === 'nolter'
-                  ? 'bg-blue-500 text-white'
+                  ? 'bg-blue-500 text-white shadow-md'
                   : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
               }`}
             >
@@ -457,9 +457,9 @@ export default function Home() {
             </button>
             <button
               onClick={() => handleSpaceChange('soundroom')}
-              className={`px-6 py-2 rounded-lg font-medium transition-colors ${
+              className={`px-6 py-3 text-base font-semibold rounded-lg transition-all duration-200 ${
                 selectedSpace === 'soundroom'
-                  ? 'bg-blue-500 text-white'
+                  ? 'bg-blue-500 text-white shadow-md'
                   : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
               }`}
             >
@@ -487,7 +487,7 @@ export default function Home() {
           </div>
 
           {/* 요일 */}
-          <div className="grid grid-cols-7 gap-2 mb-2">
+          <div className="grid grid-cols-7 gap-2 sm:gap-3 mb-2">
             {['일', '월', '화', '수', '목', '금', '토'].map(day => (
               <div key={day} className="text-center font-semibold text-gray-700 py-2">
                 {day}
@@ -496,7 +496,7 @@ export default function Home() {
           </div>
 
           {/* 날짜 */}
-          <div className="grid grid-cols-7 gap-2">
+          <div className="grid grid-cols-7 gap-2 sm:gap-3">
             {Array.from({ length: daysInMonth }, (_, i) => {
               const date = i + 1
               const bookingStatus = getBookingStatus(date)
@@ -505,21 +505,21 @@ export default function Home() {
                 <button
                   key={date}
                   onClick={() => handleDateClick(date)}
-                  className={`aspect-square rounded-lg p-2 min-h-[70px] sm:min-h-[80px] flex flex-col items-center justify-center transition-all ${
+                  className={`aspect-square rounded-xl p-2 flex flex-col items-center justify-center transition-all ${
                     bookingStatus.status === 'full'
                       ? 'border-2 border-gray-400 bg-gray-100 cursor-not-allowed'
                       : bookingStatus.status === 'partial'
-                      ? 'border-2 border-yellow-400 bg-yellow-50 hover:bg-yellow-100'
+                      ? 'border-2 border-blue-300 bg-blue-50 hover:border-blue-400'
                       : 'border-2 border-gray-200 hover:bg-blue-50 hover:border-blue-400'
                   }`}
                   disabled={bookingStatus.status === 'full'}
                 >
-                  <div className="text-sm sm:text-base font-bold text-gray-900 mb-1">{date}</div>
+                  <div className="text-lg font-bold text-gray-900">{date}</div>
                   {bookingStatus.status === 'full' && (
                     <div className="text-xs text-gray-500">마감</div>
                   )}
-                  {bookingStatus.status === 'partial' && (
-                    <div className="text-xs font-semibold text-yellow-700">
+                  {bookingStatus.count > 0 && (
+                    <div className="mt-1 px-2 py-0.5 bg-blue-500 text-white text-xs font-semibold rounded-full">
                       {bookingStatus.count}건
                     </div>
                   )}
