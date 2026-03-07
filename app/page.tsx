@@ -505,7 +505,7 @@ export default function Home() {
                 <button
                   key={date}
                   onClick={() => handleDateClick(date)}
-                  className={`aspect-square rounded-xl p-2 flex flex-col items-center justify-center transition-all ${
+                  className={`aspect-square relative rounded-xl p-2 flex items-center justify-center transition-all ${
                     bookingStatus.status === 'full'
                       ? 'border-2 border-gray-400 bg-gray-100 cursor-not-allowed'
                       : bookingStatus.status === 'partial'
@@ -514,18 +514,26 @@ export default function Home() {
                   }`}
                   disabled={bookingStatus.status === 'full'}
                 >
+                  {/* 날짜 숫자 */}
                   <div className="text-lg font-bold text-gray-900">{date}</div>
-                  {bookingStatus.status === 'full' && (
-                    <div className="text-xs text-gray-500">마감</div>
-                  )}
-                  {bookingStatus.count > 0 && (
-                    <div className="mt-1 px-2 py-0.5 bg-blue-500 text-white text-xs font-semibold rounded-full">
+                  
+                  {/* 예약 건수 뱃지 - 절대 위치! */}
+                  {bookingStatus.count > 0 && bookingStatus.status !== 'full' && (
+                    <div className="absolute bottom-1 left-1/2 -translate-x-1/2 px-1.5 py-0.5 bg-blue-500 text-white text-xs font-semibold rounded-full whitespace-nowrap">
                       {bookingStatus.count}건
+                    </div>
+                  )}
+                  
+                  {/* 마감 표시 - 절대 위치! */}
+                  {bookingStatus.status === 'full' && (
+                    <div className="absolute bottom-1 left-1/2 -translate-x-1/2 text-xs text-red-500 font-semibold">
+                      마감
                     </div>
                   )}
                 </button>
               )
             })}
+
           </div>
         </div>
 
