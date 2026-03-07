@@ -500,12 +500,13 @@ export default function Home() {
             {Array.from({ length: daysInMonth }, (_, i) => {
               const date = i + 1
               const bookingStatus = getBookingStatus(date)
+              const isToday = new Date().getDate() === date && new Date().getMonth() === month && new Date().getFullYear() === year
               
               return (
                 <button
                   key={date}
                   onClick={() => handleDateClick(date)}
-                  className={`aspect-square relative rounded-xl p-2 flex items-center justify-center transition-all ${
+                  className={`aspect-square rounded-xl p-2 transition-all ${
                     bookingStatus.status === 'full'
                       ? 'border-2 border-gray-400 bg-gray-100 cursor-not-allowed'
                       : bookingStatus.status === 'partial'
@@ -514,22 +515,31 @@ export default function Home() {
                   }`}
                   disabled={bookingStatus.status === 'full'}
                 >
-                  {/* 날짜 숫자 */}
-                  <div className="text-lg font-bold text-gray-900">{date}</div>
-                  
-                  {/* 예약 건수 뱃지 - 절대 위치! */}
-                  {bookingStatus.count > 0 && bookingStatus.status !== 'full' && (
-                    <div className="absolute bottom-1 left-1/2 -translate-x-1/2 px-1.5 py-0.5 bg-blue-500 text-white text-xs font-semibold rounded-full whitespace-nowrap">
-                      {bookingStatus.count}건
+                  {/* Flex 레이아웃으로 상하 배치 */}
+                  <div className="w-full h-full flex flex-col items-center justify-between">
+                    {/* 날짜 숫자 - 상단 중앙 */}
+                    <div className="flex-1 flex items-center justify-center">
+                      <div className={`text-lg font-bold ${
+                        isToday ? 'text-blue-600' : 'text-gray-900'
+                      }`}>
+                        {date}
+                      </div>
                     </div>
-                  )}
-                  
-                  {/* 마감 표시 - 절대 위치! */}
-                  {bookingStatus.status === 'full' && (
-                    <div className="absolute bottom-1 left-1/2 -translate-x-1/2 text-xs text-red-500 font-semibold">
-                      마감
-                    </div>
-                  )}
+                    
+                    {/* 뱃지 - 하단 중앙 */}
+                    {bookingStatus.count > 0 && bookingStatus.status !== 'full' && (
+                      <div className="px-1.5 py-0.5 bg-blue-500 text-white text-xs font-semibold rounded-full whitespace-nowrap">
+                        {bookingStatus.count}건
+                      </div>
+                    )}
+                    
+                    {/* 마감 표시 - 하단 중앙 */}
+                    {bookingStatus.status === 'full' && (
+                      <div className="text-xs text-red-500 font-semibold">
+                        마감
+                      </div>
+                    )}
+                  </div>
                 </button>
               )
             })}
