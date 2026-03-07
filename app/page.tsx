@@ -397,26 +397,26 @@ export default function Home() {
   const daysInMonth = new Date(year, month + 1, 0).getDate()
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
+    <div className="min-h-screen bg-gray-50 p-4 sm:p-8">
       <div className="max-w-4xl mx-auto">
         {/* ===== 헤더 ===== */}
-        <div className="mb-8 flex items-center justify-between">
+        <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">온음 공간 예약</h1>
-            <p className="text-gray-600">놀터 & 방음실 예약 시스템</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">온음 공간 예약</h1>
+            <p className="text-sm sm:text-base text-gray-600">놀터 & 방음실 예약 시스템</p>
           </div>
           
           {/* 우측 버튼들 */}
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto">
             {userSession.isLoggedIn ? (
               <>
-                <div className="text-right mr-3">
-                  <p className="text-sm font-semibold text-gray-900">{userSession.household}호</p>
+                <div className="text-left sm:text-right mr-0 sm:mr-3">
+                  <p className="text-xs sm:text-sm font-semibold text-gray-900">{userSession.household}호</p>
                   <p className="text-xs text-gray-600">{userSession.name}</p>
                 </div>
                 <button
                   onClick={handleLogout}
-                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300"
+                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 whitespace-nowrap"
                 >
                   로그아웃
                 </button>
@@ -427,14 +427,14 @@ export default function Home() {
                   setAuthMode('login')
                   setIsAuthModalOpen(true)
                 }}
-                className="px-4 py-2 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600"
+                className="px-4 py-2 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 whitespace-nowrap"
               >
                 세대 전용
               </button>
             )}
             <button type="button" 
               disabled={true}
-              className="px-4 py-2 bg-gray-300 text-gray-500 rounded-lg cursor-not-allowed opacity-60"
+              className="px-4 py-2 bg-gray-300 text-gray-500 rounded-lg cursor-not-allowed opacity-60 whitespace-nowrap"
             >
               예약 변경/취소 (준비 중)
             </button>
