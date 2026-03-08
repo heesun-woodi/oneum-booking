@@ -547,9 +547,9 @@ export default function Home() {
                   disabled={bookingStatus.status === 'full'}
                 >
                   {/* 날짜 + 시간 레이아웃 (우디 제안) */}
-                  <div className="flex flex-col items-center justify-between h-full p-2">
+                  <div className="flex flex-col items-center justify-between p-1.5 h-full">
                     {/* 날짜 - 상단, 축소 */}
-                    <div className={`text-sm font-semibold ${
+                    <div className={`text-sm font-semibold mt-1 ${
                       isToday ? 'text-blue-600' : 'text-gray-700'
                     }`}>
                       {date}
@@ -557,8 +557,8 @@ export default function Home() {
                     
                     {/* 중앙: 예약 시간 합계 */}
                     {totalHours > 0 && bookingStatus.status !== 'full' && (
-                      <div className="flex-1 flex items-center justify-center">
-                        <div className="text-base font-bold text-blue-600 whitespace-nowrap">
+                      <div className="flex-1 flex items-center">
+                        <div className="text-base font-bold text-blue-600">
                           {totalHours}시간
                         </div>
                       </div>
@@ -566,8 +566,8 @@ export default function Home() {
                     
                     {/* 마감 표시 - 중앙 */}
                     {bookingStatus.status === 'full' && (
-                      <div className="flex-1 flex items-center justify-center">
-                        <div className="text-sm text-red-500 font-semibold whitespace-nowrap">
+                      <div className="flex-1 flex items-center">
+                        <div className="text-sm text-red-500 font-semibold">
                           마감
                         </div>
                       </div>
