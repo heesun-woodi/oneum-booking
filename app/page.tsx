@@ -558,8 +558,8 @@ export default function Home() {
                     {/* 중앙: 예약 시간 합계 */}
                     {totalHours > 0 && bookingStatus.status !== 'full' && (
                       <div className="flex-1 flex items-center justify-center">
-                        <div className="text-base font-bold text-blue-600 whitespace-nowrap">
-                          {totalHours}시간
+                        <div className="text-sm sm:text-base font-bold text-blue-600 whitespace-nowrap">
+                          {totalHours}<span className="hidden sm:inline">시간</span>
                         </div>
                       </div>
                     )}
