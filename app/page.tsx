@@ -506,7 +506,7 @@ export default function Home() {
                 <button
                   key={date}
                   onClick={() => handleDateClick(date)}
-                  className={`aspect-square rounded-xl p-2 transition-all ${
+                  className={`aspect-square rounded-xl transition-all ${
                     bookingStatus.status === 'full'
                       ? 'border-2 border-gray-400 bg-gray-100 cursor-not-allowed'
                       : bookingStatus.status === 'partial'
@@ -515,27 +515,25 @@ export default function Home() {
                   }`}
                   disabled={bookingStatus.status === 'full'}
                 >
-                  {/* Flex 레이아웃으로 상하 배치 */}
-                  <div className="w-full h-full flex flex-col items-center justify-between">
-                    {/* 날짜 숫자 - 상단 중앙 */}
-                    <div className="flex-1 flex items-center justify-center">
-                      <div className={`text-lg font-bold ${
-                        isToday ? 'text-blue-600' : 'text-gray-900'
-                      }`}>
-                        {date}
-                      </div>
+                  {/* 날짜 + 뱃지 레이아웃 */}
+                  <div className="flex flex-col items-center p-1.5 h-full">
+                    {/* 날짜 - 상단 고정 */}
+                    <div className={`text-lg font-bold mt-0.5 ${
+                      isToday ? 'text-blue-600' : 'text-gray-900'
+                    }`}>
+                      {date}
                     </div>
                     
-                    {/* 뱃지 - 하단 중앙 */}
+                    {/* 뱃지 - 하단, 잘리지 않게 */}
                     {bookingStatus.count > 0 && bookingStatus.status !== 'full' && (
-                      <div className="px-1.5 py-0.5 bg-blue-500 text-white text-xs font-semibold rounded-full whitespace-nowrap">
+                      <div className="mt-auto mb-0.5 bg-blue-500 text-white text-[10px] rounded-full px-1.5 py-0.5 font-semibold whitespace-nowrap">
                         {bookingStatus.count}건
                       </div>
                     )}
                     
-                    {/* 마감 표시 - 하단 중앙 */}
+                    {/* 마감 표시 - 하단 */}
                     {bookingStatus.status === 'full' && (
-                      <div className="text-xs text-red-500 font-semibold">
+                      <div className="mt-auto mb-0.5 text-[10px] text-red-500 font-semibold">
                         마감
                       </div>
                     )}
