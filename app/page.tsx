@@ -206,6 +206,36 @@ export default function Home() {
     return bookedTimes
   }
 
+
+  // ===== 해당 날짜의 총 예약 시간 계산 =====
+  
+  const getTotalHoursForDate = (date: number): number => {
+    const year = currentMonth.getFullYear()
+    const month = currentMonth.getMonth() + 1
+    const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(date).padStart(2, '0')}`
+    
+    const dayBookings = bookingsData.filter(b => b.booking_date === dateStr && b.space === selectedSpace)
+    
+    // 각 예약의 시간 합계
+    const totalHours = dayBookings.reduce((sum, booking) => {
+      const start = booking.start_time.substring(0, 5) // "14:00:00" → "14:00"
+      const end = booking.end_time.substring(0, 5)
+      
+      const startHour = parseInt(start.split(':')[0])
+      let endHour = parseInt(end.split(':')[0])
+      
+      // start_time == end_time일 때 1시간으로 처리
+      if (endHour === startHour) {
+        endHour = startHour + 1
+      }
+      
+      const hours = endHour - startHour
+      return sum + hours
+    }, 0)
+    
+    return totalHours
+  }
+
   // ===== 날짜 클릭 핸들러 =====
   
   const handleDateClick = (date: number) => {
@@ -500,6 +530,7 @@ export default function Home() {
             {Array.from({ length: daysInMonth }, (_, i) => {
               const date = i + 1
               const bookingStatus = getBookingStatus(date)
+              const totalHours = getTotalHoursForDate(date)
               const isToday = new Date().getDate() === date && new Date().getMonth() === month && new Date().getFullYear() === year
               
               return (
@@ -509,32 +540,36 @@ export default function Home() {
                   className={`aspect-square rounded-xl transition-all ${
                     bookingStatus.status === 'full'
                       ? 'border-2 border-gray-400 bg-gray-100 cursor-not-allowed'
-                      : bookingStatus.status === 'partial'
+                      : totalHours > 0
                       ? 'border-2 border-blue-300 bg-blue-50 hover:border-blue-400'
                       : 'border-2 border-gray-200 hover:bg-blue-50 hover:border-blue-400'
                   }`}
                   disabled={bookingStatus.status === 'full'}
                 >
-                  {/* 날짜 + 뱃지 레이아웃 */}
-                  <div className="flex flex-col items-center p-1.5 h-full">
-                    {/* 날짜 - 상단 고정 */}
-                    <div className={`text-lg font-bold mt-0.5 ${
-                      isToday ? 'text-blue-600' : 'text-gray-900'
+                  {/* 날짜 + 시간 레이아웃 (우디 제안) */}
+                  <div className="flex flex-col items-center justify-between p-1.5 h-full">
+                    {/* 날짜 - 상단, 축소 */}
+                    <div className={`text-sm font-semibold mt-1 ${
+                      isToday ? 'text-blue-600' : 'text-gray-700'
                     }`}>
                       {date}
                     </div>
                     
-                    {/* 뱃지 - 하단, 잘리지 않게 */}
-                    {bookingStatus.count > 0 && bookingStatus.status !== 'full' && (
-                      <div className="mt-auto mb-0.5 bg-blue-500 text-white text-[10px] rounded-full px-1.5 py-0.5 font-semibold whitespace-nowrap">
-                        {bookingStatus.count}건
+                    {/* 중앙: 예약 시간 합계 */}
+                    {totalHours > 0 && bookingStatus.status !== 'full' && (
+                      <div className="flex-1 flex items-center">
+                        <div className="text-base font-bold text-blue-600">
+                          {totalHours}시간
+                        </div>
                       </div>
                     )}
                     
-                    {/* 마감 표시 - 하단 */}
+                    {/* 마감 표시 - 중앙 */}
                     {bookingStatus.status === 'full' && (
-                      <div className="mt-auto mb-0.5 text-[10px] text-red-500 font-semibold">
-                        마감
+                      <div className="flex-1 flex items-center">
+                        <div className="text-sm text-red-500 font-semibold">
+                          마감
+                        </div>
                       </div>
                     )}
                   </div>
