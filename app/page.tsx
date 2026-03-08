@@ -537,29 +537,29 @@ export default function Home() {
                 <button
                   key={date}
                   onClick={() => handleDateClick(date)}
-                  className={`aspect-square rounded-xl transition-all ${
+                  className={`aspect-square rounded-xl p-2 transition-all ${
                     bookingStatus.status === 'full'
-                      ? 'border-2 border-gray-400 bg-gray-100 cursor-not-allowed'
+                      ? 'bg-gray-100 border-2 border-gray-400 cursor-not-allowed'
                       : totalHours > 0
-                      ? 'border-2 border-blue-300 bg-blue-50 hover:border-blue-400'
-                      : 'border-2 border-gray-200 hover:bg-blue-50 hover:border-blue-400'
+                      ? 'bg-blue-100 border-2 border-blue-400 hover:bg-blue-200'
+                      : 'bg-white border-2 border-gray-200 hover:bg-blue-50 hover:border-blue-400'
                   }`}
                   disabled={bookingStatus.status === 'full'}
                 >
-                  {/* 날짜 + 시간 레이아웃 (우디 제안) */}
-                  <div className="flex flex-col items-center justify-between h-full p-2">
-                    {/* 날짜 - 상단, 축소 */}
+                  {/* 날짜 + 시간 레이아웃 */}
+                  <div className="flex flex-col items-center justify-between h-full">
+                    {/* 날짜 - PC/모바일 모두 표시 */}
                     <div className={`text-sm font-semibold ${
                       isToday ? 'text-blue-600' : 'text-gray-700'
                     }`}>
                       {date}
                     </div>
                     
-                    {/* 중앙: 예약 시간 합계 */}
+                    {/* 중앙: 예약 시간 합계 - PC만 표시 */}
                     {totalHours > 0 && bookingStatus.status !== 'full' && (
-                      <div className="flex-1 flex items-center justify-center">
-                        <div className="text-sm sm:text-base font-bold text-blue-600 whitespace-nowrap">
-                          {totalHours}<span className="hidden sm:inline">시간</span>
+                      <div className="hidden sm:flex flex-1 items-center justify-center">
+                        <div className="text-base font-bold text-blue-600 whitespace-nowrap">
+                          {totalHours}시간
                         </div>
                       </div>
                     )}
