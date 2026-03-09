@@ -254,6 +254,19 @@ export default function Home() {
   // ===== 날짜 클릭 핸들러 =====
   
   const handleDateClick = (date: number) => {
+    // ⭐ FIX 1: 과거 날짜 차단
+    if (isPastDate(date)) {
+      console.log(`⛔ 과거 날짜 클릭 차단: ${date}일`)
+      return
+    }
+    
+    // 마감된 날짜 차단
+    const bookingStatus = getBookingStatus(date)
+    if (bookingStatus.status === 'full') {
+      console.log(`⛔ 마감된 날짜 클릭 차단: ${date}일`)
+      return
+    }
+    
     setSelectedDate(date)
     setSelectedTimes([])
     
@@ -577,7 +590,7 @@ export default function Home() {
                     {/* 중앙: 예약 시간 합계 - PC만 표시 */}
                     {totalHours > 0 && bookingStatus.status !== 'full' && (
                       <div className="flex flex-1 items-center justify-center">
-                        <div className="text-xs sm:text-base font-bold text-blue-600 whitespace-nowrap">
+                        <div className="text-sm sm:text-base font-bold text-blue-600 whitespace-nowrap">
                           {totalHours}시간
                         </div>
                       </div>
