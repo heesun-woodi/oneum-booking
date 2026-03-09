@@ -524,7 +524,8 @@ export default function Home() {
   const handleCancelBooking = async (bookingId: string, bookingInfo: string) => {
     console.log('🔴 handleCancelBooking 호출됨:', { bookingId, bookingInfo })
     console.log('🔴 confirm 호출 전')
-    if (!confirm(`정말 취소하시겠습니까?\n\n${bookingInfo}`)) {
+    // TEMP: confirm 비활성화
+    if (false && !confirm(`정말 취소하시겠습니까?\n\n${bookingInfo}`)) {
       return
     }
     
