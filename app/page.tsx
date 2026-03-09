@@ -207,6 +207,21 @@ export default function Home() {
   }
 
 
+  // ===== 과거 날짜 확인 =====
+  
+  const isPastDate = (date: number): boolean => {
+    const year = currentMonth.getFullYear()
+    const month = currentMonth.getMonth()
+    
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    
+    const compareDate = new Date(year, month, date)
+    compareDate.setHours(0, 0, 0, 0)
+    
+    return compareDate < today
+  }
+
   // ===== 해당 날짜의 총 예약 시간 계산 =====
   
   const getTotalHoursForDate = (date: number): number => {
@@ -529,6 +544,7 @@ export default function Home() {
           <div className="grid grid-cols-7 gap-2 sm:gap-3">
             {Array.from({ length: daysInMonth }, (_, i) => {
               const date = i + 1
+              const isPast = isPastDate(date)
               const bookingStatus = getBookingStatus(date)
               const totalHours = getTotalHoursForDate(date)
               const isToday = new Date().getDate() === date && new Date().getMonth() === month && new Date().getFullYear() === year
@@ -538,13 +554,16 @@ export default function Home() {
                   key={date}
                   onClick={() => handleDateClick(date)}
                   className={`aspect-square rounded-xl p-2 transition-all ${
+                    isPast
+                      ? 'opacity-50 cursor-not-allowed bg-gray-100 border-2 border-gray-300'
+                      : 
                     bookingStatus.status === 'full'
                       ? 'bg-gray-100 border-2 border-gray-400 cursor-not-allowed'
                       : totalHours > 0
                       ? 'bg-blue-100 border-2 border-blue-400 hover:bg-blue-200'
                       : 'bg-white border-2 border-gray-200 hover:bg-blue-50 hover:border-blue-400'
                   }`}
-                  disabled={bookingStatus.status === 'full'}
+                  disabled={isPast || bookingStatus.status === 'full'}
                 >
                   {/* 날짜 + 시간 레이아웃 */}
                   <div className="flex flex-col items-center justify-between h-full">
@@ -557,8 +576,8 @@ export default function Home() {
                     
                     {/* 중앙: 예약 시간 합계 - PC만 표시 */}
                     {totalHours > 0 && bookingStatus.status !== 'full' && (
-                      <div className="hidden sm:flex flex-1 items-center justify-center">
-                        <div className="text-base font-bold text-blue-600 whitespace-nowrap">
+                      <div className="flex flex-1 items-center justify-center">
+                        <div className="text-xs sm:text-base font-bold text-blue-600 whitespace-nowrap">
                           {totalHours}시간
                         </div>
                       </div>
@@ -610,7 +629,7 @@ export default function Home() {
             {/* 모달 헤더 */}
             <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex items-center justify-between">
               <h2 className="text-2xl font-bold text-gray-900">
-                예약하기 - {month + 1}월 {selectedDate}일
+                {selectedSpace === 'nolter' ? '🏠 놀터' : '🎵 방음실'} 예약하기 - {month + 1}월 {selectedDate}일
               </h2>
               <button 
                 onClick={() => setIsBookingModalOpen(false)}
