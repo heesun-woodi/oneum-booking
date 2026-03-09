@@ -24,6 +24,9 @@ export async function createBooking(input: CreateBookingInput) {
     // 금액 계산 (비회원: 14,000원/시간)
     const amount = input.memberType === 'member' ? 0 : input.times.length * 14000
     
+    // 전화번호 정규화 (숫자만 저장)
+    const normalizedPhone = input.phone.replace(/[^0-9]/g, '')
+    
     // 예약 생성
     const { data, error } = await supabase
       .from('bookings')
@@ -35,7 +38,7 @@ export async function createBooking(input: CreateBookingInput) {
         member_type: input.memberType,
         household: input.household,
         name: input.name,
-        phone: input.phone,
+        phone: normalizedPhone,
         amount,
         status: 'confirmed'  // 일단 바로 confirmed로 저장
       })
