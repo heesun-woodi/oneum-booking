@@ -19,7 +19,10 @@ export async function createBooking(input: CreateBookingInput) {
     
     // 시간대 파싱
     const startTime = input.times[0]
-    const endTime = input.times[input.times.length - 1]
+    // endTime = 마지막 슬롯의 종료 시간 (마지막 시간 + 1시간)
+    const lastTime = input.times[input.times.length - 1]
+    const lastHour = parseInt(lastTime.split(':')[0])
+    const endTime = `${String(lastHour + 1).padStart(2, '0')}:00`
     
     // 금액 계산 (비회원: 14,000원/시간)
     const amount = input.memberType === 'member' ? 0 : input.times.length * 14000
