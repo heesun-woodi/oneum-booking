@@ -522,12 +522,16 @@ export default function Home() {
 
   // ===== 예약 취소 =====
   const handleCancelBooking = async (bookingId: string, bookingInfo: string) => {
+    console.log('🔴 handleCancelBooking 호출됨:', { bookingId, bookingInfo })
+    console.log('🔴 confirm 호출 전')
     if (!confirm(`정말 취소하시겠습니까?\n\n${bookingInfo}`)) {
       return
     }
     
     try {
+      console.log('🔴 API 호출 시작')
       const result = await cancelBooking(bookingId)
+      console.log('🔴 API 결과:', result)
       
       if (result.success) {
         alert('예약이 취소되었습니다.')
