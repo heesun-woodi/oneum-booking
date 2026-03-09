@@ -2,7 +2,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createBooking, getBookings, CreateBookingInput } from './actions/bookings'
+import { createBooking, getBookings, getBookingsByPhone, cancelBooking, CreateBookingInput } from './actions/bookings'
 
 // ===== 타입 정의 =====
 interface UserSession {
@@ -46,6 +46,11 @@ export default function Home() {
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false)
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
   const [authMode, setAuthMode] = useState<'login' | 'signup' | 'forgot'>('login')
+  // 예약 관리 모달 상태
+  const [isManageModalOpen, setIsManageModalOpen] = useState(false)
+  const [managePhone, setManagePhone] = useState('')
+  const [myBookings, setMyBookings] = useState<Booking[]>([])
+  const [isLoadingBookings, setIsLoadingBookings] = useState(false)
   
   // 달력 & 예약
   const [currentMonth, setCurrentMonth] = useState(new Date())
@@ -484,6 +489,62 @@ export default function Home() {
     setAuthMode('login')
   }
 
+
+  // ===== 내 예약 조회 =====
+  const handleFetchMyBookings = async () => {
+    const phoneToSearch = userSession.isLoggedIn ? userSession.phone : managePhone.trim()
+    
+    if (!phoneToSearch) {
+      alert('전화번호를 입력해주세요.')
+      return
+    }
+
+    setIsLoadingBookings(true)
+    
+    try {
+      const result = await getBookingsByPhone(phoneToSearch)
+      
+      if (result.success) {
+        setMyBookings(result.data)
+        if (result.data.length === 0) {
+          alert('예약 내역이 없습니다.')
+        }
+      } else {
+        alert(`조회 실패: ${result.error}`)
+      }
+    } catch (error) {
+      console.error('예약 조회 오류:', error)
+      alert('예약 조회 중 오류가 발생했습니다.')
+    } finally {
+      setIsLoadingBookings(false)
+    }
+  }
+
+  // ===== 예약 취소 =====
+  const handleCancelBooking = async (bookingId: string, bookingInfo: string) => {
+    if (!confirm(`정말 취소하시겠습니까?\n\n${bookingInfo}`)) {
+      return
+    }
+    
+    try {
+      const result = await cancelBooking(bookingId)
+      
+      if (result.success) {
+        alert('예약이 취소되었습니다.')
+        
+        // 예약 목록 새로고침
+        handleFetchMyBookings()
+        
+        // 달력 데이터도 새로고침
+        loadBookings()
+      } else {
+        alert(`취소 실패: ${result.error}`)
+      }
+    } catch (error) {
+      console.error('예약 취소 오류:', error)
+      alert('예약 취소 중 오류가 발생했습니다.')
+    }
+  }
   // ===== 달력 렌더링 =====
   
   const year = currentMonth.getFullYear()
@@ -526,11 +587,15 @@ export default function Home() {
                 회원 로그인
               </button>
             )}
-            <button type="button" 
-              disabled={true}
-              className="px-4 py-2 bg-gray-300 text-gray-500 rounded-lg cursor-not-allowed opacity-60 whitespace-nowrap"
+            <button type="button"
+              onClick={() => {
+                setManagePhone('')
+                setMyBookings([])
+                setIsManageModalOpen(true)
+              }}
+              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 whitespace-nowrap"
             >
-              예약 변경/취소 (준비 중)
+              예약 변경/취소
             </button>
           </div>
         </div>
@@ -1026,6 +1091,148 @@ export default function Home() {
                   </div>
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== 예약 관리 모달 ===== */}
+      {isManageModalOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+          onClick={() => setIsManageModalOpen(false)}
+        >
+          <div 
+            className="bg-white rounded-2xl shadow-xl max-w-md w-full max-h-[85vh] overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* 헤더 */}
+            <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-gray-900">예약 변경/취소</h2>
+              <button 
+                onClick={() => setIsManageModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600 text-2xl leading-none p-1"
+              >
+                ×
+              </button>
+            </div>
+
+            {/* 본문 */}
+            <div className="p-6 space-y-6 overflow-y-auto max-h-[calc(85vh-80px)]">
+              {/* 회원 로그인 상태 */}
+              {userSession.isLoggedIn ? (
+                <div className="bg-blue-50 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-lg">👤</span>
+                    <span className="font-medium text-blue-900">
+                      {userSession.household}호 {userSession.name}님
+                    </span>
+                  </div>
+                  <button
+                    onClick={handleFetchMyBookings}
+                    disabled={isLoadingBookings}
+                    className="w-full py-3 bg-blue-500 text-white font-medium rounded-xl hover:bg-blue-600 disabled:bg-gray-400 transition-colors"
+                  >
+                    {isLoadingBookings ? '조회 중...' : '내 예약 조회'}
+                  </button>
+                </div>
+              ) : (
+                /* 비회원 - 전화번호 입력 */
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-2">
+                      예약 시 사용한 전화번호 *
+                    </label>
+                    <input
+                      type="tel"
+                      value={managePhone}
+                      onChange={(e) => setManagePhone(e.target.value)}
+                      placeholder="010-0000-0000"
+                      className="w-full py-3 px-4 border border-gray-300 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <button
+                    onClick={handleFetchMyBookings}
+                    disabled={isLoadingBookings || !managePhone.trim()}
+                    className="w-full py-3 bg-blue-500 text-white font-medium rounded-xl hover:bg-blue-600 disabled:bg-gray-400 transition-colors"
+                  >
+                    {isLoadingBookings ? '조회 중...' : '예약 조회'}
+                  </button>
+                  
+                  <div className="text-center">
+                    <button
+                      onClick={() => {
+                        setIsManageModalOpen(false)
+                        setAuthMode('login')
+                        setIsAuthModalOpen(true)
+                      }}
+                      className="text-sm text-blue-600 hover:underline"
+                    >
+                      회원 로그인하기
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* 예약 목록 */}
+              {myBookings.length > 0 && (
+                <div className="space-y-4">
+                  <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                    <span>📋</span>
+                    <span>예약 내역 ({myBookings.length}건)</span>
+                  </h3>
+                  
+                  <div className="space-y-3">
+                    {myBookings.map(booking => {
+                      const spaceLabel = booking.space === 'nolter' ? '🏠 놀터' : '🎵 방음실'
+                      const dateObj = new Date(booking.booking_date)
+                      const dateLabel = `${dateObj.getMonth() + 1}월 ${dateObj.getDate()}일`
+                      const timeLabel = `${booking.start_time.substring(0, 5)} ~ ${booking.end_time.substring(0, 5)}`
+                      const bookingInfo = `${dateLabel} ${timeLabel}\n${spaceLabel}`
+                      
+                      return (
+                        <div 
+                          key={booking.id} 
+                          className="border border-gray-200 rounded-xl p-4 bg-gray-50"
+                        >
+                          <div className="flex justify-between items-start gap-3">
+                            <div className="flex-1">
+                              <p className="font-medium text-gray-900">
+                                {spaceLabel}
+                              </p>
+                              <p className="text-sm text-gray-600 mt-1">
+                                📅 {dateLabel}
+                              </p>
+                              <p className="text-sm text-gray-600">
+                                ⏰ {timeLabel}
+                              </p>
+                              <p className="text-xs text-gray-400 mt-2">
+                                예약자: {booking.name}
+                              </p>
+                            </div>
+                            <button
+                              onClick={() => handleCancelBooking(booking.id, bookingInfo)}
+                              className="px-4 py-2 text-sm text-red-600 border border-red-300 rounded-lg hover:bg-red-50 transition-colors whitespace-nowrap"
+                            >
+                              취소
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+              
+              {/* 안내 메시지 */}
+              <div className="bg-gray-100 rounded-xl p-4 text-sm text-gray-600">
+                <p className="mb-2">💡 <strong>안내</strong></p>
+                <ul className="space-y-1 text-xs">
+                  <li>• 예약 취소는 당일 예약도 가능합니다.</li>
+                  <li>• 취소된 예약은 복구할 수 없습니다.</li>
+                  <li>• 예약 시간 변경은 취소 후 재예약해주세요.</li>
+                </ul>
+              </div>
             </div>
           </div>
         </div>

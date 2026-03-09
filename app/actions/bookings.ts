@@ -87,3 +87,80 @@ export async function getBookings(year: number, month: number, space: string) {
     return { success: false, error: error.message, data: [] }
   }
 }
+
+// ===== 전화번호로 예약 조회 =====
+export async function getBookingsByPhone(phone: string) {
+  try {
+    console.log('🔍 Fetching bookings for phone:', phone)
+    
+    // 전화번호 정규화 (숫자만 추출)
+    const normalizedPhone = phone.replace(/[^0-9]/g, '')
+    
+    // 오늘 날짜 (한국 시간)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const todayStr = today.toISOString().split('T')[0]
+    
+    const { data, error } = await supabase
+      .from('bookings')
+      .select('*')
+      .eq('phone', normalizedPhone)
+      .eq('status', 'confirmed')
+      .gte('booking_date', todayStr)
+      .order('booking_date', { ascending: true })
+    
+    if (error) {
+      console.error('❌ Supabase error:', error)
+      throw error
+    }
+    
+    console.log('✅ Bookings found:', data?.length, 'records')
+    return { success: true, data: data || [] }
+  } catch (error: any) {
+    console.error('❌ Get bookings by phone error:', error)
+    return { success: false, error: error.message, data: [] }
+  }
+}
+
+// ===== 예약 취소 =====
+export async function cancelBooking(bookingId: string) {
+  try {
+    console.log('🗑️ Cancelling booking:', bookingId)
+    
+    // 예약 존재 여부 확인
+    const { data: existing, error: checkError } = await supabase
+      .from('bookings')
+      .select('id, status')
+      .eq('id', bookingId)
+      .single()
+    
+    if (checkError || !existing) {
+      return { success: false, error: '예약을 찾을 수 없습니다.' }
+    }
+    
+    if (existing.status === 'cancelled') {
+      return { success: false, error: '이미 취소된 예약입니다.' }
+    }
+    
+    // 상태 업데이트
+    const { error } = await supabase
+      .from('bookings')
+      .update({ status: 'cancelled' })
+      .eq('id', bookingId)
+    
+    if (error) {
+      console.error('❌ Supabase error:', error)
+      throw error
+    }
+    
+    console.log('✅ Booking cancelled')
+    
+    // 캘린더 갱신
+    revalidatePath('/')
+    
+    return { success: true }
+  } catch (error: any) {
+    console.error('❌ Cancel booking error:', error)
+    return { success: false, error: error.message }
+  }
+}
