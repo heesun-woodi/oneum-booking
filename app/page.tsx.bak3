@@ -576,8 +576,8 @@ export default function Home() {
                     
                     {/* 중앙: 예약 시간 합계 - PC만 표시 */}
                     {totalHours > 0 && bookingStatus.status !== 'full' && (
-                      <div className="flex flex-1 items-center justify-center">
-                        <div className="text-xs sm:text-base font-bold text-blue-600 whitespace-nowrap">
+                      <div className="hidden sm:flex flex-1 items-center justify-center">
+                        <div className="text-base font-bold text-blue-600 whitespace-nowrap">
                           {totalHours}시간
                         </div>
                       </div>
@@ -629,7 +629,7 @@ export default function Home() {
             {/* 모달 헤더 */}
             <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex items-center justify-between">
               <h2 className="text-2xl font-bold text-gray-900">
-                {selectedSpace === 'nolter' ? '🏠 놀터' : '🎵 방음실'} 예약하기 - {month + 1}월 {selectedDate}일
+                예약하기 - {month + 1}월 {selectedDate}일
               </h2>
               <button 
                 onClick={() => setIsBookingModalOpen(false)}

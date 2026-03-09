@@ -553,8 +553,8 @@ export default function Home() {
             ))}
           </div>
 
-          {/* 날짜 */}
-          <div className="grid grid-cols-7 gap-2 sm:gap-3">
+          {/* 날짜 - 모바일 세로 간격 증가 */}
+          <div className="grid grid-cols-7 gap-x-2 gap-y-6 sm:gap-3">
             {Array.from({ length: daysInMonth }, (_, i) => {
               const date = i + 1
               const isPast = isPastDate(date)
@@ -563,52 +563,56 @@ export default function Home() {
               const isToday = new Date().getDate() === date && new Date().getMonth() === month && new Date().getFullYear() === year
               
               return (
-                <button
-                  key={date}
-                  onClick={() => handleDateClick(date)}
-                  className={`aspect-square rounded-xl p-2 transition-all ${
-                    isPast
-                      ? 'opacity-50 cursor-not-allowed bg-gray-100 border-2 border-gray-300'
-                      : 
-                    bookingStatus.status === 'full'
-                      ? 'bg-gray-100 border-2 border-gray-400 cursor-not-allowed'
-                      : totalHours > 0
-                      ? 'bg-blue-100 border-2 border-blue-400 hover:bg-blue-200'
-                      : 'bg-white border-2 border-gray-200 hover:bg-blue-50 hover:border-blue-400'
-                  }`}
-                  disabled={isPast || bookingStatus.status === 'full'}
-                >
-                  {/* 날짜 + 시간 레이아웃 */}
-                  <div className="flex flex-col items-center justify-between h-full">
-                    {/* 날짜 - PC/모바일 모두 표시 */}
-                    <div className={`text-sm font-semibold ${
-                      isToday ? 'text-blue-600' : 'text-gray-700'
-                    }`}>
-                      {date}
-                    </div>
-                    
-                    {/* 중앙: 예약 시간 합계 - PC만 표시 */}
-                    {totalHours > 0 && bookingStatus.status !== 'full' && (
-                      <div className="flex flex-1 items-center justify-center">
-                        <div className="text-sm sm:text-base font-bold text-blue-600 whitespace-nowrap">
+                <div key={date} className="flex flex-col items-center gap-1">
+                  {/* 날짜 박스 */}
+                  <button
+                    onClick={() => handleDateClick(date)}
+                    className={`w-full aspect-square rounded-xl p-2 transition-all ${
+                      isPast
+                        ? 'opacity-50 cursor-not-allowed bg-gray-100 border-2 border-gray-300'
+                        : 
+                      bookingStatus.status === 'full'
+                        ? 'bg-gray-100 border-2 border-gray-400 cursor-not-allowed'
+                        : totalHours > 0
+                        ? 'bg-blue-100 border-2 border-blue-400 hover:bg-blue-200'
+                        : 'bg-white border-2 border-gray-200 hover:bg-blue-50 hover:border-blue-400'
+                    }`}
+                    disabled={isPast || bookingStatus.status === 'full'}
+                  >
+                    {/* 날짜 + 시간 레이아웃 */}
+                    <div className="flex flex-col items-center justify-center h-full">
+                      {/* 날짜 */}
+                      <div className={`text-sm font-semibold ${
+                        isToday ? 'text-blue-600' : 'text-gray-700'
+                      }`}>
+                        {date}
+                      </div>
+                      
+                      {/* PC만: 박스 안에 예약 시간 표시 */}
+                      {totalHours > 0 && bookingStatus.status !== 'full' && (
+                        <div className="hidden sm:block text-sm font-bold text-blue-600 mt-1">
                           {totalHours}시간
                         </div>
-                      </div>
-                    )}
-                    
-                    {/* 마감 표시 - 중앙 */}
-                    {bookingStatus.status === 'full' && (
-                      <div className="flex-1 flex items-center justify-center">
-                        <div className="text-sm text-red-500 font-semibold whitespace-nowrap">
+                      )}
+                      
+                      {/* 마감 표시 */}
+                      {bookingStatus.status === 'full' && (
+                        <div className="text-xs sm:text-sm text-red-500 font-semibold mt-1">
                           마감
                         </div>
-                      </div>
-                    )}
-                  </div>
-                </button>
+                      )}
+                    </div>
+                  </button>
+                  
+                  {/* 모바일만: 박스 바깥 하단에 예약 시간 표시 */}
+                  {totalHours > 0 && bookingStatus.status !== 'full' && (
+                    <div className="sm:hidden text-xs font-medium text-blue-600">
+                      {totalHours}시간
+                    </div>
+                  )}
+                </div>
               )
             })}
-
           </div>
         </div>
 

@@ -629,7 +629,7 @@ export default function Home() {
             {/* 모달 헤더 */}
             <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex items-center justify-between">
               <h2 className="text-2xl font-bold text-gray-900">
-                {selectedSpace === 'nolter' ? '🏠 놀터' : '🎵 방음실'} 예약하기 - {month + 1}월 {selectedDate}일
+                예약하기 - {month + 1}월 {selectedDate}일
               </h2>
               <button 
                 onClick={() => setIsBookingModalOpen(false)}
