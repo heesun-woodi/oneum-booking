@@ -1,3 +1,4 @@
+// 🔄 v1.0.1 - 로그아웃 버그 수정 (캐시 무효화)
 'use client'
 
 import { useState, useEffect } from 'react'
