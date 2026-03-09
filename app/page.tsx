@@ -1,4 +1,4 @@
-// 🔄 v1.0.1 - 로그아웃 버그 수정 (캐시 무효화)
+// 🔄 v1.0.2 - 로그아웃 버그 수정 (캐시 무효화)
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -463,8 +463,7 @@ export default function Home() {
     if (confirm('로그아웃 하시겠습니까?')) {
       clearSession()
       
-      // ⭐ 페이지 새로고침 (상태 완전 초기화)
-      window.location.reload()
+      // Note: reload 불필요 - clearSession의 state 변경으로 UI 자동 업데이트
     }
   }
   // ===== 비밀번호 찾기 =====
