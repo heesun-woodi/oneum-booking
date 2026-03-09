@@ -68,7 +68,9 @@ export async function createBooking(input: CreateBookingInput) {
 export async function getBookings(year: number, month: number, space: string) {
   try {
     const startDate = `${year}-${String(month).padStart(2, '0')}-01`
-    const endDate = `${year}-${String(month).padStart(2, '0')}-31`
+    // 해당 월의 마지막 날 계산 (Date(year, month, 0) = 이전 달의 마지막 날)
+    const lastDay = new Date(year, month, 0).getDate()
+    const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
     
     console.log('📅 Fetching bookings:', { year, month, space, startDate, endDate })
     
