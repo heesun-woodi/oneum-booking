@@ -475,7 +475,10 @@ export default function Home() {
   
   const handleLogout = () => {
     if (confirm('로그아웃 하시겠습니까?')) {
+      console.log('[로그아웃] 시작')
       clearSession()
+      console.log('[로그아웃] 완료 - localStorage 삭제됨, 상태 초기화됨')
+      alert('로그아웃되었습니다.')
       
       // Note: reload 불필요 - clearSession의 state 변경으로 UI 자동 업데이트
     }
