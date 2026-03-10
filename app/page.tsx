@@ -565,13 +565,13 @@ export default function Home() {
       const result = await cancelBooking(bookingId)
       
       if (result.success) {
+        // 예약 목록 새로고침 (await 추가)
+        await handleFetchMyBookings()
+        
+        // 달력 데이터도 새로고침 (await 추가)
+        await loadBookings()
+        
         alert('예약이 취소되었습니다.')
-        
-        // 예약 목록 새로고침
-        handleFetchMyBookings()
-        
-        // 달력 데이터도 새로고침
-        loadBookings()
       } else {
         alert(`취소 실패: ${result.error}`)
       }
