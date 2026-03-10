@@ -40,8 +40,11 @@ export default function AdminUsersPage() {
   }
   
   const handleApprove = async (userId: string) => {
-    if (!admin) return
-    
+    if (!admin) {
+      alert('관리자 로그인이 필요합니다.')
+      window.location.href = '/admin/login'
+      return
+    }
     if (!confirm('이 사용자를 승인하시겠습니까?')) return
     
     const result = await approveSignup(userId, admin.id)
@@ -54,8 +57,11 @@ export default function AdminUsersPage() {
   }
   
   const handleReject = async (userId: string) => {
-    if (!admin) return
-    
+    if (!admin) {
+      alert('관리자 로그인이 필요합니다.')
+      window.location.href = '/admin/login'
+      return
+    }
     const reason = prompt('거부 사유를 입력하세요:')
     if (!reason) return
     
