@@ -24,14 +24,15 @@ export async function signup(data: {
   // 2. 비밀번호 해시
   const passwordHash = await bcrypt.hash(data.password, 10)
   
-  // 3. 사용자 생성
+  // 3. 사용자 생성 (status: pending)
   const { data: user, error } = await supabase
     .from('users')
     .insert({
       household: data.household,
       name: data.name,
       phone: data.phone,
-      password_hash: passwordHash
+      password_hash: passwordHash,
+      status: 'pending'  // 🆕 가입 대기 상태
     })
     .select()
     .single()
@@ -40,7 +41,11 @@ export async function signup(data: {
     return { success: false, error: error.message }
   }
   
-  return { success: true, user }
+  return { 
+    success: true, 
+    user,
+    message: '가입 신청이 완료되었습니다. 승인 후 로그인 가능합니다.' // 🆕 안내 메시지
+  }
 }
 
 export async function login(data: {
@@ -63,6 +68,15 @@ export async function login(data: {
   
   if (!isValid) {
     return { success: false, error: '비밀번호가 올바르지 않습니다.' }
+  }
+  
+  // 🆕 3. 승인 상태 확인
+  if (user.status === 'pending') {
+    return { success: false, error: '가입 승인 대기 중입니다. 관리자 승인 후 이용 가능합니다.' }
+  }
+  
+  if (user.status === 'rejected') {
+    return { success: false, error: '가입이 거부되었습니다. 관리자에게 문의하세요.' }
   }
   
   return { success: true, user }
