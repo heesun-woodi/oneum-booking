@@ -379,7 +379,11 @@ export default function Home() {
       console.log('예약자:', userSession.isLoggedIn ? `${userSession.household}호 ${name}` : name)
       console.log('연락처:', phone)
 
-      alert(`예약이 완료되었습니다!\n\n날짜: ${month}월 ${selectedDate}일\n시간: ${selectedTimes.join(', ')} (총 ${selectedTimes.length}시간)\n공간: ${selectedSpace === 'nolter' ? '놀터' : '방음실'}`)
+      const paymentInfo = userSession.isLoggedIn 
+        ? '' 
+        : `\n\n💰 결제 안내\n금액: ${selectedTimes.length * 14000}원\n계좌: 카카오뱅크 7979-72-56275 (정상은)\n예약자명으로 입금해주세요.`
+      
+      alert(`예약이 완료되었습니다!\n\n날짜: ${month}월 ${selectedDate}일\n시간: ${selectedTimes.join(', ')} (총 ${selectedTimes.length}시간)\n공간: ${selectedSpace === 'nolter' ? '놀터' : '방음실'}${paymentInfo}`)
       setIsBookingModalOpen(false)
       
       // 예약 목록 새로고침
@@ -908,6 +912,20 @@ export default function Home() {
                     />
                   </div>
                 </div>
+                  {/* ⭐ 비회원 결제 안내 */}
+                  {!userSession.isLoggedIn && selectedTimes.length > 0 && (
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mt-4">
+                      <p className="text-sm font-semibold text-yellow-800">
+                        💰 예상 결제 금액: {selectedTimes.length * 14000}원
+                      </p>
+                      <p className="text-xs text-yellow-700 mt-1">
+                        입금계좌: 카카오뱅크 7979-72-56275 (정상은)
+                      </p>
+                      <p className="text-xs text-yellow-600 mt-1">
+                        예약자명으로 입금해주세요.
+                      </p>
+                    </div>
+                  )}
               )}
             </div>
 
