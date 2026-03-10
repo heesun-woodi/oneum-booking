@@ -1,8 +1,9 @@
-// 🔄 v1.0.2 - 로그아웃 버그 수정 (캐시 무효화)
+// 🔄 v1.0.3 - Phase 1-2: 회원가입/로그인 인증 개선
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createBooking, getBookings, getBookingsByPhone, cancelBooking, CreateBookingInput } from './actions/bookings'
+import { createBooking, getBookings, getBookingsByPhone, getBookingsByHousehold, cancelBooking, CreateBookingInput } from './actions/bookings'
+import { signup, login } from './actions/auth'
 
 // ===== 타입 정의 =====
 interface UserSession {
@@ -391,9 +392,9 @@ export default function Home() {
 
   // ===== 로그인 =====
   
-  const handleLogin = () => {
-    if (!authHousehold) {
-      alert('세대를 선택해주세요.')
+  const handleLogin = async () => {
+    if (!authName.trim()) {
+      alert('이름을 입력해주세요.')
       return
     }
     if (!authPassword.trim()) {
@@ -401,30 +402,36 @@ export default function Home() {
       return
     }
 
-    // TODO: Phase 4에서 실제 인증 구현
-    // 현재는 Mock으로 바로 로그인 성공
-    const mockName = authHousehold === '201' ? '김온음' : `${authHousehold}호 주민`
-    const mockPhone = '010-0000-0000'
+    const result = await login({
+      name: authName,
+      password: authPassword
+    })
 
+    if (!result.success) {
+      alert(result.error)
+      return
+    }
+
+    // 세션 저장 (세대 정보 자동 포함!)
     const session: UserSession = {
       isLoggedIn: true,
-      household: authHousehold,
-      name: mockName,
-      phone: mockPhone
+      household: result.user.household,
+      name: result.user.name,
+      phone: result.user.phone
     }
 
     saveSession(session)
     setIsAuthModalOpen(false)
-    alert(`${authHousehold}호님, 환영합니다!`)
+    alert(`${result.user.name}님 로그인되었습니다!`)
     
     // 폼 초기화
-    setAuthHousehold('')
+    setAuthName('')
     setAuthPassword('')
   }
 
   // ===== 회원가입 =====
   
-  const handleSignup = () => {
+  const handleSignup = async () => {
     if (!authHousehold) {
       alert('세대를 선택해주세요.')
       return
@@ -442,20 +449,22 @@ export default function Home() {
       return
     }
 
-    // TODO: Phase 4에서 DB 저장 구현
-    // 현재는 Mock으로 바로 가입 후 로그인
-    const session: UserSession = {
-      isLoggedIn: true,
+    const result = await signup({
       household: authHousehold,
       name: authName,
-      phone: authPhone
+      phone: authPhone,
+      password: authPassword
+    })
+
+    if (!result.success) {
+      alert(result.error)
+      return
     }
 
-    saveSession(session)
-    setIsAuthModalOpen(false)
-    alert(`${authHousehold}호 가입이 완료되었습니다!\n환영합니다, ${authName}님!`)
+    alert('회원가입이 완료되었습니다!')
+    setAuthMode('login')
     
-    // 폼 초기화
+    // 입력 필드 초기화
     setAuthHousehold('')
     setAuthName('')
     setAuthPhone('')
@@ -492,31 +501,54 @@ export default function Home() {
 
   // ===== 내 예약 조회 =====
   const handleFetchMyBookings = async () => {
-    const phoneToSearch = userSession.isLoggedIn ? userSession.phone : managePhone.trim()
-    
-    if (!phoneToSearch) {
-      alert('전화번호를 입력해주세요.')
-      return
-    }
-
-    setIsLoadingBookings(true)
-    
-    try {
-      const result = await getBookingsByPhone(phoneToSearch)
-      
-      if (result.success) {
-        setMyBookings(result.data)
-        if (result.data.length === 0) {
-          alert('예약 내역이 없습니다.')
+    // 로그인된 경우: household로 조회
+    // 비로그인: 전화번호로 조회
+    if (userSession.isLoggedIn && userSession.household) {
+      setIsLoadingBookings(true)
+      try {
+        const result = await getBookingsByHousehold(userSession.household)
+        if (result.success) {
+          setMyBookings(result.data)
+          if (result.data.length === 0) {
+            alert('예약 내역이 없습니다.')
+          }
+        } else {
+          alert(`조회 실패: ${result.error}`)
         }
-      } else {
-        alert(`조회 실패: ${result.error}`)
+      } catch (error) {
+        console.error('예약 조회 오류:', error)
+        alert('예약 조회 중 오류가 발생했습니다.')
+      } finally {
+        setIsLoadingBookings(false)
       }
-    } catch (error) {
-      console.error('예약 조회 오류:', error)
-      alert('예약 조회 중 오류가 발생했습니다.')
-    } finally {
-      setIsLoadingBookings(false)
+    } else {
+      // 비로그인: 전화번호로 조회
+      const phoneToSearch = managePhone.trim()
+      
+      if (!phoneToSearch) {
+        alert('전화번호를 입력해주세요.')
+        return
+      }
+
+      setIsLoadingBookings(true)
+      
+      try {
+        const result = await getBookingsByPhone(phoneToSearch)
+        
+        if (result.success) {
+          setMyBookings(result.data)
+          if (result.data.length === 0) {
+            alert('예약 내역이 없습니다.')
+          }
+        } else {
+          alert(`조회 실패: ${result.error}`)
+        }
+      } catch (error) {
+        console.error('예약 조회 오류:', error)
+        alert('예약 조회 중 오류가 발생했습니다.')
+      } finally {
+        setIsLoadingBookings(false)
+      }
     }
   }
 
@@ -1210,12 +1242,15 @@ export default function Home() {
                                 예약자: {booking.name}
                               </p>
                             </div>
-                            <button
-                              onClick={() => handleCancelBooking(booking.id, bookingInfo)}
-                              className="px-4 py-2 text-sm text-red-600 border border-red-300 rounded-lg hover:bg-red-50 transition-colors whitespace-nowrap"
-                            >
-                              취소
-                            </button>
+                            {/* 로그인: 본인 예약만 취소 가능 / 비로그인: 전화번호로 조회했으므로 모두 취소 가능 */}
+                            {(!userSession.isLoggedIn || booking.name === userSession.name) && (
+                              <button
+                                onClick={() => handleCancelBooking(booking.id, bookingInfo)}
+                                className="px-4 py-2 text-sm text-red-600 border border-red-300 rounded-lg hover:bg-red-50 transition-colors whitespace-nowrap"
+                              >
+                                취소
+                              </button>
+                            )}
                           </div>
                         </div>
                       )

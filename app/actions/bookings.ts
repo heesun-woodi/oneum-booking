@@ -172,3 +172,31 @@ export async function cancelBooking(bookingId: string) {
     return { success: false, error: error.message }
   }
 }
+
+// ===== 세대별 예약 조회 =====
+export async function getBookingsByHousehold(household: string) {
+  try {
+    console.log('🏠 Fetching bookings by household:', household)
+    
+    const today = new Date().toISOString().split('T')[0]
+    
+    const { data, error } = await supabase
+      .from('bookings')
+      .select('*')
+      .eq('household', household)
+      .eq('status', 'confirmed')
+      .gte('booking_date', today)
+      .order('booking_date', { ascending: true })
+    
+    if (error) {
+      console.error('❌ Supabase error:', error)
+      throw error
+    }
+    
+    console.log('✅ Household bookings found:', data?.length, 'records')
+    return { success: true, data: data || [] }
+  } catch (error: any) {
+    console.error('❌ Get bookings by household error:', error)
+    return { success: false, error: error.message, data: [] }
+  }
+}
