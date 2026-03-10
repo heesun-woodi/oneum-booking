@@ -1001,54 +1001,56 @@ export default function Home() {
               ) : (
                 /* 기존 로그인/회원가입 폼 */
                 <>
-                  {/* 세대 선택 */}
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-900 mb-2">
-                      세대 선택 *
-                    </label>
-                    <select
-                      value={authHousehold}
-                      onChange={(e) => setAuthHousehold(e.target.value)}
-                      className="w-full py-3 px-4 border border-gray-300 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">세대를 선택하세요</option>
-                      {households.map(h => (
-                        <option key={h} value={h}>{h}호</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* 회원가입 전용 필드 */}
+                  {/* 회원가입: 세대 선택 */}
                   {authMode === 'signup' && (
-                    <>
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-900 mb-2">
-                          이름 *
-                        </label>
-                        <input
-                          type="text"
-                          value={authName}
-                          onChange={(e) => setAuthName(e.target.value)}
-                          placeholder="이름을 입력하세요"
-                          className="w-full py-3 px-4 border border-gray-300 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-900 mb-2">
-                          전화번호 *
-                        </label>
-                        <input
-                          type="tel"
-                          value={authPhone}
-                          onChange={(e) => setAuthPhone(e.target.value)}
-                          placeholder="010-0000-0000"
-                          className="w-full py-3 px-4 border border-gray-300 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                      </div>
-                    </>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-900 mb-2">
+                        세대 선택 *
+                      </label>
+                      <select
+                        value={authHousehold}
+                        onChange={(e) => setAuthHousehold(e.target.value)}
+                        className="w-full py-3 px-4 border border-gray-300 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">세대를 선택하세요</option>
+                        {households.map(h => (
+                          <option key={h} value={h}>{h}호</option>
+                        ))}
+                      </select>
+                    </div>
                   )}
 
-                  {/* 비밀번호 */}
+                  {/* 이름 (로그인 + 회원가입 공통) */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-2">
+                      이름 *
+                    </label>
+                    <input
+                      type="text"
+                      value={authName}
+                      onChange={(e) => setAuthName(e.target.value)}
+                      placeholder="이름을 입력하세요"
+                      className="w-full py-3 px-4 border border-gray-300 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  {/* 회원가입: 전화번호 */}
+                  {authMode === 'signup' && (
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-900 mb-2">
+                        전화번호 *
+                      </label>
+                      <input
+                        type="tel"
+                        value={authPhone}
+                        onChange={(e) => setAuthPhone(e.target.value)}
+                        placeholder="010-0000-0000"
+                        className="w-full py-3 px-4 border border-gray-300 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  )}
+
+                  {/* 비밀번호 (로그인 + 회원가입 공통) */}
                   <div>
                     <label className="block text-sm font-semibold text-gray-900 mb-2">
                       비밀번호 *
