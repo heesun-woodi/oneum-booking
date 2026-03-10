@@ -911,7 +911,6 @@ export default function Home() {
                       className="w-full py-3 px-4 border border-gray-300 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
-                </div>
                   {/* ⭐ 비회원 결제 안내 */}
                   {!userSession.isLoggedIn && selectedTimes.length > 0 && (
                     <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mt-4">
@@ -926,6 +925,7 @@ export default function Home() {
                       </p>
                     </div>
                   )}
+                </div>
               )}
             </div>
 
