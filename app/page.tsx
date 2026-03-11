@@ -246,6 +246,20 @@ export default function Home() {
     return compareDate < today
   }
 
+
+  // ⭐ 오늘 날짜 확인 (당일 예약 차단)
+  const isToday = (date: number): boolean => {
+    const year = currentMonth.getFullYear()
+    const month = currentMonth.getMonth()
+    
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    
+    const compareDate = new Date(year, month, date)
+    compareDate.setHours(0, 0, 0, 0)
+    
+    return compareDate.getTime() === today.getTime()
+  }
   // ===== 해당 날짜의 총 예약 시간 계산 =====
   
   const getTotalHoursForDate = (date: number): number => {
@@ -279,6 +293,11 @@ export default function Home() {
   
   const handleDateClick = (date: number) => {
     // ⭐ FIX 1: 과거 날짜 차단
+    // ⭐ 오늘 날짜도 차단 (당일 예약 불가)
+    if (isToday(date)) {
+      console.log(`⛔ 당일 예약 차단: ${date}일`)
+      return
+    }
     if (isPastDate(date)) {
       console.log(`⛔ 과거 날짜 클릭 차단: ${date}일`)
       return
@@ -663,6 +682,16 @@ export default function Home() {
             >
               방음실
             </button>
+
+          {/* ⚠️ 예약 안내 문구 */}
+          <div className="mb-6 p-4 bg-blue-50 border-l-4 border-blue-500 rounded-lg">
+            <p className="text-sm font-semibold text-blue-800">
+              ⚠️ 예약은 최소 1일 전까지 가능합니다
+            </p>
+            <p className="text-xs text-blue-600 mt-1">
+              당일 예약은 불가능하며, 내일부터 선택 가능합니다.
+            </p>
+          </div>
           </div>
 
           {/* 월 네비게이션 */}
@@ -700,7 +729,8 @@ export default function Home() {
               const isPast = isPastDate(date)
               const bookingStatus = getBookingStatus(date)
               const totalHours = getTotalHoursForDate(date)
-              const isToday = new Date().getDate() === date && new Date().getMonth() === month && new Date().getFullYear() === year
+              const isTodayHighlight = new Date().getDate() === date && new Date().getMonth() === month && new Date().getFullYear() === year
+              const isTodayDate = isToday(date)
               
               return (
                 <div key={date} className="flex flex-col items-center gap-1">
@@ -708,7 +738,7 @@ export default function Home() {
                   <button
                     onClick={() => handleDateClick(date)}
                     className={`w-full aspect-square rounded-xl p-2 transition-all ${
-                      isPast
+                      isPast || isTodayDate
                         ? 'opacity-50 cursor-not-allowed bg-gray-100 border-2 border-gray-300'
                         : 
                       bookingStatus.status === 'full'
@@ -717,13 +747,13 @@ export default function Home() {
                         ? 'bg-blue-100 border-2 border-blue-400 hover:bg-blue-200'
                         : 'bg-white border-2 border-gray-200 hover:bg-blue-50 hover:border-blue-400'
                     }`}
-                    disabled={isPast || bookingStatus.status === 'full'}
+                    disabled={isPast || isTodayDate || bookingStatus.status === 'full'}
                   >
                     {/* 날짜 + 시간 레이아웃 */}
                     <div className="flex flex-col items-center justify-center h-full">
                       {/* 날짜 */}
                       <div className={`text-sm font-semibold ${
-                        isToday ? 'text-blue-600' : 'text-gray-700'
+                        isTodayHighlight ? 'text-blue-600' : 'text-gray-700'
                       }`}>
                         {date}
                       </div>

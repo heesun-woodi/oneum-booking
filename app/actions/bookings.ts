@@ -17,6 +17,30 @@ export async function createBooking(input: CreateBookingInput) {
   try {
     console.log('🚀 Creating booking:', input)
     
+    // ⭐ 당일 예약 차단 검증 (서버 사이드)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    
+    const bookingDate = new Date(input.bookingDate)
+    bookingDate.setHours(0, 0, 0, 0)
+    
+    if (bookingDate.getTime() === today.getTime()) {
+      console.log(`⛔ 당일 예약 차단: ${input.bookingDate}`)
+      return {
+        success: false,
+        error: '당일 예약은 불가능합니다. 최소 1일 전에 예약해주세요.'
+      }
+    }
+    
+    // 과거 날짜 예약 차단
+    if (bookingDate.getTime() < today.getTime()) {
+      console.log(`⛔ 과거 날짜 예약 차단: ${input.bookingDate}`)
+      return {
+        success: false,
+        error: '과거 날짜는 예약할 수 없습니다.'
+      }
+    }
+    
     // 시간대 파싱
     const startTime = input.times[0]
     // endTime = 마지막 슬롯의 종료 시간 (마지막 시간 + 1시간)
