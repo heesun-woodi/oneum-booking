@@ -2,6 +2,7 @@
 
 import { supabase } from '@/lib/supabase'
 import bcrypt from 'bcryptjs'
+import { sendNotification } from '@/lib/notifications/sender'
 
 export async function signup(data: {
   household: string
@@ -32,7 +33,7 @@ export async function signup(data: {
       name: data.name,
       phone: data.phone,
       password_hash: passwordHash,
-      status: 'pending'  // 🆕 가입 대기 상태
+      status: 'pending'  // 가입 대기 상태
     })
     .select()
     .single()
@@ -41,10 +42,26 @@ export async function signup(data: {
     return { success: false, error: error.message }
   }
   
+  // ===== 📨 알림 발송 =====
+  // 6-1: 관리자에게 회원가입 신청 알림
+  await sendNotification({
+    type: '6-1',
+    phone: process.env.ADMIN_PHONE || '',
+    variables: {
+      name: data.name,
+      household: data.household,
+      phone: data.phone,
+      adminUrl: process.env.NEXT_PUBLIC_APP_URL
+        ? `${process.env.NEXT_PUBLIC_APP_URL}/admin/users`
+        : 'https://oneum.vercel.app/admin/users',
+    },
+    userId: user.id,
+  })
+  
   return { 
     success: true, 
     user,
-    message: '가입 신청이 완료되었습니다. 승인 후 로그인 가능합니다.' // 🆕 안내 메시지
+    message: '가입 신청이 완료되었습니다. 승인 후 로그인 가능합니다.'
   }
 }
 
@@ -70,7 +87,7 @@ export async function login(data: {
     return { success: false, error: '비밀번호가 올바르지 않습니다.' }
   }
   
-  // 🆕 3. 승인 상태 확인
+  // 3. 승인 상태 확인
   if (user.status === 'pending') {
     return { success: false, error: '가입 승인 대기 중입니다. 관리자 승인 후 이용 가능합니다.' }
   }

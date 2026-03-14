@@ -1,0 +1,144 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e4]:
+        - generic [ref=e5]:
+          - heading "온음 공간 예약" [level=1] [ref=e6]
+          - paragraph [ref=e7]: 놀터 & 방음실 예약 시스템
+        - generic [ref=e8]:
+          - button "회원 로그인" [ref=e9] [cursor=pointer]
+          - button "예약 변경/취소" [ref=e10] [cursor=pointer]
+      - generic [ref=e11]:
+        - generic [ref=e12]:
+          - button "놀터" [ref=e13] [cursor=pointer]
+          - button "방음실" [ref=e14] [cursor=pointer]
+        - generic [ref=e15]:
+          - button "← 이전" [ref=e16] [cursor=pointer]
+          - heading "2026년 3월" [level=2] [ref=e17]
+          - button "다음 →" [ref=e18] [cursor=pointer]
+        - generic [ref=e19]:
+          - generic [ref=e20]: 일
+          - generic [ref=e21]: 월
+          - generic [ref=e22]: 화
+          - generic [ref=e23]: 수
+          - generic [ref=e24]: 목
+          - generic [ref=e25]: 금
+          - generic [ref=e26]: 토
+        - generic [ref=e27]:
+          - button "1" [disabled] [ref=e29]:
+            - generic [ref=e31]: "1"
+          - button "2" [disabled] [ref=e33]:
+            - generic [ref=e35]: "2"
+          - button "3" [disabled] [ref=e37]:
+            - generic [ref=e39]: "3"
+          - button "4" [disabled] [ref=e41]:
+            - generic [ref=e43]: "4"
+          - button "5" [disabled] [ref=e45]:
+            - generic [ref=e47]: "5"
+          - button "6" [disabled] [ref=e49]:
+            - generic [ref=e51]: "6"
+          - button "7" [disabled] [ref=e53]:
+            - generic [ref=e55]: "7"
+          - button "8" [disabled] [ref=e57]:
+            - generic [ref=e59]: "8"
+          - button "9" [disabled] [ref=e61]:
+            - generic [ref=e63]: "9"
+          - button "10 1시간" [ref=e65] [cursor=pointer]:
+            - generic [ref=e66]:
+              - generic [ref=e67]: "10"
+              - generic [ref=e68]: 1시간
+          - button "11 1시간" [ref=e70] [cursor=pointer]:
+            - generic [ref=e71]:
+              - generic [ref=e72]: "11"
+              - generic [ref=e73]: 1시간
+          - button "12 2시간" [ref=e75] [cursor=pointer]:
+            - generic [ref=e76]:
+              - generic [ref=e77]: "12"
+              - generic [ref=e78]: 2시간
+          - button "13" [ref=e80] [cursor=pointer]:
+            - generic [ref=e82]: "13"
+          - button "14" [ref=e84] [cursor=pointer]:
+            - generic [ref=e86]: "14"
+          - button "15 3시간" [ref=e88] [cursor=pointer]:
+            - generic [ref=e89]:
+              - generic [ref=e90]: "15"
+              - generic [ref=e91]: 3시간
+          - button "16 2시간" [ref=e93] [cursor=pointer]:
+            - generic [ref=e94]:
+              - generic [ref=e95]: "16"
+              - generic [ref=e96]: 2시간
+          - button "17" [ref=e98] [cursor=pointer]:
+            - generic [ref=e100]: "17"
+          - button "18" [ref=e102] [cursor=pointer]:
+            - generic [ref=e104]: "18"
+          - button "19" [ref=e106] [cursor=pointer]:
+            - generic [ref=e108]: "19"
+          - button "20 2시간" [ref=e110] [cursor=pointer]:
+            - generic [ref=e111]:
+              - generic [ref=e112]: "20"
+              - generic [ref=e113]: 2시간
+          - button "21" [ref=e115] [cursor=pointer]:
+            - generic [ref=e117]: "21"
+          - button "22" [ref=e119] [cursor=pointer]:
+            - generic [ref=e121]: "22"
+          - button "23" [ref=e123] [cursor=pointer]:
+            - generic [ref=e125]: "23"
+          - button "24" [ref=e127] [cursor=pointer]:
+            - generic [ref=e129]: "24"
+          - button "25 1시간" [ref=e131] [cursor=pointer]:
+            - generic [ref=e132]:
+              - generic [ref=e133]: "25"
+              - generic [ref=e134]: 1시간
+          - button "26" [ref=e136] [cursor=pointer]:
+            - generic [ref=e138]: "26"
+          - button "27" [ref=e140] [cursor=pointer]:
+            - generic [ref=e142]: "27"
+          - button "28" [ref=e144] [cursor=pointer]:
+            - generic [ref=e146]: "28"
+          - button "29" [ref=e148] [cursor=pointer]:
+            - generic [ref=e150]: "29"
+          - button "30" [ref=e152] [cursor=pointer]:
+            - generic [ref=e154]: "30"
+          - button "31" [ref=e156] [cursor=pointer]:
+            - generic [ref=e158]: "31"
+      - generic [ref=e159]:
+        - heading "📋 예약 안내" [level=3] [ref=e160]
+        - generic [ref=e161]:
+          - paragraph [ref=e162]:
+            - text: •
+            - strong [ref=e163]: "운영시간:"
+            - text: 09:00 - 23:00
+          - paragraph [ref=e164]:
+            - text: •
+            - strong [ref=e165]: "회원:"
+            - text: 월 3회 무료
+          - paragraph [ref=e166]:
+            - text: •
+            - strong [ref=e167]: "비회원:"
+            - text: 14,000원/시간 (24시간 전 예약)
+          - paragraph [ref=e168]:
+            - text: •
+            - strong [ref=e169]: "입금계좌:"
+            - text: 카카오뱅크 7979-72-56275 (정상은)
+      - paragraph [ref=e171]: 온음 공동체 공간 예약 시스템
+    - generic [ref=e173]:
+      - generic [ref=e174]:
+        - heading "로그인" [level=2] [ref=e175]
+        - button "×" [ref=e176] [cursor=pointer]
+      - generic [ref=e177]:
+        - generic [ref=e178]:
+          - generic [ref=e179]: 이름 *
+          - textbox "이름을 입력하세요" [ref=e180]: 정상은
+        - generic [ref=e181]:
+          - generic [ref=e182]: 비밀번호 *
+          - textbox "비밀번호를 입력하세요" [ref=e183]: oneum301
+        - button "로그인" [active] [ref=e184] [cursor=pointer]
+        - button "비밀번호를 잊으셨나요?" [ref=e186] [cursor=pointer]
+        - generic [ref=e187]:
+          - text: 아직 회원이 아니신가요?
+          - button "회원가입" [ref=e188] [cursor=pointer]
+  - alert [ref=e189]
+```

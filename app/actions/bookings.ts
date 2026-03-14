@@ -2,6 +2,7 @@
 
 import { supabase } from '@/lib/supabase'
 import { revalidatePath } from 'next/cache'
+import { sendNotification } from '@/lib/notifications/sender'
 
 export interface CreateBookingInput {
   bookingDate: string        // YYYY-MM-DD
@@ -67,7 +68,8 @@ export async function createBooking(input: CreateBookingInput) {
         name: input.name,
         phone: normalizedPhone,
         amount,
-        status: 'confirmed'  // 일단 바로 confirmed로 저장
+        status: input.memberType === 'member' ? 'confirmed' : 'pending', // 회원: confirmed, 비회원: pending
+        payment_status: input.memberType === 'member' ? 'completed' : 'pending', // 회원은 입금 불필요
       })
       .select()
       .single()
@@ -78,6 +80,53 @@ export async function createBooking(input: CreateBookingInput) {
     }
     
     console.log('✅ Booking created:', data)
+    
+    // ===== 📨 알림 발송 =====
+    const dateStr = new Date(data.booking_date).toLocaleDateString('ko-KR', {
+      month: 'long',
+      day: 'numeric',
+    })
+    const timeStr = `${data.start_time} ~ ${data.end_time}`
+    const spaceStr = data.space === 'nolter' ? '놀터' : '방음실'
+
+    if (input.memberType === 'member') {
+      // 2-1: 회원 예약 완료
+      await sendNotification({
+        type: '2-1',
+        phone: normalizedPhone,
+        variables: {
+          name: input.name,
+          household: input.household || '',
+          date: dateStr,
+          time: timeStr,
+          space: spaceStr,
+        },
+        bookingId: data.id,
+      })
+    } else {
+      // 2-2: 비회원 예약 완료 (입금 안내)
+      const deadline = new Date(data.booking_date)
+      deadline.setDate(deadline.getDate() - 1)
+      const deadlineStr = deadline.toLocaleDateString('ko-KR', {
+        month: 'long',
+        day: 'numeric',
+      })
+
+      await sendNotification({
+        type: '2-2',
+        phone: normalizedPhone,
+        variables: {
+          name: input.name,
+          date: dateStr,
+          time: timeStr,
+          space: spaceStr,
+          amount: amount.toLocaleString(),
+          account: process.env.BANK_ACCOUNT || '카카오뱅크 7979-72-56275 (정상은)',
+          deadline: deadlineStr,
+        },
+        bookingId: data.id,
+      })
+    }
     
     // 캘린더 갱신
     revalidatePath('/')
@@ -104,7 +153,7 @@ export async function getBookings(year: number, month: number, space: string) {
       .eq('space', space)
       .gte('booking_date', startDate)
       .lte('booking_date', endDate)
-      .eq('status', 'confirmed')
+      .in('status', ['confirmed', 'pending']) // pending도 표시 (미입금 예약)
     
     if (error) {
       console.error('❌ Supabase error:', error)
@@ -137,7 +186,7 @@ export async function getBookingsByPhone(phone: string) {
       .from('bookings')
       .select('*')
       .eq('phone', normalizedPhone)
-      .eq('status', 'confirmed')
+      .in('status', ['confirmed', 'pending'])
       .gte('booking_date', todayStr)
       .order('booking_date', { ascending: true })
     
@@ -160,24 +209,27 @@ export async function cancelBooking(bookingId: string) {
     console.log('🗑️ Cancelling booking:', bookingId)
     
     // 예약 존재 여부 확인
-    const { data: existing, error: checkError } = await supabase
+    const { data: booking, error: checkError } = await supabase
       .from('bookings')
-      .select('id, status')
+      .select('*')
       .eq('id', bookingId)
       .single()
     
-    if (checkError || !existing) {
+    if (checkError || !booking) {
       return { success: false, error: '예약을 찾을 수 없습니다.' }
     }
     
-    if (existing.status === 'cancelled') {
+    if (booking.status === 'cancelled') {
       return { success: false, error: '이미 취소된 예약입니다.' }
     }
     
     // 상태 업데이트
     const { error } = await supabase
       .from('bookings')
-      .update({ status: 'cancelled' })
+      .update({ 
+        status: 'cancelled',
+        cancelled_at: new Date().toISOString(),
+      })
       .eq('id', bookingId)
     
     if (error) {
@@ -186,6 +238,44 @@ export async function cancelBooking(bookingId: string) {
     }
     
     console.log('✅ Booking cancelled')
+    
+    // ===== 📨 알림 발송 =====
+    if (booking.payment_status === 'completed') {
+      const dateStr = new Date(booking.booking_date).toLocaleDateString('ko-KR', {
+        month: 'long',
+        day: 'numeric',
+      })
+      const timeStr = `${booking.start_time} ~ ${booking.end_time}`
+      const spaceStr = booking.space === 'nolter' ? '놀터' : '방음실'
+
+      // 2-3: 예약 취소 알림 (입금 완료자만)
+      await sendNotification({
+        type: '2-3',
+        phone: booking.phone,
+        variables: {
+          name: booking.name,
+          date: dateStr,
+          time: timeStr,
+          space: spaceStr,
+        },
+        bookingId: booking.id,
+      })
+
+      // 5-3: 재무담당자 환불 안내 (이용일 아닌 경우만)
+      const today = new Date().toISOString().split('T')[0]
+      if (booking.booking_date !== today && booking.amount > 0) {
+        await sendNotification({
+          type: '5-3',
+          phone: process.env.FINANCE_PHONE || '',
+          variables: {
+            name: booking.name,
+            phone: booking.phone,
+            amount: booking.amount.toLocaleString(),
+            date: dateStr,
+          },
+        })
+      }
+    }
     
     // 캘린더 갱신
     revalidatePath('/')

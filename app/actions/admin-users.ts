@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { sendNotification } from '@/lib/notifications/sender'
 
 export async function getSignupRequests(status: 'pending' | 'approved' | 'rejected' = 'pending') {
   try {
@@ -27,6 +28,18 @@ export async function approveSignup(userId: string, adminId: string) {
   try {
     const supabase = await createClient()
     
+    // 사용자 정보 조회
+    const { data: user, error: fetchError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', userId)
+      .single()
+    
+    if (fetchError || !user) {
+      return { success: false, error: '사용자를 찾을 수 없습니다.' }
+    }
+    
+    // 승인 처리
     const { error } = await supabase
       .from('users')
       .update({
@@ -40,7 +53,17 @@ export async function approveSignup(userId: string, adminId: string) {
       return { success: false, error: error.message }
     }
     
-    // TODO: 알림톡 발송 (Phase 5.4)
+    // ===== 📨 알림 발송 =====
+    // 1-2: 신청자에게 승인 알림
+    await sendNotification({
+      type: '1-2',
+      phone: user.phone,
+      variables: {
+        name: user.name,
+        household: user.household,
+      },
+      userId: user.id,
+    })
     
     return { success: true, message: '승인되었습니다.' }
   } catch (error) {
@@ -53,6 +76,18 @@ export async function rejectSignup(userId: string, adminId: string, reason: stri
   try {
     const supabase = await createClient()
     
+    // 사용자 정보 조회
+    const { data: user, error: fetchError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', userId)
+      .single()
+    
+    if (fetchError || !user) {
+      return { success: false, error: '사용자를 찾을 수 없습니다.' }
+    }
+    
+    // 거부 처리
     const { error } = await supabase
       .from('users')
       .update({
@@ -66,7 +101,17 @@ export async function rejectSignup(userId: string, adminId: string, reason: stri
       return { success: false, error: error.message }
     }
     
-    // TODO: 알림톡 발송 (Phase 5.4)
+    // ===== 📨 알림 발송 =====
+    // 1-3: 신청자에게 거부 알림
+    await sendNotification({
+      type: '1-3',
+      phone: user.phone,
+      variables: {
+        name: user.name,
+        reason: reason,
+      },
+      userId: user.id,
+    })
     
     return { success: true, message: '거부되었습니다.' }
   } catch (error) {
