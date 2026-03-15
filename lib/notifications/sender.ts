@@ -1,19 +1,14 @@
 /**
- * 알림 발송 시스템 (카카오 알림톡)
+ * 알림 발송 시스템
  */
 
-import { kakaoAlimtalk } from '../kakao-alimtalk'
+import { aligo } from '../aligo'
 import { supabase } from '../supabase'
 import { 
   getMessageTemplate, 
   type MessageType, 
   type TemplateVariables 
 } from './templates'
-import { 
-  ALIMTALK_TEMPLATE_IDS, 
-  convertToAlimtalkVariables,
-  ALIMTALK_TEMPLATE_CONTENTS 
-} from './alimtalk-templates'
 
 export interface SendNotificationParams {
   type: MessageType
@@ -39,16 +34,10 @@ export async function sendNotification(
   const { type, phone, variables, bookingId, userId, scheduledAt } = params
 
   try {
-    // 1. 알림톡 템플릿 ID 가져오기
-    const templateId = ALIMTALK_TEMPLATE_IDS[type]
-    if (!templateId) {
-      throw new Error(`Unknown message type: ${type}`)
-    }
+    // 1. 메시지 템플릿 가져오기
+    const { title, message } = getMessageTemplate(type, variables)
 
-    // 2. 템플릿 변수를 알림톡 형식으로 변환
-    const alimtalkVars = convertVariablesForAlimtalk(type, variables)
-
-    // 3. 발송 로그 생성
+    // 2. 발송 로그 생성
     const { data: log, error: logError } = await supabase
       .from('notification_logs')
       .insert({
@@ -67,60 +56,24 @@ export async function sendNotification(
       throw new Error(`로그 생성 실패: ${logError.message}`)
     }
 
-    // 4. 예약 발송이면 로그만 생성하고 리턴
+    // 3. 예약 발송이면 로그만 생성하고 리턴
     if (scheduledAt) {
-      // 알림톡 예약 발송
-      const result = await kakaoAlimtalk.sendScheduledAlimtalk(
-        phone,
-        templateId,
-        scheduledAt,
-        alimtalkVars
-      )
-
-      if (result.success) {
-        await supabase
-          .from('notification_logs')
-          .update({
-            status: 'scheduled',
-            aligo_msg_id: result.groupId,
-          })
-          .eq('id', log.id)
-
-        return {
-          success: true,
-          logId: log.id,
-        }
-      } else {
-        await supabase
-          .from('notification_logs')
-          .update({
-            status: 'failed',
-            error_message: result.error,
-          })
-          .eq('id', log.id)
-
-        return {
-          success: false,
-          error: result.error,
-          logId: log.id,
-        }
+      return {
+        success: true,
+        logId: log.id,
       }
     }
 
-    // 5. 즉시 발송 (카카오 알림톡)
-    const result = await kakaoAlimtalk.sendAlimtalk(
-      phone,
-      templateId,
-      alimtalkVars
-    )
+    // 4. 즉시 발송
+    const result = await aligo.sendAuto(phone, message, title)
 
-    // 6. 발송 결과 업데이트
+    // 5. 발송 결과 업데이트
     if (result.success) {
       await supabase
         .from('notification_logs')
         .update({
           status: 'sent',
-          aligo_msg_id: result.messageId,
+          aligo_msg_id: result.msgId,
           sent_at: new Date().toISOString(),
         })
         .eq('id', log.id)
@@ -151,57 +104,6 @@ export async function sendNotification(
       error: error.message || '알 수 없는 오류',
     }
   }
-}
-
-/**
- * 템플릿 변수를 알림톡 변수명으로 변환
- * 
- * 예:
- *   variables.name → #{이름}
- *   variables.date → #{날짜}
- *   variables.time → #{시간}
- */
-function convertVariablesForAlimtalk(
-  type: MessageType,
-  variables: TemplateVariables
-): Record<string, string> {
-  // 변수명 매핑 (영어 → 한글)
-  const mapping: Record<string, string> = {
-    name: '이름',
-    household: '세대',
-    date: '날짜',
-    time: '시간',
-    space: '공간',
-    amount: '금액',
-    account: '계좌',
-    deadline: '입금기한',
-    reason: '사유',
-    season: '계절',
-    count: '건수',
-    list: '목록',
-    adminUrl: '관리자URL',
-    phone: '전화',
-  }
-
-  const alimtalkVars: Record<string, string> = {}
-
-  for (const [englishKey, value] of Object.entries(variables)) {
-    if (value === undefined) continue
-
-    const koreanKey = mapping[englishKey] || englishKey
-    alimtalkVars[koreanKey] = String(value)
-  }
-
-  // 4-2 (1시간 전 리마인더) 특수 처리
-  if (type === '4-2') {
-    const season = variables.season || 'summer'
-    const seasonMessage = season === 'summer' 
-      ? '더운 날씨, 시원하게 보내세요!' 
-      : '따뜻하게 입고 오세요!'
-    alimtalkVars['안내메시지'] = seasonMessage
-  }
-
-  return alimtalkVars
 }
 
 /**

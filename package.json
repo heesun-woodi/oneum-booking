@@ -13,8 +13,7 @@
     "bcryptjs": "^3.0.3",
     "next": "14.2.3",
     "react": "^18",
-    "react-dom": "^18",
-    "solapi": "^5.5.4"
+    "react-dom": "^18"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
