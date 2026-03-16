@@ -241,7 +241,7 @@ export async function financeAlert(
 }
 
 /**
- * 5. 1시간 전 리마인더 (매시간)
+ * 5. 당일 예약 리마인더 (09:00)
  */
 export async function sameDayReminder(): Promise<{
   sent: number
@@ -249,7 +249,7 @@ export async function sameDayReminder(): Promise<{
   const now = new Date()
   const todayStr = now.toISOString().split('T')[0]
 
-  // 오늘 예약 조회 (비회원만)
+  // 오늘 전체 예약 조회 (비회원만)
   const { data: bookings, error } = await supabase
     .from('bookings')
     .select('*')
@@ -280,10 +280,6 @@ export async function sameDayReminder(): Promise<{
       bookingId: booking.id,
     })
     sent++
-  }
-
-  return { sent }
-}    sent++
   }
 
   return { sent }
