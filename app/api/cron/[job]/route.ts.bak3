@@ -14,7 +14,7 @@
  * - finance-alert-first: 재무 1차 알림 (21:00)
  * - finance-alert-follow: 재무 2차 알림 (16:00)
  * - finance-alert-final: 재무 최종 알림 (23:30)
- * - same-day-reminder: 1시간 전 리마인더 (매시간)
+ * - hourly-reminder: 1시간 전 리마인더 (매시간)
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -24,7 +24,7 @@ import {
   dayBeforeReminder,
   paymentReminder,
   financeAlert,
-  sameDayReminder,
+  hourlyReminder,
 } from '@/lib/cron/jobs'
 
 export async function GET(
@@ -89,8 +89,8 @@ export async function GET(
         )
         break
 
-      case 'same-day-reminder':
-        result = await withCronLogging('same-day-reminder', sameDayReminder)
+      case 'hourly-reminder':
+        result = await withCronLogging('hourly-reminder', hourlyReminder)
         break
 
       default:

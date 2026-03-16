@@ -145,19 +145,17 @@ export function getMessageTemplate(
     '4-2': (vars) => {
       const seasonMessage = vars.season === 'summer' 
         ? '더운 날씨, 시원하게 보내세요!' 
-        : '따뜻하게 입고 오세요!';
+        : '따뜻하게 입고 오세요!'
       
       return {
-        title: '[온음] 오늘 예약 안내',
-        message: `${vars.name}님, 오늘 예약이 있습니다!
+        title: '[온음] 1시간 후 예약',
+        message: `${vars.name}님, 1시간 후 예약이 있습니다!
 
-📅 오늘
 ⏰ 시간: ${vars.time}
 📍 공간: ${vars.space}
 
 ${seasonMessage} 🎵`,
       }
-    },      }
     },
 
     '4-3': (vars) => ({

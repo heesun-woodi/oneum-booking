@@ -243,19 +243,24 @@ export async function financeAlert(
 /**
  * 5. 1시간 전 리마인더 (매시간)
  */
-export async function sameDayReminder(): Promise<{
+export async function hourlyReminder(): Promise<{
   sent: number
 }> {
   const now = new Date()
+  const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000)
   const todayStr = now.toISOString().split('T')[0]
+  const targetHour = oneHourLater.getHours()
+  const targetTime = `${String(targetHour).padStart(2, '0')}:00`
 
-  // 오늘 예약 조회 (비회원만)
+  // 1시간 후 시작하는 예약 조회 (비회원만)
   const { data: bookings, error } = await supabase
     .from('bookings')
     .select('*')
     .eq('member_type', 'non-member')
     .eq('booking_date', todayStr)
     .eq('status', 'confirmed')
+    .gte('start_time', targetTime)
+    .lt('start_time', `${String(targetHour + 1).padStart(2, '0')}:00`)
 
   if (error || !bookings) {
     return { sent: 0 }
@@ -280,10 +285,6 @@ export async function sameDayReminder(): Promise<{
       bookingId: booking.id,
     })
     sent++
-  }
-
-  return { sent }
-}    sent++
   }
 
   return { sent }

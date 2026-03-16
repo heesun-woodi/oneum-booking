@@ -9,6 +9,10 @@
       "schedule": "0 9 * * *"
     },
     {
+      "path": "/api/cron/same-day-reminder",
+      "schedule": "0 9 * * *"
+    },
+    {
       "path": "/api/cron/payment-reminder-d7",
       "schedule": "0 13 * * *"
     },
@@ -31,10 +35,6 @@
     {
       "path": "/api/cron/finance-alert-final",
       "schedule": "30 23 * * *"
-    },
-    {
-      "path": "/api/cron/hourly-reminder",
-      "schedule": "0 * * * *"
     }
   ]
 }
