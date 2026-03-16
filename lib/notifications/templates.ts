@@ -157,7 +157,6 @@ export function getMessageTemplate(
 
 ${seasonMessage} 🎵`,
       }
-    },      }
     },
 
     '4-3': (vars) => ({
