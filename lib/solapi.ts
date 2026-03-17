@@ -42,7 +42,7 @@ export async function sendSMS({
     // 실제 발송
     const response = await messageService.send({
       to: to.replace(/-/g, ''), // 010-1234-5678 → 01012345678
-      from: process.env.SOLAPI_SENDER!,
+      from: process.env.SOLAPI_SENDER!.trim(),
       text: text,
       type: 'SMS', // SMS, LMS, MMS
     });
@@ -90,7 +90,7 @@ export async function sendLMS({
     // 실제 발송
     const response = await messageService.send({
       to: to.replace(/-/g, ''),
-      from: process.env.SOLAPI_SENDER!,
+      from: process.env.SOLAPI_SENDER!.trim(),
       text: text,
       subject: subject,
       type: 'LMS',
