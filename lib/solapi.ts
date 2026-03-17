@@ -7,8 +7,8 @@
 import { SolapiMessageService } from 'solapi';
 
 const messageService = new SolapiMessageService(
-  process.env.SOLAPI_API_KEY!,
-  process.env.SOLAPI_API_SECRET!
+  process.env.SOLAPI_API_KEY!.trim(),
+  process.env.SOLAPI_API_SECRET!.trim()
 );
 
 export interface SendResult {
