@@ -1,6 +1,7 @@
 /**
  * 알림 발송 시스템
  */
+import { normalizePhone } from '../phone-utils'
 
 import { solapi } from '../solapi'
 import { supabase } from '../supabase'
@@ -42,7 +43,7 @@ export async function sendNotification(
       .from('notification_logs')
       .insert({
         message_type: type,
-        recipient_phone: phone,
+        recipient_phone: normalizePhone(phone),
         recipient_name: variables.name,
         booking_id: bookingId,
         user_id: userId,
@@ -65,7 +66,7 @@ export async function sendNotification(
     }
 
     // 4. 즉시 발송
-    const result = await solapi.sendAuto(phone, message, title)
+    const result = await solapi.sendAuto(normalizePhone(phone), message, title)
 
     // 5. 발송 결과 업데이트
     if (result.success) {
