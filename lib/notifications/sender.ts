@@ -2,7 +2,7 @@
  * 알림 발송 시스템
  */
 
-import { aligo } from '../aligo'
+import { solapi } from '../solapi'
 import { supabase } from '../supabase'
 import { 
   getMessageTemplate, 
@@ -65,7 +65,7 @@ export async function sendNotification(
     }
 
     // 4. 즉시 발송
-    const result = await aligo.sendAuto(phone, message, title)
+    const result = await solapi.sendAuto(phone, message, title)
 
     // 5. 발송 결과 업데이트
     if (result.success) {
@@ -73,7 +73,7 @@ export async function sendNotification(
         .from('notification_logs')
         .update({
           status: 'sent',
-          aligo_msg_id: result.msgId,
+          solapi_msg_id: result.msgId,
           sent_at: new Date().toISOString(),
         })
         .eq('id', log.id)
