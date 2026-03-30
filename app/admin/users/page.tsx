@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { getSignupRequests, approveSignup, rejectSignup, setAdminRole } from '@/app/actions/admin-users'
+import { getSignupRequests, approveSignup, rejectSignup, setAdminRole, updateUser, deleteUser, resetPassword } from '@/app/actions/admin-users'
 
 interface User {
   id: string
@@ -16,11 +16,18 @@ interface User {
   is_admin?: boolean
 }
 
+interface EditingUser {
+  id: string
+  name: string
+  phone: string
+}
+
 export default function AdminUsersPage() {
   const [activeTab, setActiveTab] = useState<'pending' | 'approved' | 'rejected'>('pending')
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [admin, setAdmin] = useState<any>(null)
+  const [editingUser, setEditingUser] = useState<EditingUser | null>(null)
   
   useEffect(() => {
     const session = localStorage.getItem('adminSession')
@@ -88,6 +95,65 @@ export default function AdminUsersPage() {
     }
   }
   
+  const handleEdit = (user: User) => {
+    setEditingUser({
+      id: user.id,
+      name: user.name,
+      phone: user.phone
+    })
+  }
+  
+  const handleCancelEdit = () => {
+    setEditingUser(null)
+  }
+  
+  const handleSaveEdit = async () => {
+    if (!editingUser) return
+    
+    const result = await updateUser(editingUser.id, {
+      name: editingUser.name,
+      phone: editingUser.phone
+    })
+    
+    if (result.success) {
+      alert(result.message)
+      setEditingUser(null)
+      loadUsers()
+    } else {
+      alert(result.error || '수정 실패')
+    }
+  }
+  
+  const handleDelete = async (userId: string, userName: string) => {
+    if (!admin) {
+      alert('관리자 로그인이 필요합니다.')
+      window.location.href = '/admin/login'
+      return
+    }
+    
+    if (!confirm(`정말 ${userName}님을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`)) return
+    
+    const result = await deleteUser(userId, admin.id)
+    if (result.success) {
+      alert(result.message)
+      loadUsers()
+    } else {
+      alert(result.error || '삭제 실패')
+    }
+  }
+  
+  const handleResetPassword = async (userId: string, userName: string) => {
+    const newPassword = prompt(`${userName}님의 새 비밀번호를 입력하세요 (최소 4자):`)
+    if (!newPassword) return
+    
+    const result = await resetPassword(userId, newPassword)
+    if (result.success) {
+      alert(result.message + '\n새 비밀번호: ' + newPassword)
+    } else {
+      alert(result.error || '비밀번호 재설정 실패')
+    }
+  }
+  
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-gray-800">가입 신청 관리</h1>
@@ -148,7 +214,10 @@ export default function AdminUsersPage() {
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">전화번호</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">신청일</th>
                   {activeTab === 'approved' && (
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase">관리자</th>
+                    <>
+                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase">관리자</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">액션</th>
+                    </>
                   )}
                   {activeTab === 'rejected' && (
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">거부 사유</th>
@@ -159,47 +228,117 @@ export default function AdminUsersPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 bg-white">
-                {users.map((user) => (
-                  <tr key={user.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-sm text-gray-800">{user.household}호</td>
-                    <td className="px-4 py-3 text-sm text-gray-800">{user.name}</td>
-                    <td className="px-4 py-3 text-sm text-gray-600">{user.phone}</td>
-                    <td className="px-4 py-3 text-sm text-gray-600">
-                      {new Date(user.created_at).toLocaleDateString('ko-KR')}
-                    </td>
-                    {activeTab === 'approved' && (
-                      <td className="px-4 py-3 text-center">
-                        <input
-                          type="checkbox"
-                          checked={user.is_admin || false}
-                          onChange={() => handleAdminToggle(user.id, user.is_admin || false, user.name)}
-                          className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
-                        />
+                {users.map((user) => {
+                  const isEditing = editingUser?.id === user.id
+                  
+                  return (
+                    <tr key={user.id} className={isEditing ? 'bg-blue-50' : 'hover:bg-gray-50'}>
+                      <td className="px-4 py-3 text-sm text-gray-800">{user.household}호</td>
+                      <td className="px-4 py-3 text-sm text-gray-800">
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={editingUser.name}
+                            onChange={(e) => setEditingUser({ ...editingUser, name: e.target.value })}
+                            className="w-full px-2 py-1 border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                        ) : (
+                          user.name
+                        )}
                       </td>
-                    )}
-                    {activeTab === 'rejected' && (
-                      <td className="px-4 py-3 text-sm text-gray-600">{user.rejected_reason}</td>
-                    )}
-                    {activeTab === 'pending' && (
-                      <td className="px-4 py-3 text-sm">
-                        <div className="flex space-x-2">
-                          <button
-                            onClick={() => handleApprove(user.id)}
-                            className="px-3 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
-                          >
-                            승인
-                          </button>
-                          <button
-                            onClick={() => handleReject(user.id)}
-                            className="px-3 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700"
-                          >
-                            거부
-                          </button>
-                        </div>
+                      <td className="px-4 py-3 text-sm text-gray-600">
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={editingUser.phone}
+                            onChange={(e) => setEditingUser({ ...editingUser, phone: e.target.value })}
+                            placeholder="010-XXXX-XXXX"
+                            className="w-full px-2 py-1 border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                        ) : (
+                          user.phone
+                        )}
                       </td>
-                    )}
-                  </tr>
-                ))}
+                      <td className="px-4 py-3 text-sm text-gray-600">
+                        {new Date(user.created_at).toLocaleDateString('ko-KR')}
+                      </td>
+                      {activeTab === 'approved' && (
+                        <>
+                          <td className="px-4 py-3 text-center">
+                            <input
+                              type="checkbox"
+                              checked={user.is_admin || false}
+                              onChange={() => handleAdminToggle(user.id, user.is_admin || false, user.name)}
+                              disabled={isEditing}
+                              className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 cursor-pointer disabled:opacity-50"
+                            />
+                          </td>
+                          <td className="px-4 py-3 text-sm">
+                            {isEditing ? (
+                              <div className="flex space-x-2">
+                                <button
+                                  onClick={handleSaveEdit}
+                                  className="px-3 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
+                                >
+                                  저장
+                                </button>
+                                <button
+                                  onClick={handleCancelEdit}
+                                  className="px-3 py-1 text-xs bg-gray-500 text-white rounded hover:bg-gray-600"
+                                >
+                                  취소
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex space-x-2">
+                                <button
+                                  onClick={() => handleEdit(user)}
+                                  className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                                >
+                                  수정
+                                </button>
+                                <button
+                                  onClick={() => handleResetPassword(user.id, user.name)}
+                                  className="px-3 py-1 text-xs bg-yellow-600 text-white rounded hover:bg-yellow-700"
+                                  title="비밀번호 재설정"
+                                >
+                                  🔑
+                                </button>
+                                <button
+                                  onClick={() => handleDelete(user.id, user.name)}
+                                  className="px-3 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700"
+                                >
+                                  삭제
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                        </>
+                      )}
+                      {activeTab === 'rejected' && (
+                        <td className="px-4 py-3 text-sm text-gray-600">{user.rejected_reason}</td>
+                      )}
+                      {activeTab === 'pending' && (
+                        <td className="px-4 py-3 text-sm">
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => handleApprove(user.id)}
+                              className="px-3 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
+                            >
+                              승인
+                            </button>
+                            <button
+                              onClick={() => handleReject(user.id)}
+                              className="px-3 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700"
+                            >
+                              거부
+                            </button>
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
