@@ -6,7 +6,8 @@ import { getAdminBookings, getTodayBookings } from '@/app/actions/admin-bookings
 interface Booking {
   id: string
   date: string
-  times: string[]
+  start_time: string
+  end_time: string
   space: string
   household: string
   name: string
@@ -39,7 +40,7 @@ export default function AdminDashboard() {
     return <div>Loading...</div>
   }
   
-  const nolterCount = todayBookings.filter(b => b.space === 'outdoor').length
+  const nolterCount = todayBookings.filter(b => b.space === 'nolter').length
   const soundroomCount = todayBookings.filter(b => b.space === 'soundroom').length
   
   return (
@@ -78,11 +79,11 @@ export default function AdminDashboard() {
                 <div key={booking.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                   <div className="flex items-center space-x-4">
                     <span className="text-2xl">
-                      {booking.space === 'outdoor' ? '🏠' : '🎵'}
+                      {booking.space === 'nolter' ? '🏠' : '🎵'}
                     </span>
                     <div>
                       <div className="font-medium text-gray-800">
-                        {booking.times.join(', ')} | {booking.household}호 {booking.name}
+                        {booking.start_time} ~ {booking.end_time} | {booking.household}호 {booking.name}
                       </div>
                       <div className="text-sm text-gray-500">{booking.phone}</div>
                     </div>
@@ -119,9 +120,9 @@ export default function AdminDashboard() {
               {recentBookings.map((booking) => (
                 <tr key={booking.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 text-sm text-gray-800">{booking.date}</td>
-                  <td className="px-4 py-3 text-sm text-gray-800">{booking.times.join(', ')}</td>
+                  <td className="px-4 py-3 text-sm text-gray-800">{booking.start_time} ~ {booking.end_time}</td>
                   <td className="px-4 py-3 text-sm">
-                    {booking.space === 'outdoor' ? '🏠 놀터' : '🎵 방음실'}
+                    {booking.space === 'nolter' ? '🏠 놀터' : '🎵 방음실'}
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-800">{booking.household}호</td>
                   <td className="px-4 py-3 text-sm text-gray-800">{booking.name}</td>
