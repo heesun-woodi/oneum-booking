@@ -6,9 +6,10 @@ import Link from 'next/link'
 
 interface AdminSession {
   id: string
-  email: string
+  household?: string
   name: string
-  role: string
+  phone?: string
+  isAdmin: boolean
 }
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -32,7 +33,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       return
     }
     
-    setAdmin(JSON.parse(session))
+    const adminData = JSON.parse(session)
+    
+    // 관리자 권한 확인
+    if (!adminData.isAdmin) {
+      alert('관리자 권한이 없습니다.')
+      localStorage.removeItem('adminSession')
+      router.push('/admin/login')
+      return
+    }
+    
+    setAdmin(adminData)
     setLoading(false)
   }, [pathname, router])
   

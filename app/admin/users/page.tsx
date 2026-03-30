@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { getSignupRequests, approveSignup, rejectSignup } from '@/app/actions/admin-users'
+import { getSignupRequests, approveSignup, rejectSignup, setAdminRole } from '@/app/actions/admin-users'
 
 interface User {
   id: string
@@ -13,6 +13,7 @@ interface User {
   approved_at?: string
   rejected_at?: string
   rejected_reason?: string
+  is_admin?: boolean
 }
 
 export default function AdminUsersPage() {
@@ -71,6 +72,19 @@ export default function AdminUsersPage() {
       loadUsers()
     } else {
       alert(result.error || '거부 실패')
+    }
+  }
+  
+  const handleAdminToggle = async (userId: string, currentIsAdmin: boolean, userName: string) => {
+    const action = currentIsAdmin ? '해제' : '부여'
+    if (!confirm(`${userName}님의 관리자 권한을 ${action}하시겠습니까?`)) return
+    
+    const result = await setAdminRole(userId, !currentIsAdmin)
+    if (result.success) {
+      alert(result.message)
+      loadUsers()
+    } else {
+      alert(result.error || '권한 설정 실패')
     }
   }
   
@@ -133,6 +147,9 @@ export default function AdminUsersPage() {
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">이름</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">전화번호</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">신청일</th>
+                  {activeTab === 'approved' && (
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase">관리자</th>
+                  )}
                   {activeTab === 'rejected' && (
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">거부 사유</th>
                   )}
@@ -150,6 +167,16 @@ export default function AdminUsersPage() {
                     <td className="px-4 py-3 text-sm text-gray-600">
                       {new Date(user.created_at).toLocaleDateString('ko-KR')}
                     </td>
+                    {activeTab === 'approved' && (
+                      <td className="px-4 py-3 text-center">
+                        <input
+                          type="checkbox"
+                          checked={user.is_admin || false}
+                          onChange={() => handleAdminToggle(user.id, user.is_admin || false, user.name)}
+                          className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+                        />
+                      </td>
+                    )}
                     {activeTab === 'rejected' && (
                       <td className="px-4 py-3 text-sm text-gray-600">{user.rejected_reason}</td>
                     )}

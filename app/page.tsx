@@ -11,6 +11,7 @@ interface UserSession {
   household: string // '201', '301', etc.
   name: string
   phone: string
+  isAdmin?: boolean
 }
 
 type SpaceType = 'nolter' | 'soundroom'
@@ -116,7 +117,8 @@ export default function Home() {
       isLoggedIn: false,
       household: '',
       name: '',
-      phone: ''
+      phone: '',
+      isAdmin: false
     })
     
     // ⭐ 예약 폼 상태도 초기화
@@ -435,12 +437,13 @@ export default function Home() {
       return
     }
 
-    // 세션 저장 (세대 정보 자동 포함!)
+    // 세션 저장 (세대 정보 + 관리자 권한 자동 포함!)
     const session: UserSession = {
       isLoggedIn: true,
       household: result.user.household,
       name: result.user.name,
-      phone: result.user.phone
+      phone: result.user.phone,
+      isAdmin: result.user.is_admin || false
     }
 
     saveSession(session)
@@ -626,7 +629,18 @@ export default function Home() {
                 <div className="text-left sm:text-right mr-0 sm:mr-3">
                   <p className="text-xs sm:text-sm font-semibold text-gray-900">{userSession.household}호</p>
                   <p className="text-xs text-gray-600">{userSession.name}</p>
+                  {userSession.isAdmin && (
+                    <p className="text-xs text-blue-600 font-medium">⚡ 관리자</p>
+                  )}
                 </div>
+                {userSession.isAdmin && (
+                  <button
+                    onClick={() => window.location.href = '/admin'}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 whitespace-nowrap"
+                  >
+                    관리자
+                  </button>
+                )}
                 <button
                   onClick={handleLogout}
                   className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 whitespace-nowrap"

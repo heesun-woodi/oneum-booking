@@ -1,12 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { adminLogin } from '@/app/actions/admin-auth'
 import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 
 export default function AdminLoginPage() {
   const router = useRouter()
-  const [email, setEmail] = useState('')
+  const [name, setName] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -17,16 +17,55 @@ export default function AdminLoginPage() {
     setLoading(true)
     
     try {
-      const result = await adminLogin(email, password)
+      const supabase = createClient()
       
-      if (result.success && result.admin) {
-        // 세션 저장
-        localStorage.setItem('adminSession', JSON.stringify(result.admin))
-        router.push('/admin')
-      } else {
-        setError(result.error || '로그인 실패')
+      // 1. users 테이블에서 이름으로 사용자 조회
+      const { data: user, error: fetchError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('name', name)
+        .eq('status', 'approved')
+        .single()
+      
+      if (fetchError || !user) {
+        setError('사용자를 찾을 수 없습니다.')
+        setLoading(false)
+        return
       }
+      
+      // 2. 관리자 권한 확인
+      if (!user.is_admin) {
+        setError('관리자 권한이 없습니다.')
+        setLoading(false)
+        return
+      }
+      
+      // 3. 비밀번호 확인 (bcrypt 사용하지 않고 직접 비교 - 기존 users 테이블 구조)
+      // 실제 환경에서는 bcrypt 사용 권장
+      const bcrypt = await import('bcryptjs')
+      const isValid = await bcrypt.compare(password, user.password_hash)
+      
+      if (!isValid) {
+        setError('비밀번호가 올바르지 않습니다.')
+        setLoading(false)
+        return
+      }
+      
+      // 4. 세션 저장
+      const session = {
+        id: user.id,
+        household: user.household,
+        name: user.name,
+        phone: user.phone,
+        isAdmin: true
+      }
+      
+      localStorage.setItem('adminSession', JSON.stringify(session))
+      console.log('✅ 관리자 로그인:', session)
+      
+      router.push('/admin')
     } catch (err) {
+      console.error('Admin login error:', err)
       setError('로그인 중 오류가 발생했습니다.')
     } finally {
       setLoading(false)
@@ -40,11 +79,12 @@ export default function AdminLoginPage() {
         
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium mb-1 text-gray-700">이메일</label>
+            <label className="block text-sm font-medium mb-1 text-gray-700">이름</label>
             <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="이름을 입력하세요"
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800"
               required
               disabled={loading}
@@ -57,6 +97,7 @@ export default function AdminLoginPage() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              placeholder="비밀번호를 입력하세요"
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800"
               required
               disabled={loading}
@@ -75,6 +116,10 @@ export default function AdminLoginPage() {
             {loading ? '로그인 중...' : '로그인'}
           </button>
         </form>
+        
+        <div className="mt-4 text-center text-sm text-gray-600">
+          <p>회원 로그인 계정으로 관리자 접속</p>
+        </div>
       </div>
     </div>
   )
