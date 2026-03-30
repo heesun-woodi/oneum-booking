@@ -5,10 +5,10 @@ import { getAdminBookings, getTodayBookings } from '@/app/actions/admin-bookings
 
 interface Booking {
   id: string
-  date: string
+  booking_date: string
   start_time: string
   end_time: string
-  space: string
+  space: 'nolter' | 'soundroom'
   household: string
   name: string
   phone: string
@@ -119,7 +119,7 @@ export default function AdminDashboard() {
             <tbody className="divide-y divide-gray-200 bg-white">
               {recentBookings.map((booking) => (
                 <tr key={booking.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-sm text-gray-800">{booking.date}</td>
+                  <td className="px-4 py-3 text-sm text-gray-800">{booking.booking_date}</td>
                   <td className="px-4 py-3 text-sm text-gray-800">{booking.start_time} ~ {booking.end_time}</td>
                   <td className="px-4 py-3 text-sm">
                     {booking.space === 'nolter' ? '🏠 놀터' : '🎵 방음실'}
