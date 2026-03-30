@@ -9,25 +9,27 @@ export async function getAdminBookings(options: {
   household?: string
   space?: string
   limit?: number
+  offset?: number
 } = {}) {
   try {
     const supabase = await createClient()
     
     let query = supabase
       .from('bookings')
-      .select('*')
-      .order('date', { ascending: false })
+      .select('*', { count: 'exact' })
+      .order('booking_date', { ascending: false })
+      .order('start_time', { ascending: false })
     
     if (options.status) {
       query = query.eq('status', options.status)
     }
     
     if (options.startDate) {
-      query = query.gte('date', options.startDate)
+      query = query.gte('booking_date', options.startDate)
     }
     
     if (options.endDate) {
-      query = query.lte('date', options.endDate)
+      query = query.lte('booking_date', options.endDate)
     }
     
     if (options.household) {
@@ -42,16 +44,20 @@ export async function getAdminBookings(options: {
       query = query.limit(options.limit)
     }
     
-    const { data, error } = await query
-    
-    if (error) {
-      return { success: false, error: error.message, bookings: [] }
+    if (options.offset) {
+      query = query.range(options.offset, options.offset + (options.limit || 50) - 1)
     }
     
-    return { success: true, bookings: data || [] }
+    const { data, error, count } = await query
+    
+    if (error) {
+      return { success: false, error: error.message, bookings: [], total: 0 }
+    }
+    
+    return { success: true, bookings: data || [], total: count || 0 }
   } catch (error) {
     console.error('Get admin bookings error:', error)
-    return { success: false, error: '조회 중 오류가 발생했습니다.', bookings: [] }
+    return { success: false, error: '조회 중 오류가 발생했습니다.', bookings: [], total: 0 }
   }
 }
 
@@ -62,4 +68,43 @@ export async function getTodayBookings() {
     endDate: today,
     status: 'confirmed'
   })
+}
+
+export async function cancelBookingAdmin(bookingId: string, reason?: string) {
+  try {
+    const supabase = await createClient()
+    
+    const { data: booking, error: checkError } = await supabase
+      .from('bookings')
+      .select('*')
+      .eq('id', bookingId)
+      .single()
+    
+    if (checkError || !booking) {
+      return { success: false, error: '예약을 찾을 수 없습니다.' }
+    }
+    
+    if (booking.status === 'cancelled') {
+      return { success: false, error: '이미 취소된 예약입니다.' }
+    }
+    
+    const { error } = await supabase
+      .from('bookings')
+      .update({ 
+        status: 'cancelled',
+        cancelled_at: new Date().toISOString(),
+        cancellation_reason: reason || '관리자 취소',
+      })
+      .eq('id', bookingId)
+    
+    if (error) {
+      console.error('❌ Supabase error:', error)
+      throw error
+    }
+    
+    return { success: true }
+  } catch (error: any) {
+    console.error('❌ Cancel booking admin error:', error)
+    return { success: false, error: error.message }
+  }
 }

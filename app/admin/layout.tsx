@@ -97,6 +97,46 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 >
                   💰 입금 확인
                 </Link>
+                <Link
+                  href="/admin/bookings"
+                  className={`px-3 py-2 rounded-md text-sm font-medium ${
+                    pathname === '/admin/bookings'
+                      ? 'bg-blue-100 text-blue-700'
+                      : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  📅 예약 관리
+                </Link>
+                <Link
+                  href="/admin/stats"
+                  className={`px-3 py-2 rounded-md text-sm font-medium ${
+                    pathname === '/admin/stats'
+                      ? 'bg-blue-100 text-blue-700'
+                      : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  📈 통계
+                </Link>
+                <Link
+                  href="/admin/notifications"
+                  className={`px-3 py-2 rounded-md text-sm font-medium ${
+                    pathname === '/admin/notifications'
+                      ? 'bg-blue-100 text-blue-700'
+                      : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  📨 알림
+                </Link>
+                <Link
+                  href="/admin/settings"
+                  className={`px-3 py-2 rounded-md text-sm font-medium ${
+                    pathname === '/admin/settings'
+                      ? 'bg-blue-100 text-blue-700'
+                      : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  ⚙️ 설정
+                </Link>
               </div>
             </div>
             
@@ -162,6 +202,50 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   }`}
                 >
                   💰 입금 확인
+                </Link>
+                <Link
+                  href="/admin/bookings"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`block px-3 py-2 rounded-md text-base font-medium ${
+                    pathname === '/admin/bookings'
+                      ? 'bg-blue-100 text-blue-700'
+                      : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  📅 예약 관리
+                </Link>
+                <Link
+                  href="/admin/stats"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`block px-3 py-2 rounded-md text-base font-medium ${
+                    pathname === '/admin/stats'
+                      ? 'bg-blue-100 text-blue-700'
+                      : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  📈 통계
+                </Link>
+                <Link
+                  href="/admin/notifications"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`block px-3 py-2 rounded-md text-base font-medium ${
+                    pathname === '/admin/notifications'
+                      ? 'bg-blue-100 text-blue-700'
+                      : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  📨 알림
+                </Link>
+                <Link
+                  href="/admin/settings"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`block px-3 py-2 rounded-md text-base font-medium ${
+                    pathname === '/admin/settings'
+                      ? 'bg-blue-100 text-blue-700'
+                      : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  ⚙️ 설정
                 </Link>
                 <button
                   onClick={handleLogout}
