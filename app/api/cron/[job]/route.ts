@@ -27,6 +27,8 @@ import {
   sameDayReminder,
 } from '@/lib/cron/jobs'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(
   request: NextRequest,
   { params }: { params: { job: string } }

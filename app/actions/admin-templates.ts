@@ -312,12 +312,12 @@ export async function sendTestMessage(
 /**
  * 템플릿 변수 추출 (content에서 {변수} 형식 파싱)
  */
-export function extractVariables(content: string): string[] {
+export async function extractVariables(content: string): Promise<string[]> {
   const regex = /\{([a-zA-Z0-9_]+)\}/g
-  const matches = content.matchAll(regex)
   const variables = new Set<string>()
   
-  for (const match of matches) {
+  let match
+  while ((match = regex.exec(content)) !== null) {
     variables.add(match[1])
   }
   

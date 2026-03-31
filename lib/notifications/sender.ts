@@ -166,13 +166,13 @@ export async function getNotificationStats(startDate?: Date, endDate?: Date) {
 
   const stats = {
     total: data?.length || 0,
-    sent: data?.filter(l => l.status === 'sent').length || 0,
-    failed: data?.filter(l => l.status === 'failed').length || 0,
-    pending: data?.filter(l => l.status === 'pending').length || 0,
+    sent: data?.filter((l: any) => l.status === 'sent').length || 0,
+    failed: data?.filter((l: any) => l.status === 'failed').length || 0,
+    pending: data?.filter((l: any) => l.status === 'pending').length || 0,
     byType: {} as Record<string, number>,
   }
 
-  data?.forEach(log => {
+  data?.forEach((log: any) => {
     stats.byType[log.message_type] = (stats.byType[log.message_type] || 0) + 1
   })
 

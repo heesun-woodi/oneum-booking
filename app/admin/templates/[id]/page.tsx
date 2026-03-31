@@ -44,8 +44,8 @@ export default function EditTemplatePage({ params }: { params: { id: string } })
     // 실제로는 getTemplateById를 만들어야 하지만 Day 1에서 구현됨
     const result = await getMessageTemplates()
     
-    if (result.success) {
-      const found = result.templates.find((t: MessageTemplate) => t.id === params.id)
+    if (result.success && result.data) {
+      const found = result.data.find((t: MessageTemplate) => t.id === params.id)
       
       if (found) {
         setTemplate(found)
@@ -115,7 +115,7 @@ export default function EditTemplatePage({ params }: { params: { id: string } })
     
     if (result.success) {
       alert('테스트 발송 완료!')
-      setPreview(result.preview || '')
+      setPreview(result.data?.preview || '')
     } else {
       alert('발송 실패: ' + result.error)
     }

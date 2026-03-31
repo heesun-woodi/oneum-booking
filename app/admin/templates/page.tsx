@@ -43,8 +43,8 @@ export default function TemplatesPage() {
     
     const result = await getMessageTemplates(category === 'all' ? undefined : category)
     
-    if (result.success) {
-      setTemplates(result.templates as MessageTemplate[])
+    if (result.success && result.data) {
+      setTemplates(result.data as MessageTemplate[])
     } else {
       setError(result.error || '템플릿 로딩 실패')
     }
