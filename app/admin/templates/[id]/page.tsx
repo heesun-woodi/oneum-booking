@@ -1,0 +1,319 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { getMessageTemplates, updateTemplate, sendTestMessage } from '@/app/actions/admin-templates'
+
+interface MessageTemplate {
+  id: string
+  type_code: string
+  category: string
+  name: string
+  title: string
+  content: string
+  is_active: boolean
+  variables: string[]
+  created_at: string
+  updated_at: string
+}
+
+export default function EditTemplatePage({ params }: { params: { id: string } }) {
+  const router = useRouter()
+  const [template, setTemplate] = useState<MessageTemplate | null>(null)
+  const [form, setForm] = useState({ title: '', content: '' })
+  const [testPhone, setTestPhone] = useState('')
+  const [testVars, setTestVars] = useState<Record<string, string>>({})
+  const [preview, setPreview] = useState('')
+  const [sending, setSending] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => { 
+    loadTemplate() 
+  }, [params.id])
+
+  // 실시간 미리보기 업데이트
+  useEffect(() => {
+    setPreview(getPreview())
+  }, [form.content, testVars])
+
+  async function loadTemplate() {
+    setLoading(true)
+    
+    // Note: getMessageTemplates로 전체를 가져온 후 id로 필터링
+    // 실제로는 getTemplateById를 만들어야 하지만 Day 1에서 구현됨
+    const result = await getMessageTemplates()
+    
+    if (result.success) {
+      const found = result.templates.find((t: MessageTemplate) => t.id === params.id)
+      
+      if (found) {
+        setTemplate(found)
+        setForm({ title: found.title, content: found.content })
+        
+        // 변수 기본값 설정
+        const vars: Record<string, string> = {}
+        found.variables?.forEach((v: string) => { 
+          vars[v] = '' 
+        })
+        setTestVars(vars)
+      } else {
+        alert('템플릿을 찾을 수 없습니다')
+        router.push('/admin/templates')
+      }
+    } else {
+      alert('템플릿 로딩 실패: ' + result.error)
+      router.push('/admin/templates')
+    }
+    
+    setLoading(false)
+  }
+
+  async function handleSave() {
+    if (!form.title.trim()) {
+      alert('제목을 입력하세요')
+      return
+    }
+    
+    if (!form.content.trim()) {
+      alert('내용을 입력하세요')
+      return
+    }
+    
+    setSaving(true)
+    
+    const result = await updateTemplate(params.id, form)
+    
+    if (result.success) {
+      alert('저장되었습니다')
+      router.push('/admin/templates')
+    } else {
+      alert('저장 실패: ' + result.error)
+    }
+    
+    setSaving(false)
+  }
+
+  async function handleTestSend() {
+    if (!testPhone) {
+      alert('전화번호를 입력하세요')
+      return
+    }
+    
+    // 변수 검증 (필수 변수가 비어있는지 확인)
+    const emptyVars = Object.entries(testVars).filter(([_, v]) => !v.trim())
+    if (emptyVars.length > 0) {
+      const confirm = window.confirm(
+        `일부 변수가 비어있습니다: ${emptyVars.map(([k]) => k).join(', ')}\n계속하시겠습니까?`
+      )
+      if (!confirm) return
+    }
+    
+    setSending(true)
+    
+    const result = await sendTestMessage(params.id, testPhone, testVars)
+    
+    if (result.success) {
+      alert('테스트 발송 완료!')
+      setPreview(result.preview || '')
+    } else {
+      alert('발송 실패: ' + result.error)
+    }
+    
+    setSending(false)
+  }
+
+  // 실시간 미리보기 생성
+  function getPreview() {
+    let msg = form.content
+    Object.entries(testVars).forEach(([k, v]) => {
+      // 값이 있으면 치환, 없으면 변수 그대로 표시
+      msg = msg.replaceAll(`{${k}}`, v || `{${k}}`)
+    })
+    return msg
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <p className="text-gray-500">로딩 중...</p>
+      </div>
+    )
+  }
+
+  if (!template) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-gray-500">템플릿을 찾을 수 없습니다</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6 max-w-5xl">
+      {/* 헤더 */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-gray-900">✏️ 템플릿 편집: {template.name}</h1>
+        <button
+          onClick={() => router.push('/admin/templates')}
+          className="text-gray-600 hover:text-gray-900 text-sm"
+        >
+          ← 목록으로
+        </button>
+      </div>
+      
+      {/* 기본 정보 + 편집 폼 */}
+      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+        <div className="grid grid-cols-2 gap-4 mb-6 pb-6 border-b border-gray-200">
+          <div>
+            <label className="block text-sm font-medium text-gray-600 mb-1">코드</label>
+            <p className="font-mono text-lg text-gray-900">{template.type_code}</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-600 mb-1">카테고리</label>
+            <p className="text-lg text-gray-900">{template.category}</p>
+          </div>
+        </div>
+        
+        <div className="space-y-4">
+          {/* 제목 */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              제목 <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={form.title}
+              onChange={(e) => setForm({ ...form, title: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="[온음] 예약 완료"
+            />
+          </div>
+          
+          {/* 내용 */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              내용 <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              value={form.content}
+              onChange={(e) => setForm({ ...form, content: e.target.value })}
+              rows={12}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="메시지 내용을 입력하세요..."
+            />
+            <p className="text-xs text-gray-500 mt-2">
+              💡 <strong>사용 가능한 변수:</strong>{' '}
+              {template.variables && template.variables.length > 0
+                ? template.variables.map((v: string) => `{${v}}`).join(', ')
+                : '없음'}
+            </p>
+          </div>
+          
+          {/* 저장 버튼 */}
+          <div className="flex justify-end pt-4">
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+            >
+              {saving ? '저장 중...' : '💾 저장'}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* 테스트 발송 섹션 */}
+      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">🧪 테스트 발송</h2>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* 좌측: 변수 입력 */}
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                수신 번호 <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="tel"
+                value={testPhone}
+                onChange={(e) => setTestPhone(e.target.value)}
+                placeholder="01012345678"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                하이픈(-) 없이 숫자만 입력
+              </p>
+            </div>
+            
+            {template.variables && template.variables.length > 0 && (
+              <>
+                <div className="border-t border-gray-200 pt-4">
+                  <p className="text-sm font-medium text-gray-700 mb-3">변수 입력</p>
+                  <div className="space-y-3">
+                    {template.variables.map((v: string) => (
+                      <div key={v}>
+                        <label className="block text-sm text-gray-600 mb-1">
+                          {v}
+                        </label>
+                        <input
+                          type="text"
+                          value={testVars[v] || ''}
+                          onChange={(e) => setTestVars({ ...testVars, [v]: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          placeholder={`예: ${getExampleValue(v)}`}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+            
+            <button
+              onClick={handleTestSend}
+              disabled={sending}
+              className="w-full px-4 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+            >
+              {sending ? '발송 중...' : '📤 테스트 발송'}
+            </button>
+          </div>
+          
+          {/* 우측: 미리보기 */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              실시간 미리보기
+            </label>
+            <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 whitespace-pre-wrap text-sm h-80 overflow-auto">
+              {preview || '변수를 입력하면 미리보기가 표시됩니다.'}
+            </div>
+            <p className="text-xs text-gray-500 mt-2">
+              💡 변수를 입력하면 실시간으로 미리보기가 업데이트됩니다
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// 변수별 예시 값 제공
+function getExampleValue(variable: string): string {
+  const examples: Record<string, string> = {
+    name: '홍길동',
+    household: '101',
+    date: '2026-04-01',
+    time: '14:00-16:00',
+    space: '온음 스튜디오',
+    amount: '50000',
+    account: '카카오뱅크 1234-56-7890',
+    deadline: '2026-03-31',
+    reason: '승인 조건 미충족',
+    phone: '010-1234-5678',
+    count: '3',
+    list: '홍길동, 김영희, 이철수',
+    adminUrl: 'https://...',
+  }
+  
+  return examples[variable] || '값'
+}
