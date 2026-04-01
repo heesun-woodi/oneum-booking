@@ -7,9 +7,7 @@ import { getSetting, updateSetting } from '@/app/actions/settings'
 export default function AdminSettingsPage() {
   const [spaces, setSpaces] = useState<any[]>([])
   const [rules, setRules] = useState<any>(null)
-  const [reservationGuide, setReservationGuide] = useState<string>('')
   const [usageRules, setUsageRules] = useState<string>('')
-  const [savingGuide, setSavingGuide] = useState(false)
   const [savingRules, setSavingRules] = useState(false)
   const [loading, setLoading] = useState(true)
   
@@ -32,34 +30,12 @@ export default function AdminSettingsPage() {
     }
     
     // Get DB settings
-    const guide = await getSetting('reservation_guide')
-    if (guide) {
-      setReservationGuide(guide)
-    }
-    
     const rules = await getSetting('usage_rules')
     if (rules) {
       setUsageRules(rules)
     }
     
     setLoading(false)
-  }
-
-  const handleSaveGuide = async () => {
-    setSavingGuide(true)
-    try {
-      const result = await updateSetting('reservation_guide', reservationGuide)
-      if (result.success) {
-        alert('예약 안내 설정이 저장되었습니다.')
-      } else {
-        alert('저장 실패: ' + result.error)
-      }
-    } catch (e) {
-      console.error(e)
-      alert('저장 중 오류가 발생했습니다.')
-    } finally {
-      setSavingGuide(false)
-    }
   }
 
   const handleSaveRules = async () => {
@@ -95,29 +71,8 @@ export default function AdminSettingsPage() {
       <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 space-y-4">
         <h2 className="text-xl font-semibold text-gray-900 mb-4">🌐 사이트 설정</h2>
         
-        {/* 예약 안내 */}
-        <div>
-          <label className="block text-sm font-semibold text-gray-900 mb-2">메인 페이지 예약 안내 문구</label>
-          <textarea
-            value={reservationGuide}
-            onChange={(e) => setReservationGuide(e.target.value)}
-            rows={8}
-            className="w-full p-3 border border-gray-300 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="예약 안내 내용을 입력하세요..."
-          />
-          <div className="flex justify-end mt-3">
-            <button
-              onClick={handleSaveGuide}
-              disabled={savingGuide}
-              className="px-4 py-2 bg-blue-500 text-white font-medium rounded-lg hover:bg-blue-600 disabled:bg-gray-400 transition-colors"
-            >
-              {savingGuide ? '저장 중...' : '저장'}
-            </button>
-          </div>
-        </div>
-
         {/* 이용 규칙 */}
-        <div className="pt-4 border-t border-gray-200">
+        <div>
           <label className="block text-sm font-semibold text-gray-900 mb-2">메인 페이지 이용 규칙</label>
           <p className="text-xs text-gray-500 mb-2">
             💡 마크다운 형식으로 작성하세요. ## 제목으로 각 섹션을 구분합니다. (예: ## 🗓 예약 규정)

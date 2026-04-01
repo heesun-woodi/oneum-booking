@@ -44,7 +44,6 @@ export default function Home() {
   
   // 예약 데이터
   const [bookingsData, setBookingsData] = useState<Booking[]>([])
-  const [reservationGuide, setReservationGuide] = useState<string>('')
   const [usageRules, setUsageRules] = useState<string>('')
   
   // 모달 상태
@@ -93,20 +92,13 @@ export default function Home() {
   }, [currentMonth, selectedSpace])
 
   useEffect(() => {
-    async function loadGuide() {
-      const guide = await getSetting('reservation_guide')
-      if (guide) {
-        setReservationGuide(guide)
-      } else {
-        setReservationGuide('• 운영시간: 09:00 - 23:00\n• 당일 예약 불가 (최소 1일 전에 예약)\n• 예약일 전날 23:59까지 입금 필수\n• 입금계좌: 카카오뱅크 7979-72-56275 (정상은)\n• 기한 내 미입금 시 → 자동 취소 됩니다\n  예시: 4월 10일 예약 → 4월 9일 23:59까지 입금')
-      }
-      
+    async function loadRules() {
       const rules = await getSetting('usage_rules')
       if (rules) {
         setUsageRules(rules)
       }
     }
-    loadGuide()
+    loadRules()
   }, [])
 
   async function loadBookings() {
@@ -817,14 +809,6 @@ export default function Home() {
                 </div>
               )
             })}
-          </div>
-        </div>
-
-        {/* ===== 예약 안내 ===== */}
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <h3 className="text-lg font-semibold mb-4">📋 예약 안내</h3>
-          <div className="whitespace-pre-wrap leading-relaxed text-gray-700 space-y-2 text-sm sm:text-base">
-            {reservationGuide}
           </div>
         </div>
 
