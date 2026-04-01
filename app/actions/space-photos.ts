@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceRoleClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 
 // ===== 타입 정의 =====
@@ -106,7 +106,7 @@ export async function getSpacePhotos(space: 'nolter' | 'soundroom'): Promise<Spa
 // ===== 2. 사진 업로드 =====
 export async function uploadSpacePhoto(formData: FormData): Promise<UploadPhotoResult> {
   try {
-    const supabase = await createClient()
+    const supabase = await createServiceRoleClient()
     
     // FormData 파싱
     const file = formData.get('file') as File
@@ -226,7 +226,7 @@ export async function uploadSpacePhoto(formData: FormData): Promise<UploadPhotoR
 // ===== 3. 사진 교체 =====
 export async function replaceSpacePhoto(photoId: string, formData: FormData): Promise<UploadPhotoResult> {
   try {
-    const supabase = await createClient()
+    const supabase = await createServiceRoleClient()
     
     // 기존 사진 정보 조회
     const { data: existing, error: fetchError } = await supabase
@@ -326,7 +326,7 @@ export async function replaceSpacePhoto(photoId: string, formData: FormData): Pr
 // ===== 4. 사진 삭제 =====
 export async function deleteSpacePhoto(photoId: string): Promise<ActionResult> {
   try {
-    const supabase = await createClient()
+    const supabase = await createServiceRoleClient()
     
     // 기존 사진 정보 조회
     const { data: existing, error: fetchError } = await supabase
