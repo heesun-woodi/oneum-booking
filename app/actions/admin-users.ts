@@ -11,6 +11,7 @@ export async function getSignupRequests(status: 'pending' | 'approved' | 'reject
       .from('users')
       .select('*')
       .eq('status', status)
+      .is('deleted_at', null)  // 삭제된 회원 제외
       .order('created_at', { ascending: false })
     
     if (error) {
@@ -240,7 +241,7 @@ export async function updateUser(userId: string, data: { name?: string; phone?: 
 }
 
 /**
- * 승인된 사용자 삭제
+ * 승인된 사용자 삭제 (Soft Delete)
  * @param userId - 사용자 ID
  * @param currentUserId - 현재 로그인한 관리자 ID (자기 자신 삭제 방지)
  * @returns 성공 여부
@@ -257,7 +258,7 @@ export async function deleteUser(userId: string, currentUserId: string) {
     // 사용자 정보 조회
     const { data: user, error: fetchError } = await supabase
       .from('users')
-      .select('status, name, household')
+      .select('status, name, household, deleted_at')
       .eq('id', userId)
       .single()
     
@@ -265,40 +266,51 @@ export async function deleteUser(userId: string, currentUserId: string) {
       return { success: false, error: '사용자를 찾을 수 없습니다.' }
     }
     
+    // 이미 삭제된 사용자 확인
+    if (user.deleted_at) {
+      return { success: false, error: '이미 삭제된 사용자입니다.' }
+    }
+    
     if (user.status !== 'approved') {
       return { success: false, error: '승인된 사용자만 삭제할 수 있습니다.' }
     }
     
-    // 예약 건수 확인
+    // 예약 건수 확인 (참고 정보용)
     const { data: bookings, error: bookingsError } = await supabase
       .from('bookings')
-      .select('id')
+      .select('id, booking_date, space')
       .eq('user_id', userId)
+      .order('booking_date', { ascending: false })
+      .limit(5)
     
     if (bookingsError) {
-      return { success: false, error: '예약 정보 조회 중 오류가 발생했습니다.' }
+      console.error('Booking check error:', bookingsError)
+      // 예약 조회 실패해도 soft delete는 진행
     }
     
-    if (bookings && bookings.length > 0) {
-      return { 
-        success: false, 
-        error: `이 사용자는 ${bookings.length}건의 예약 내역이 있어 삭제할 수 없습니다. 먼저 예약을 취소해주세요.` 
-      }
-    }
+    const bookingCount = bookings?.length || 0
+    const hasBookings = bookingCount > 0
     
-    // 사용자 삭제
+    // Soft Delete 실행 (예약 기록이 있어도 진행)
     const { error } = await supabase
       .from('users')
-      .delete()
+      .update({ 
+        deleted_at: new Date().toISOString()
+        // status는 그대로 유지 (CHECK constraint 회피)
+      })
       .eq('id', userId)
     
     if (error) {
       return { success: false, error: error.message }
     }
     
-    console.log(`✅ 사용자 삭제: ${user.household}호 ${user.name}`)
+    const message = hasBookings 
+      ? `${user.name}님이 비활성화되었습니다. (${bookingCount}건의 예약 기록 보존됨)` 
+      : `${user.name}님이 삭제되었습니다.`
     
-    return { success: true, message: `${user.name}님이 삭제되었습니다.` }
+    console.log(`✅ 사용자 Soft Delete: ${user.household}호 ${user.name} (예약: ${bookingCount}건)`)
+    
+    return { success: true, message }
   } catch (error) {
     console.error('Delete user error:', error)
     return { success: false, error: '사용자 삭제 중 오류가 발생했습니다.' }
