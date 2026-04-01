@@ -299,7 +299,7 @@ export default function AdminSettingsPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* 시설 */}
                 <div>
-                  <h4 className="text-sm font-semibold text-gray-700 mb-2">🔧 시설</h4>
+                  <h4 className="text-sm font-semibold text-gray-700 mb-3">🔧 시설</h4>
                   {isEditing ? (
                     <ListEditor
                       items={space.facilities}
@@ -309,11 +309,11 @@ export default function AdminSettingsPage() {
                       placeholder="시설명 입력..."
                     />
                   ) : (
-                    <ul className="space-y-1">
+                    <ul className="space-y-2">
                       {space.facilities.map((facility: string, index: number) => (
-                        <li key={index} className="text-sm text-gray-600 flex items-center">
-                          <span className="mr-2">•</span>
-                          {facility}
+                        <li key={index} className="text-sm text-gray-600 flex items-start">
+                          <span className="mr-2 mt-0.5">•</span>
+                          <span className="flex-1 break-words">{facility}</span>
                         </li>
                       ))}
                     </ul>
@@ -322,7 +322,7 @@ export default function AdminSettingsPage() {
                 
                 {/* 이용 규칙 */}
                 <div>
-                  <h4 className="text-sm font-semibold text-gray-700 mb-2">📋 이용 규칙</h4>
+                  <h4 className="text-sm font-semibold text-gray-700 mb-3">📋 이용 규칙</h4>
                   {isEditing ? (
                     <ListEditor
                       items={space.rules}
@@ -332,11 +332,11 @@ export default function AdminSettingsPage() {
                       placeholder="규칙 입력..."
                     />
                   ) : (
-                    <ul className="space-y-1">
+                    <ul className="space-y-2">
                       {space.rules.map((rule: string, index: number) => (
-                        <li key={index} className="text-sm text-gray-600 flex items-center">
-                          <span className="mr-2">•</span>
-                          {rule}
+                        <li key={index} className="text-sm text-gray-600 flex items-start">
+                          <span className="mr-2 mt-0.5">•</span>
+                          <span className="flex-1 break-words">{rule}</span>
                         </li>
                       ))}
                     </ul>
@@ -345,7 +345,7 @@ export default function AdminSettingsPage() {
                 
                 {/* 운영 시간 */}
                 <div>
-                  <h4 className="text-sm font-semibold text-gray-700 mb-2">🕐 운영 시간</h4>
+                  <h4 className="text-sm font-semibold text-gray-700 mb-3">🕐 운영 시간</h4>
                   {isEditing ? (
                     <input
                       type="text"
@@ -354,17 +354,17 @@ export default function AdminSettingsPage() {
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   ) : (
-                    <p className="text-sm text-gray-600">{space.hours}</p>
+                    <p className="text-sm text-gray-600 break-words">{space.hours}</p>
                   )}
                 </div>
                 
                 {/* 요금 */}
                 <div>
-                  <h4 className="text-sm font-semibold text-gray-700 mb-2">💰 이용 요금</h4>
+                  <h4 className="text-sm font-semibold text-gray-700 mb-3">💰 이용 요금</h4>
                   {isEditing ? (
                     <div className="space-y-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm text-gray-600 w-16">회원:</span>
+                        <span className="text-sm text-gray-600 w-16 flex-shrink-0">회원:</span>
                         <input
                           type="text"
                           value={space.pricing.member}
@@ -373,7 +373,7 @@ export default function AdminSettingsPage() {
                         />
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-sm text-gray-600 w-16">비회원:</span>
+                        <span className="text-sm text-gray-600 w-16 flex-shrink-0">비회원:</span>
                         <input
                           type="text"
                           value={space.pricing.nonMember}
@@ -383,11 +383,11 @@ export default function AdminSettingsPage() {
                       </div>
                     </div>
                   ) : (
-                    <div className="space-y-1">
-                      <p className="text-sm text-gray-600">
+                    <div className="space-y-2">
+                      <p className="text-sm text-gray-600 break-words">
                         <span className="font-medium">회원:</span> {space.pricing.member}
                       </p>
-                      <p className="text-sm text-gray-600">
+                      <p className="text-sm text-gray-600 break-words">
                         <span className="font-medium">비회원:</span> {space.pricing.nonMember}
                       </p>
                     </div>
@@ -438,7 +438,7 @@ export default function AdminSettingsPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* 예약 규정 */}
             <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900 mb-3">📅 예약 규정</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">📅 예약 규정</h3>
               {editingRules ? (
                 <ListEditor
                   items={rules.booking}
@@ -447,11 +447,11 @@ export default function AdminSettingsPage() {
                   onRemove={(index) => handleRemoveRule('booking', index)}
                 />
               ) : (
-                <ul className="space-y-2">
+                <ul className="space-y-2.5">
                   {rules.booking.map((rule: string, index: number) => (
                     <li key={index} className="text-sm text-gray-600 flex items-start">
-                      <span className="mr-2 mt-1">•</span>
-                      <span>{rule}</span>
+                      <span className="mr-2 mt-0.5">•</span>
+                      <span className="flex-1 break-words leading-relaxed">{rule}</span>
                     </li>
                   ))}
                 </ul>
@@ -460,7 +460,7 @@ export default function AdminSettingsPage() {
             
             {/* 취소 및 환불 */}
             <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900 mb-3">🔄 취소 및 환불</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">🔄 취소 및 환불</h3>
               {editingRules ? (
                 <ListEditor
                   items={rules.cancellation}
@@ -469,11 +469,11 @@ export default function AdminSettingsPage() {
                   onRemove={(index) => handleRemoveRule('cancellation', index)}
                 />
               ) : (
-                <ul className="space-y-2">
+                <ul className="space-y-2.5">
                   {rules.cancellation.map((rule: string, index: number) => (
                     <li key={index} className="text-sm text-gray-600 flex items-start">
-                      <span className="mr-2 mt-1">•</span>
-                      <span>{rule}</span>
+                      <span className="mr-2 mt-0.5">•</span>
+                      <span className="flex-1 break-words leading-relaxed">{rule}</span>
                     </li>
                   ))}
                 </ul>
@@ -482,7 +482,7 @@ export default function AdminSettingsPage() {
             
             {/* 입금 안내 */}
             <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900 mb-3">💳 입금 안내</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">💳 입금 안내</h3>
               {editingRules ? (
                 <ListEditor
                   items={rules.payment}
@@ -491,11 +491,11 @@ export default function AdminSettingsPage() {
                   onRemove={(index) => handleRemoveRule('payment', index)}
                 />
               ) : (
-                <ul className="space-y-2">
+                <ul className="space-y-2.5">
                   {rules.payment.map((rule: string, index: number) => (
                     <li key={index} className="text-sm text-gray-600 flex items-start">
-                      <span className="mr-2 mt-1">•</span>
-                      <span>{rule}</span>
+                      <span className="mr-2 mt-0.5">•</span>
+                      <span className="flex-1 break-words leading-relaxed">{rule}</span>
                     </li>
                   ))}
                 </ul>
@@ -504,7 +504,7 @@ export default function AdminSettingsPage() {
             
             {/* 이용 수칙 */}
             <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900 mb-3">⚠️ 이용 수칙</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">⚠️ 이용 수칙</h3>
               {editingRules ? (
                 <ListEditor
                   items={rules.usage}
@@ -513,11 +513,11 @@ export default function AdminSettingsPage() {
                   onRemove={(index) => handleRemoveRule('usage', index)}
                 />
               ) : (
-                <ul className="space-y-2">
+                <ul className="space-y-2.5">
                   {rules.usage.map((rule: string, index: number) => (
                     <li key={index} className="text-sm text-gray-600 flex items-start">
-                      <span className="mr-2 mt-1">•</span>
-                      <span>{rule}</span>
+                      <span className="mr-2 mt-0.5">•</span>
+                      <span className="flex-1 break-words leading-relaxed">{rule}</span>
                     </li>
                   ))}
                 </ul>
