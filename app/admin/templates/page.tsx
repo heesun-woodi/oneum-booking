@@ -73,7 +73,16 @@ export default function TemplatesPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">📝 메시지 템플릿 관리</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-gray-900">📝 메시지 템플릿 관리</h1>
+        <Link
+          href="/admin/templates/new"
+          className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors font-medium inline-flex items-center gap-2"
+        >
+          <span>➕</span>
+          <span>새 템플릿 추가</span>
+        </Link>
+      </div>
 
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">

@@ -152,14 +152,58 @@ export async function createTemplate(template: {
   name: string
   title: string
   content: string
+  trigger_info?: string
+  is_active?: boolean
   variables: string[]
 }): Promise<ActionResult<MessageTemplate>> {
   try {
     const supabase = await createClient()
     
+    // 1. type_code 형식 검증
+    const typeCodeRegex = /^\d+-\d+$/
+    if (!typeCodeRegex.test(template.type_code)) {
+      return { 
+        success: false, 
+        error: 'type_code 형식이 올바르지 않습니다 (예: 7-1)' 
+      }
+    }
+    
+    // 2. 중복 type_code 체크
+    const { data: existing } = await supabase
+      .from('message_templates')
+      .select('id')
+      .eq('type_code', template.type_code)
+      .single()
+    
+    if (existing) {
+      return { 
+        success: false, 
+        error: `이미 존재하는 type_code입니다: ${template.type_code}` 
+      }
+    }
+    
+    // 3. 필수 필드 검증
+    if (!template.name.trim()) {
+      return { success: false, error: '이름을 입력하세요' }
+    }
+    
+    if (!template.title.trim()) {
+      return { success: false, error: '제목을 입력하세요' }
+    }
+    
+    if (!template.content.trim()) {
+      return { success: false, error: '내용을 입력하세요' }
+    }
+    
+    // 4. 템플릿 생성
+    const payload = {
+      ...template,
+      is_active: template.is_active ?? false,
+    }
+    
     const { data, error } = await supabase
       .from('message_templates')
-      .insert(template)
+      .insert(payload)
       .select()
       .single()
     
