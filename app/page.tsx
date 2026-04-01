@@ -804,10 +804,12 @@ export default function Home() {
         <div className="bg-white rounded-lg shadow-sm p-6">
           <h3 className="text-lg font-semibold mb-4">📋 예약 안내</h3>
           <div className="space-y-2 text-gray-700">
-            <p>• <strong>운영시간:</strong> 09:00 - 23:00</p>
-            <p>• <strong>회원:</strong> 월 3회 무료</p>
-            <p>• <strong>비회원:</strong> 14,000원/시간 (24시간 전 예약)</p>
-            <p>• <strong>입금계좌:</strong> 카카오뱅크 7979-72-56275 (정상은)</p>
+            <p>• 운영시간: 09:00 - 23:00</p>
+            <p>• 당일 예약 불가 (최소 1일 전에 예약)</p>
+            <p>• 예약일 전날 23:59까지 입금 필수</p>
+            <p>• 입금계좌: 카카오뱅크 7979-72-56275 (정상은)</p>
+            <p className="text-red-500 font-medium">• 기한 내 미입금 시 → 자동 취소 됩니다</p>
+            <p className="text-sm text-gray-500 ml-4">예시: 4월 10일 예약 → 4월 9일 23:59까지 입금</p>
           </div>
         </div>
 
