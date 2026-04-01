@@ -144,12 +144,9 @@ export default function TemplatesPage() {
                     <td className="px-4 py-3">
                       <span className="text-sm text-gray-600">{t.title}</span>
                     </td>
-                    <td className="hidden md:table-cell px-4 py-3">
-                      <span className="text-sm text-gray-500" title={t.content}>
-                        {t.content.length > 80 
-                          ? `${t.content.substring(0, 80)}...` 
-                          : t.content
-                        }
+                    <td className="hidden md:table-cell px-4 py-3 max-w-md">
+                      <span className="text-sm text-gray-500 whitespace-normal break-words">
+                        {t.content}
                       </span>
                     </td>
                     <td className="px-4 py-3">
