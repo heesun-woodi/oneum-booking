@@ -1,10 +1,10 @@
-// 🔄 v1.0.3 - Phase 1-2: 회원가입/로그인 인증 개선
+// 🔄 v1.0.4 - 구조화된 공간 정보 & 이용 규칙
 'use client'
 
 import { useState, useEffect } from 'react'
 import { createBooking, getBookings, getBookingsByPhone, getBookingsByHousehold, cancelBooking, CreateBookingInput } from './actions/bookings'
 import { signup, login } from './actions/auth'
-import { getSetting } from './actions/settings'
+import { getSpacesInfo, getGeneralRulesFromDB, SpacesInfo, GeneralRules } from './actions/structured-settings'
 import { SpaceGallery } from './components/space-gallery/SpaceGallery'
 
 // ===== 타입 정의 =====
@@ -45,7 +45,10 @@ export default function Home() {
   
   // 예약 데이터
   const [bookingsData, setBookingsData] = useState<Booking[]>([])
-  const [usageRules, setUsageRules] = useState<string>('')
+  
+  // 공간 정보 & 이용 규칙 (DB에서 로드)
+  const [spacesInfo, setSpacesInfo] = useState<SpacesInfo | null>(null)
+  const [generalRules, setGeneralRules] = useState<GeneralRules | null>(null)
   
   // 모달 상태
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false)
@@ -93,13 +96,21 @@ export default function Home() {
   }, [currentMonth, selectedSpace])
 
   useEffect(() => {
-    async function loadRules() {
-      const rules = await getSetting('usage_rules')
-      if (rules) {
-        setUsageRules(rules)
+    async function loadSettingsData() {
+      const [spacesResult, rulesResult] = await Promise.all([
+        getSpacesInfo(),
+        getGeneralRulesFromDB()
+      ])
+      
+      if (spacesResult.success && spacesResult.data) {
+        setSpacesInfo(spacesResult.data)
+      }
+      
+      if (rulesResult.success && rulesResult.data) {
+        setGeneralRules(rulesResult.data)
       }
     }
-    loadRules()
+    loadSettingsData()
   }, [])
 
   async function loadBookings() {
@@ -818,25 +829,94 @@ export default function Home() {
           </div>
         </div>
 
-        {/* ===== 이용 규칙 ===== */}
-        {usageRules && (
+        {/* ===== 공간 정보 ===== */}
+        {spacesInfo && (
           <div className="bg-white rounded-lg shadow-sm p-6">
-            <h3 className="text-lg font-semibold mb-4">📜 이용 규칙</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">🏠 공간 안내</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {usageRules.split('##').filter(section => section.trim()).map((section, index) => {
-                const lines = section.trim().split('\n')
-                const title = lines[0].trim()
-                const content = lines.slice(1).join('\n').trim()
-                
-                return (
-                  <div key={index} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                    <h4 className="text-base font-semibold text-gray-900 mb-3">{title}</h4>
-                    <div className="whitespace-pre-wrap text-sm text-gray-700 leading-relaxed">
-                      {content}
-                    </div>
-                  </div>
-                )
-              })}
+              {/* 놀터 */}
+              <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                <h4 className="text-base font-bold text-blue-900 mb-3">🏠 {spacesInfo.nolter.name}</h4>
+                <p className="text-sm text-gray-700 mb-3">{spacesInfo.nolter.description}</p>
+                <div className="space-y-2 text-sm">
+                  <div><span className="font-medium text-gray-600">👥 인원:</span> <span className="text-gray-900">{spacesInfo.nolter.capacity}</span></div>
+                  <div><span className="font-medium text-gray-600">🕐 운영:</span> <span className="text-gray-900">{spacesInfo.nolter.hours}</span></div>
+                  <div><span className="font-medium text-gray-600">💰 요금:</span> <span className="text-gray-900">회원 {spacesInfo.nolter.pricing.member} / 비회원 {spacesInfo.nolter.pricing.nonMember}</span></div>
+                  <div><span className="font-medium text-gray-600">🔧 시설:</span> <span className="text-gray-900">{spacesInfo.nolter.facilities.join(', ')}</span></div>
+                </div>
+              </div>
+              
+              {/* 방음실 */}
+              <div className="bg-purple-50 rounded-lg p-4 border border-purple-200">
+                <h4 className="text-base font-bold text-purple-900 mb-3">🎵 {spacesInfo.soundroom.name}</h4>
+                <p className="text-sm text-gray-700 mb-3">{spacesInfo.soundroom.description}</p>
+                <div className="space-y-2 text-sm">
+                  <div><span className="font-medium text-gray-600">👥 인원:</span> <span className="text-gray-900">{spacesInfo.soundroom.capacity}</span></div>
+                  <div><span className="font-medium text-gray-600">🕐 운영:</span> <span className="text-gray-900">{spacesInfo.soundroom.hours}</span></div>
+                  <div><span className="font-medium text-gray-600">💰 요금:</span> <span className="text-gray-900">회원 {spacesInfo.soundroom.pricing.member} / 비회원 {spacesInfo.soundroom.pricing.nonMember}</span></div>
+                  <div><span className="font-medium text-gray-600">🔧 시설:</span> <span className="text-gray-900">{spacesInfo.soundroom.facilities.join(', ')}</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ===== 이용 규칙 ===== */}
+        {generalRules && (
+          <div className="bg-white rounded-lg shadow-sm p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">📜 이용 규칙</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* 예약 규정 */}
+              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                <h4 className="text-base font-semibold text-gray-900 mb-3">📅 예약 규정</h4>
+                <ul className="space-y-1">
+                  {generalRules.booking.map((rule, index) => (
+                    <li key={index} className="text-sm text-gray-700 flex items-start">
+                      <span className="mr-2 text-gray-400">•</span>
+                      <span>{rule}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              
+              {/* 취소 및 환불 */}
+              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                <h4 className="text-base font-semibold text-gray-900 mb-3">🔄 취소 및 환불</h4>
+                <ul className="space-y-1">
+                  {generalRules.cancellation.map((rule, index) => (
+                    <li key={index} className="text-sm text-gray-700 flex items-start">
+                      <span className="mr-2 text-gray-400">•</span>
+                      <span>{rule}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              
+              {/* 입금 안내 */}
+              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                <h4 className="text-base font-semibold text-gray-900 mb-3">💳 입금 안내</h4>
+                <ul className="space-y-1">
+                  {generalRules.payment.map((rule, index) => (
+                    <li key={index} className="text-sm text-gray-700 flex items-start">
+                      <span className="mr-2 text-gray-400">•</span>
+                      <span>{rule}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              
+              {/* 이용 수칙 */}
+              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                <h4 className="text-base font-semibold text-gray-900 mb-3">⚠️ 이용 수칙</h4>
+                <ul className="space-y-1">
+                  {generalRules.usage.map((rule, index) => (
+                    <li key={index} className="text-sm text-gray-700 flex items-start">
+                      <span className="mr-2 text-gray-400">•</span>
+                      <span>{rule}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
           </div>
         )}
