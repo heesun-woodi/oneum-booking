@@ -851,13 +851,13 @@ export default function Home() {
                     
                     {/* 우측: 이용 규칙 */}
                     {spacesInfo.nolter.rules && spacesInfo.nolter.rules.length > 0 && (
-                      <div className="text-sm bg-white bg-opacity-50 p-3 rounded-md border border-blue-100">
-                        <span className="font-medium text-gray-800 block mb-2">📋 이용 규칙</span>
-                        <ul className="space-y-1 ml-1">
+                      <div className="text-sm">
+                        <span className="font-medium text-gray-600 block mb-2">📋 이용 규칙:</span>
+                        <ul className="space-y-1">
                           {spacesInfo.nolter.rules.map((rule, index) => (
-                            <li key={index} className="text-gray-700 flex items-start">
+                            <li key={index} className="text-gray-900 flex items-start">
                               <span className="mr-2 text-blue-400">•</span>
-                              <span>{rule}</span>
+                              <span className="flex-1">{rule}</span>
                             </li>
                           ))}
                         </ul>
@@ -884,13 +884,13 @@ export default function Home() {
                     
                     {/* 우측: 이용 규칙 */}
                     {spacesInfo.soundroom.rules && spacesInfo.soundroom.rules.length > 0 && (
-                      <div className="text-sm bg-white bg-opacity-50 p-3 rounded-md border border-purple-100">
-                        <span className="font-medium text-gray-800 block mb-2">📋 이용 규칙</span>
-                        <ul className="space-y-1 ml-1">
+                      <div className="text-sm">
+                        <span className="font-medium text-gray-600 block mb-2">📋 이용 규칙:</span>
+                        <ul className="space-y-1">
                           {spacesInfo.soundroom.rules.map((rule, index) => (
-                            <li key={index} className="text-gray-700 flex items-start">
+                            <li key={index} className="text-gray-900 flex items-start">
                               <span className="mr-2 text-purple-400">•</span>
-                              <span>{rule}</span>
+                              <span className="flex-1">{rule}</span>
                             </li>
                           ))}
                         </ul>
