@@ -45,6 +45,7 @@ export default function Home() {
   // 예약 데이터
   const [bookingsData, setBookingsData] = useState<Booking[]>([])
   const [reservationGuide, setReservationGuide] = useState<string>('')
+  const [usageRules, setUsageRules] = useState<string>('')
   
   // 모달 상태
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false)
@@ -98,6 +99,11 @@ export default function Home() {
         setReservationGuide(guide)
       } else {
         setReservationGuide('• 운영시간: 09:00 - 23:00\n• 당일 예약 불가 (최소 1일 전에 예약)\n• 예약일 전날 23:59까지 입금 필수\n• 입금계좌: 카카오뱅크 7979-72-56275 (정상은)\n• 기한 내 미입금 시 → 자동 취소 됩니다\n  예시: 4월 10일 예약 → 4월 9일 23:59까지 입금')
+      }
+      
+      const rules = await getSetting('usage_rules')
+      if (rules) {
+        setUsageRules(rules)
       }
     }
     loadGuide()
@@ -821,6 +827,29 @@ export default function Home() {
             {reservationGuide}
           </div>
         </div>
+
+        {/* ===== 이용 규칙 ===== */}
+        {usageRules && (
+          <div className="bg-white rounded-lg shadow-sm p-6">
+            <h3 className="text-lg font-semibold mb-4">📜 이용 규칙</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {usageRules.split('##').filter(section => section.trim()).map((section, index) => {
+                const lines = section.trim().split('\n')
+                const title = lines[0].trim()
+                const content = lines.slice(1).join('\n').trim()
+                
+                return (
+                  <div key={index} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <h4 className="text-base font-semibold text-gray-900 mb-3">{title}</h4>
+                    <div className="whitespace-pre-wrap text-sm text-gray-700 leading-relaxed">
+                      {content}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
         {/* 푸터 */}
         <div className="mt-8 text-center text-sm text-gray-500">

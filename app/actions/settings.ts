@@ -1,10 +1,10 @@
 'use server'
 
-import { createClient } from '@/utils/supabase/server'
+import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 
 export async function getSetting(key: string): Promise<string | null> {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data, error } = await supabase
     .from('site_settings')
     .select('value')
@@ -20,7 +20,7 @@ export async function getSetting(key: string): Promise<string | null> {
 }
 
 export async function updateSetting(key: string, value: string): Promise<{ success: boolean; error?: string }> {
-  const supabase = createClient()
+  const supabase = await createClient()
   
   // First check if it exists
   const { data: existing } = await supabase

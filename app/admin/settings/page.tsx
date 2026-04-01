@@ -8,7 +8,9 @@ export default function AdminSettingsPage() {
   const [spaces, setSpaces] = useState<any[]>([])
   const [rules, setRules] = useState<any>(null)
   const [reservationGuide, setReservationGuide] = useState<string>('')
+  const [usageRules, setUsageRules] = useState<string>('')
   const [savingGuide, setSavingGuide] = useState(false)
+  const [savingRules, setSavingRules] = useState(false)
   const [loading, setLoading] = useState(true)
   
   useEffect(() => {
@@ -35,6 +37,11 @@ export default function AdminSettingsPage() {
       setReservationGuide(guide)
     }
     
+    const rules = await getSetting('usage_rules')
+    if (rules) {
+      setUsageRules(rules)
+    }
+    
     setLoading(false)
   }
 
@@ -54,6 +61,23 @@ export default function AdminSettingsPage() {
       setSavingGuide(false)
     }
   }
+
+  const handleSaveRules = async () => {
+    setSavingRules(true)
+    try {
+      const result = await updateSetting('usage_rules', usageRules)
+      if (result.success) {
+        alert('이용 규칙 설정이 저장되었습니다.')
+      } else {
+        alert('저장 실패: ' + result.error)
+      }
+    } catch (e) {
+      console.error(e)
+      alert('저장 중 오류가 발생했습니다.')
+    } finally {
+      setSavingRules(false)
+    }
+  }
   
   if (loading) {
     return (
@@ -70,6 +94,8 @@ export default function AdminSettingsPage() {
       {/* 사이트 설정 (DB 연동) */}
       <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 space-y-4">
         <h2 className="text-xl font-semibold text-gray-900 mb-4">🌐 사이트 설정</h2>
+        
+        {/* 예약 안내 */}
         <div>
           <label className="block text-sm font-semibold text-gray-900 mb-2">메인 페이지 예약 안내 문구</label>
           <textarea
@@ -86,6 +112,34 @@ export default function AdminSettingsPage() {
               className="px-4 py-2 bg-blue-500 text-white font-medium rounded-lg hover:bg-blue-600 disabled:bg-gray-400 transition-colors"
             >
               {savingGuide ? '저장 중...' : '저장'}
+            </button>
+          </div>
+        </div>
+
+        {/* 이용 규칙 */}
+        <div className="pt-4 border-t border-gray-200">
+          <label className="block text-sm font-semibold text-gray-900 mb-2">메인 페이지 이용 규칙</label>
+          <p className="text-xs text-gray-500 mb-2">
+            💡 마크다운 형식으로 작성하세요. ## 제목으로 각 섹션을 구분합니다. (예: ## 🗓 예약 규정)
+          </p>
+          <textarea
+            value={usageRules}
+            onChange={(e) => setUsageRules(e.target.value)}
+            rows={16}
+            className="w-full p-3 border border-gray-300 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+            placeholder="## 🗓 예약 규정
+
+- 예약은 1일 전까지 가능합니다 (당일 예약 불가)
+- 회원은 월 8시간까지 무료 이용
+..."
+          />
+          <div className="flex justify-end mt-3">
+            <button
+              onClick={handleSaveRules}
+              disabled={savingRules}
+              className="px-4 py-2 bg-blue-500 text-white font-medium rounded-lg hover:bg-blue-600 disabled:bg-gray-400 transition-colors"
+            >
+              {savingRules ? '저장 중...' : '저장'}
             </button>
           </div>
         </div>
