@@ -835,28 +835,32 @@ export default function Home() {
             <h3 className="text-lg font-semibold text-gray-900 mb-4">🏠 공간 안내</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* 놀터 */}
-              <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                <h4 className="text-base font-bold text-blue-900 mb-3">🏠 {spacesInfo.nolter.name}</h4>
-                <p className="text-sm text-gray-700 mb-3">{spacesInfo.nolter.description}</p>
-                <div className="space-y-2 text-sm">
-                  <div><span className="font-medium text-gray-600">👥 인원:</span> <span className="text-gray-900">{spacesInfo.nolter.capacity}</span></div>
-                  <div><span className="font-medium text-gray-600">🕐 운영:</span> <span className="text-gray-900">{spacesInfo.nolter.hours}</span></div>
-                  <div><span className="font-medium text-gray-600">💰 요금:</span> <span className="text-gray-900">회원 {spacesInfo.nolter.pricing.member} / 비회원 {spacesInfo.nolter.pricing.nonMember}</span></div>
-                  <div><span className="font-medium text-gray-600">🔧 시설:</span> <span className="text-gray-900">{spacesInfo.nolter.facilities.join(', ')}</span></div>
+              {selectedSpace === 'nolter' && (
+                <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                  <h4 className="text-base font-bold text-blue-900 mb-3">🏠 {spacesInfo.nolter.name}</h4>
+                  <p className="text-sm text-gray-700 mb-3">{spacesInfo.nolter.description}</p>
+                  <div className="space-y-2 text-sm">
+                    <div><span className="font-medium text-gray-600">👥 인원:</span> <span className="text-gray-900">{spacesInfo.nolter.capacity}</span></div>
+                    <div><span className="font-medium text-gray-600">🕐 운영:</span> <span className="text-gray-900">{spacesInfo.nolter.hours}</span></div>
+                    <div><span className="font-medium text-gray-600">💰 요금:</span> <span className="text-gray-900">회원 {spacesInfo.nolter.pricing.member} / 비회원 {spacesInfo.nolter.pricing.nonMember}</span></div>
+                    <div><span className="font-medium text-gray-600">🔧 시설:</span> <span className="text-gray-900">{spacesInfo.nolter.facilities.join(', ')}</span></div>
+                  </div>
                 </div>
-              </div>
+              )}
               
               {/* 방음실 */}
-              <div className="bg-purple-50 rounded-lg p-4 border border-purple-200">
-                <h4 className="text-base font-bold text-purple-900 mb-3">🎵 {spacesInfo.soundroom.name}</h4>
-                <p className="text-sm text-gray-700 mb-3">{spacesInfo.soundroom.description}</p>
-                <div className="space-y-2 text-sm">
-                  <div><span className="font-medium text-gray-600">👥 인원:</span> <span className="text-gray-900">{spacesInfo.soundroom.capacity}</span></div>
-                  <div><span className="font-medium text-gray-600">🕐 운영:</span> <span className="text-gray-900">{spacesInfo.soundroom.hours}</span></div>
-                  <div><span className="font-medium text-gray-600">💰 요금:</span> <span className="text-gray-900">회원 {spacesInfo.soundroom.pricing.member} / 비회원 {spacesInfo.soundroom.pricing.nonMember}</span></div>
-                  <div><span className="font-medium text-gray-600">🔧 시설:</span> <span className="text-gray-900">{spacesInfo.soundroom.facilities.join(', ')}</span></div>
+              {selectedSpace === 'soundroom' && (
+                <div className="bg-purple-50 rounded-lg p-4 border border-purple-200">
+                  <h4 className="text-base font-bold text-purple-900 mb-3">🎵 {spacesInfo.soundroom.name}</h4>
+                  <p className="text-sm text-gray-700 mb-3">{spacesInfo.soundroom.description}</p>
+                  <div className="space-y-2 text-sm">
+                    <div><span className="font-medium text-gray-600">👥 인원:</span> <span className="text-gray-900">{spacesInfo.soundroom.capacity}</span></div>
+                    <div><span className="font-medium text-gray-600">🕐 운영:</span> <span className="text-gray-900">{spacesInfo.soundroom.hours}</span></div>
+                    <div><span className="font-medium text-gray-600">💰 요금:</span> <span className="text-gray-900">회원 {spacesInfo.soundroom.pricing.member} / 비회원 {spacesInfo.soundroom.pricing.nonMember}</span></div>
+                    <div><span className="font-medium text-gray-600">🔧 시설:</span> <span className="text-gray-900">{spacesInfo.soundroom.facilities.join(', ')}</span></div>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
         )}
