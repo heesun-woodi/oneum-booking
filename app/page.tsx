@@ -4,6 +4,7 @@
 import { useState, useEffect } from 'react'
 import { createBooking, getBookings, getBookingsByPhone, getBookingsByHousehold, cancelBooking, CreateBookingInput } from './actions/bookings'
 import { signup, login } from './actions/auth'
+import { getSetting } from './actions/settings'
 
 // ===== 타입 정의 =====
 interface UserSession {
@@ -43,6 +44,7 @@ export default function Home() {
   
   // 예약 데이터
   const [bookingsData, setBookingsData] = useState<Booking[]>([])
+  const [reservationGuide, setReservationGuide] = useState<string>('')
   
   // 모달 상태
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false)
@@ -88,6 +90,18 @@ export default function Home() {
   useEffect(() => {
     loadBookings()
   }, [currentMonth, selectedSpace])
+
+  useEffect(() => {
+    async function loadGuide() {
+      const guide = await getSetting('reservation_guide')
+      if (guide) {
+        setReservationGuide(guide)
+      } else {
+        setReservationGuide('• 운영시간: 09:00 - 23:00\n• 당일 예약 불가 (최소 1일 전에 예약)\n• 예약일 전날 23:59까지 입금 필수\n• 입금계좌: 카카오뱅크 7979-72-56275 (정상은)\n• 기한 내 미입금 시 → 자동 취소 됩니다\n  예시: 4월 10일 예약 → 4월 9일 23:59까지 입금')
+      }
+    }
+    loadGuide()
+  }, [])
 
   async function loadBookings() {
     const year = currentMonth.getFullYear()
@@ -803,13 +817,8 @@ export default function Home() {
         {/* ===== 예약 안내 ===== */}
         <div className="bg-white rounded-lg shadow-sm p-6">
           <h3 className="text-lg font-semibold mb-4">📋 예약 안내</h3>
-          <div className="space-y-2 text-gray-700">
-            <p>• 운영시간: 09:00 - 23:00</p>
-            <p>• 당일 예약 불가 (최소 1일 전에 예약)</p>
-            <p>• 예약일 전날 23:59까지 입금 필수</p>
-            <p>• 입금계좌: 카카오뱅크 7979-72-56275 (정상은)</p>
-            <p className="text-red-500 font-medium">• 기한 내 미입금 시 → 자동 취소 됩니다</p>
-            <p className="text-sm text-gray-500 ml-4">예시: 4월 10일 예약 → 4월 9일 23:59까지 입금</p>
+          <div className="whitespace-pre-wrap leading-relaxed text-gray-700 space-y-2 text-sm sm:text-base">
+            {reservationGuide}
           </div>
         </div>
 

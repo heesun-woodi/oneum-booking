@@ -2,10 +2,13 @@
 
 import { useState, useEffect } from 'react'
 import { getSpaceInfo, getGeneralRules } from '@/app/actions/admin-settings'
+import { getSetting, updateSetting } from '@/app/actions/settings'
 
 export default function AdminSettingsPage() {
   const [spaces, setSpaces] = useState<any[]>([])
   const [rules, setRules] = useState<any>(null)
+  const [reservationGuide, setReservationGuide] = useState<string>('')
+  const [savingGuide, setSavingGuide] = useState(false)
   const [loading, setLoading] = useState(true)
   
   useEffect(() => {
@@ -15,6 +18,7 @@ export default function AdminSettingsPage() {
   const loadSettings = async () => {
     setLoading(true)
     
+    // Get existing spaces & rules
     const spaceResult = await getSpaceInfo()
     if (spaceResult.success) {
       setSpaces(spaceResult.spaces)
@@ -25,7 +29,30 @@ export default function AdminSettingsPage() {
       setRules(rulesResult.rules)
     }
     
+    // Get DB settings
+    const guide = await getSetting('reservation_guide')
+    if (guide) {
+      setReservationGuide(guide)
+    }
+    
     setLoading(false)
+  }
+
+  const handleSaveGuide = async () => {
+    setSavingGuide(true)
+    try {
+      const result = await updateSetting('reservation_guide', reservationGuide)
+      if (result.success) {
+        alert('예약 안내 설정이 저장되었습니다.')
+      } else {
+        alert('저장 실패: ' + result.error)
+      }
+    } catch (e) {
+      console.error(e)
+      alert('저장 중 오류가 발생했습니다.')
+    } finally {
+      setSavingGuide(false)
+    }
   }
   
   if (loading) {
@@ -40,9 +67,33 @@ export default function AdminSettingsPage() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-gray-900">⚙️ 설정</h1>
       
+      {/* 사이트 설정 (DB 연동) */}
+      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 space-y-4">
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">🌐 사이트 설정</h2>
+        <div>
+          <label className="block text-sm font-semibold text-gray-900 mb-2">메인 페이지 예약 안내 문구</label>
+          <textarea
+            value={reservationGuide}
+            onChange={(e) => setReservationGuide(e.target.value)}
+            rows={8}
+            className="w-full p-3 border border-gray-300 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="예약 안내 내용을 입력하세요..."
+          />
+          <div className="flex justify-end mt-3">
+            <button
+              onClick={handleSaveGuide}
+              disabled={savingGuide}
+              className="px-4 py-2 bg-blue-500 text-white font-medium rounded-lg hover:bg-blue-600 disabled:bg-gray-400 transition-colors"
+            >
+              {savingGuide ? '저장 중...' : '저장'}
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* 공간 정보 */}
       <div className="space-y-4">
-        <h2 className="text-xl font-semibold text-gray-900">🏠 공간 정보</h2>
+        <h2 className="text-xl font-semibold text-gray-900">🏠 공간 정보 (Read-Only)</h2>
         
         {spaces.map((space) => (
           <div key={space.id} className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
@@ -113,7 +164,7 @@ export default function AdminSettingsPage() {
       {/* 이용 규칙 */}
       {rules && (
         <div className="space-y-4">
-          <h2 className="text-xl font-semibold text-gray-900">📜 이용 규칙</h2>
+          <h2 className="text-xl font-semibold text-gray-900">📜 이용 규칙 (Read-Only)</h2>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* 예약 규정 */}
@@ -170,25 +221,6 @@ export default function AdminSettingsPage() {
           </div>
         </div>
       )}
-      
-      {/* 시스템 정보 */}
-      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">🔧 시스템 정보</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-gray-50 p-4 rounded-lg">
-            <p className="text-xs text-gray-600 mb-1">버전</p>
-            <p className="text-lg font-semibold text-gray-900">Phase 5</p>
-          </div>
-          <div className="bg-gray-50 p-4 rounded-lg">
-            <p className="text-xs text-gray-600 mb-1">배포 환경</p>
-            <p className="text-lg font-semibold text-gray-900">Production</p>
-          </div>
-          <div className="bg-gray-50 p-4 rounded-lg">
-            <p className="text-xs text-gray-600 mb-1">최종 업데이트</p>
-            <p className="text-lg font-semibold text-gray-900">2026-03-30</p>
-          </div>
-        </div>
-      </div>
     </div>
   )
 }
