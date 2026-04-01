@@ -118,6 +118,9 @@ export default function TemplatesPage() {
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     제목
                   </th>
+                  <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    💬 메시지
+                  </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     ⚡ 발송 시점
                   </th>
@@ -140,6 +143,14 @@ export default function TemplatesPage() {
                     </td>
                     <td className="px-4 py-3">
                       <span className="text-sm text-gray-600">{t.title}</span>
+                    </td>
+                    <td className="hidden md:table-cell px-4 py-3">
+                      <span className="text-sm text-gray-500" title={t.content}>
+                        {t.content.length > 80 
+                          ? `${t.content.substring(0, 80)}...` 
+                          : t.content
+                        }
+                      </span>
                     </td>
                     <td className="px-4 py-3">
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium bg-purple-50 text-purple-700 rounded-full border border-purple-200">
