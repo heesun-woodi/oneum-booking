@@ -13,6 +13,7 @@ export interface MessageTemplate {
   content: string
   is_active: boolean
   variables: string[]
+  trigger_info?: string  // 발송 시점 (예: "회원가입 승인 시", "예약 완료 직후")
   created_at: string
   updated_at: string
 }

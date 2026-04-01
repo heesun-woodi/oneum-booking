@@ -23,6 +23,7 @@ interface MessageTemplate {
   content: string
   is_active: boolean
   variables: string[]
+  trigger_info?: string
   created_at: string
   updated_at: string
 }
@@ -117,6 +118,9 @@ export default function TemplatesPage() {
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     제목
                   </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    ⚡ 발송 시점
+                  </th>
                   <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                     활성화
                   </th>
@@ -136,6 +140,12 @@ export default function TemplatesPage() {
                     </td>
                     <td className="px-4 py-3">
                       <span className="text-sm text-gray-600">{t.title}</span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium bg-purple-50 text-purple-700 rounded-full border border-purple-200">
+                        <span>⚡</span>
+                        <span>{t.trigger_info || '미정의'}</span>
+                      </span>
                     </td>
                     <td className="px-4 py-3 text-center">
                       <button 

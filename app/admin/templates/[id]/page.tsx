@@ -13,6 +13,7 @@ interface MessageTemplate {
   content: string
   is_active: boolean
   variables: string[]
+  trigger_info?: string
   created_at: string
   updated_at: string
 }
@@ -164,7 +165,7 @@ export default function EditTemplatePage({ params }: { params: { id: string } })
       
       {/* 기본 정보 + 편집 폼 */}
       <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-        <div className="grid grid-cols-2 gap-4 mb-6 pb-6 border-b border-gray-200">
+        <div className="grid grid-cols-2 gap-4 mb-4">
           <div>
             <label className="block text-sm font-medium text-gray-600 mb-1">코드</label>
             <p className="font-mono text-lg text-gray-900">{template.type_code}</p>
@@ -174,6 +175,21 @@ export default function EditTemplatePage({ params }: { params: { id: string } })
             <p className="text-lg text-gray-900">{template.category}</p>
           </div>
         </div>
+        
+        {/* 발송 시점 (트리거) */}
+        {template.trigger_info && (
+          <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-6">
+            <div className="flex items-center gap-2">
+              <span className="text-purple-600 text-xl">⚡</span>
+              <div>
+                <p className="text-sm font-medium text-purple-900">발송 시점</p>
+                <p className="text-sm text-purple-700 mt-0.5">{template.trigger_info}</p>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        <div className="mb-6 pb-6 border-b border-gray-200"></div>
         
         <div className="space-y-4">
           {/* 제목 */}
