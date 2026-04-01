@@ -725,7 +725,6 @@ export default function Home() {
               당일 예약은 불가능하며, 내일부터 선택 가능합니다.
             </p>
           </div>
-          </div>
 
           {/* 월 네비게이션 */}
           <div className="flex items-center justify-between mb-4">
