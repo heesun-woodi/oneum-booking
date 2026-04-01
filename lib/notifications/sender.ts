@@ -3,7 +3,7 @@
  */
 import { normalizePhone } from '../phone-utils'
 
-import { solapi } from '../solapi'
+import { aligo } from '../aligo'
 import { supabase } from '../supabase'
 import { 
   getMessageTemplate, 
@@ -66,7 +66,7 @@ export async function sendNotification(
     }
 
     // 4. 즉시 발송
-    const result = await solapi.sendAuto(normalizePhone(phone), message, title)
+    const result = await aligo.sendAuto(normalizePhone(phone), message, title)
 
     // 5. 발송 결과 업데이트
     if (result.success) {
@@ -74,7 +74,7 @@ export async function sendNotification(
         .from('notification_logs')
         .update({
           status: 'sent',
-          solapi_msg_id: result.msgId,
+          aligo_msg_id: result.msgId,
           sent_at: new Date().toISOString(),
         })
         .eq('id', log.id)
