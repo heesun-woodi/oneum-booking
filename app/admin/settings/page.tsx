@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { getSpaceInfo, getGeneralRules } from '@/app/actions/admin-settings'
 import { getSetting, updateSetting } from '@/app/actions/settings'
+import { PhotoManager } from './components/PhotoManager'
 
 export default function AdminSettingsPage() {
   const [spaces, setSpaces] = useState<any[]>([])
@@ -67,6 +68,9 @@ export default function AdminSettingsPage() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-gray-900">⚙️ 설정</h1>
       
+      {/* 공간 사진 관리 */}
+      <PhotoManager />
+
       {/* 사이트 설정 (DB 연동) */}
       <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 space-y-4">
         <h2 className="text-xl font-semibold text-gray-900 mb-4">🌐 사이트 설정</h2>

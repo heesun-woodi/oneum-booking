@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react'
 import { createBooking, getBookings, getBookingsByPhone, getBookingsByHousehold, cancelBooking, CreateBookingInput } from './actions/bookings'
 import { signup, login } from './actions/auth'
 import { getSetting } from './actions/settings'
+import { SpaceGallery } from './components/space-gallery/SpaceGallery'
 
 // ===== 타입 정의 =====
 interface UserSession {
@@ -708,6 +709,12 @@ export default function Home() {
             >
               방음실
             </button>
+          </div>
+
+          {/* ===== 공간 사진 갤러리 ===== */}
+          <div className="mb-6">
+            <SpaceGallery space={selectedSpace} />
+          </div>
 
           {/* ⚠️ 예약 안내 문구 */}
           <div className="mb-6 p-4 bg-blue-50 border-l-4 border-blue-500 rounded-lg">
