@@ -1,23 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-
-interface PrepaidProduct {
-  id: string
-  name: string
-  price: number
-  total_hours: number
-}
-
-interface PrepaidPurchase {
-  id: string
-  product: PrepaidProduct
-  status: 'pending' | 'paid' | 'refunded'
-  total_hours: number
-  remaining_hours: number
-  created_at: string
-  expires_at: string | null
-}
+import { PrepaidPurchase } from '@/app/actions/prepaid'
 
 interface PrepaidCardProps {
   purchase: PrepaidPurchase
@@ -89,7 +73,7 @@ export function PrepaidCard({ purchase, onRefund }: PrepaidCardProps) {
   const handleRefund = async () => {
     const usedHours = purchase.total_hours - purchase.remaining_hours
     const regularPrice = 14000
-    const refundAmount = purchase.product.price - (usedHours * regularPrice)
+    const refundAmount = (purchase.product?.price || 0) - (usedHours * regularPrice)
 
     const confirmMessage = `환불 시 사용한 회차는 14,000원으로 정산됩니다.\n\n예상 환불 금액: ${refundAmount.toLocaleString()}원\n\n환불하시겠습니까?`
 
@@ -120,7 +104,7 @@ export function PrepaidCard({ purchase, onRefund }: PrepaidCardProps) {
       {/* 헤더: 상품명 + 상태 */}
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-bold text-gray-900">
-          🎟️ {purchase.product.name}
+          🎟️ {purchase.product?.name || '선불권'}
         </h3>
         {statusBadge()}
       </div>

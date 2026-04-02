@@ -3,14 +3,6 @@
 import { supabase } from '@/lib/supabase'
 import { revalidatePath } from 'next/cache'
 import { sendNotification } from '@/lib/notifications/sender'
-import {
-  getAvailablePrepaidPurchases,
-  createDeductionPlan,
-  executeBookingWithPrepaid,
-  getPrepaidSummary,
-  cancelBookingWithRestore,
-  type DeductionPlan
-} from '@/lib/prepaid/booking-utils'
 
 export interface CreateBookingInput {
   bookingDate: string        // YYYY-MM-DD
@@ -20,23 +12,10 @@ export interface CreateBookingInput {
   household?: string
   name: string
   phone: string
-  userId?: string  // 🆕 Phase 6.5: 선불권 조회용
+  userId?: string            // Phase 6.5: 선불권 사용을 위한 user_id
 }
 
-export interface BookingResult {
-  success: boolean
-  data?: any
-  error?: string
-  prepaidInfo?: {  // 🆕 Phase 6.5: 선불권 정보
-    prepaidHoursUsed: number
-    regularHours: number
-    remainingPrepaidHours: number
-    paymentMethod: string
-    amountToPay: number
-  }
-}
-
-export async function createBooking(input: CreateBookingInput): Promise<BookingResult> {
+export async function createBooking(input: CreateBookingInput) {
   try {
     console.log('🚀 Creating booking:', input)
     
@@ -65,8 +44,8 @@ export async function createBooking(input: CreateBookingInput): Promise<BookingR
     }
     
     // 시간대 파싱
-    const hours = input.times.length
     const startTime = input.times[0]
+    // endTime = 마지막 슬롯의 종료 시간 (마지막 시간 + 1시간)
     const lastTime = input.times[input.times.length - 1]
     const lastHour = parseInt(lastTime.split(':')[0])
     const endTime = `${String(lastHour + 1).padStart(2, '0')}:00`
@@ -74,173 +53,110 @@ export async function createBooking(input: CreateBookingInput): Promise<BookingR
     // 전화번호 정규화 (숫자만 저장)
     const normalizedPhone = input.phone.replace(/[^0-9]/g, '')
     
-    // ===== 🆕 Phase 6.5: 선불권 처리 =====
-    let prepaidHoursUsed = 0
-    let regularHours = hours
-    let paymentMethod: string = 'regular'
-    let amount = 0
-    let deductionPlan: DeductionPlan[] = []
-    
-    if (input.memberType === 'member') {
-      // 세대 회원: 무료 (기존 로직)
-      prepaidHoursUsed = 0
-      regularHours = 0
-      paymentMethod = 'free'
-      amount = 0
-    } else if (input.userId) {
-      // 로그인 사용자: 선불권 확인
-      console.log('🎫 Checking prepaid for user:', input.userId)
-      const prepaidPurchases = await getAvailablePrepaidPurchases(
-        input.userId,
-        bookingDate
-      )
+    // Phase 6.5: 선불권 우선 사용 (userId가 있는 경우)
+    if (input.userId && input.memberType !== 'member') {
+      console.log('🎫 선불권 확인 및 사용 시도 (userId:', input.userId, ')')
       
-      if (prepaidPurchases.length > 0) {
-        const plan = createDeductionPlan(prepaidPurchases, hours)
-        deductionPlan = plan.plan
-        prepaidHoursUsed = plan.prepaidHours
-        regularHours = plan.regularHours
+      try {
+        // RPC 함수 호출
+        const { data: rpcData, error: rpcError } = await supabase
+          .rpc('create_booking_with_prepaid', {
+            p_user_id: input.userId,
+            p_booking_date: input.bookingDate,
+            p_start_time: startTime,
+            p_end_time: endTime,
+            p_space: input.space,
+            p_member_type: input.memberType,
+            p_household: input.household || null,
+            p_name: input.name,
+            p_phone: normalizedPhone,
+            p_requested_hours: input.times.length
+          })
         
-        console.log(`📊 Deduction plan: ${prepaidHoursUsed}h prepaid + ${regularHours}h regular`)
-        
-        if (prepaidHoursUsed === hours) {
-          paymentMethod = 'prepaid'
-        } else if (prepaidHoursUsed > 0) {
-          paymentMethod = 'mixed'
+        if (rpcError) {
+          console.error('❌ RPC error:', rpcError)
+          // RPC 실패 시 일반 예약으로 폴백
+          throw rpcError
         }
         
-        amount = regularHours * 14000
-      } else {
-        // 선불권 없음
-        console.log('❌ No prepaid available')
-        amount = hours * 14000
+        console.log('✅ Booking created with prepaid:', rpcData)
+        
+        // RPC 결과 파싱
+        const result = rpcData[0]
+        const data = {
+          id: result.booking_id,
+          booking_date: input.bookingDate,
+          start_time: startTime,
+          end_time: endTime,
+          space: input.space,
+          member_type: input.memberType,
+          household: input.household,
+          name: input.name,
+          phone: normalizedPhone,
+          amount: result.amount,
+          status: result.status,
+          payment_status: result.payment_status,
+          prepaid_hours_used: result.prepaid_hours_used,
+          regular_hours: result.regular_hours
+        }
+        
+        console.log('🎫 선불권 사용 결과:', {
+          prepaid_hours: result.prepaid_hours_used,
+          regular_hours: result.regular_hours,
+          amount: result.amount,
+          payment_status: result.payment_status
+        })
+        
+        // SMS 발송
+        await sendBookingNotifications(data, input, normalizedPhone)
+        
+        // 캘린더 갱신
+        revalidatePath('/')
+        
+        return { success: true, data }
+      } catch (rpcError) {
+        console.warn('⚠️ RPC 실패, 일반 예약으로 폴백:', rpcError)
+        // RPC 실패 시 아래의 일반 예약 로직으로 계속 진행
       }
-    } else {
-      // 비로그인: 일반 결제
-      amount = hours * 14000
     }
     
-    // ===== 예약 생성 (트랜잭션) =====
-    const bookingData = {
-      bookingDate: input.bookingDate,
-      startTime,
-      endTime,
-      space: input.space,
-      memberType: input.memberType,
-      household: input.household || '',
-      name: input.name,
-      phone: normalizedPhone,
-      userId: input.userId || '',
-      prepaidHoursUsed,
-      regularHours,
-      paymentMethod,
-      amount
-    }
+    // 기존 로직: 일반 예약 (회원 무료 또는 비회원 유료)
+    const amount = input.memberType === 'member' ? 0 : input.times.length * 14000
     
-    console.log('💾 Executing booking transaction...')
-    const result = await executeBookingWithPrepaid(bookingData, deductionPlan)
-    
-    if (!result.success) {
-      console.error('❌ Transaction failed:', result.error)
-      return { success: false, error: result.error }
-    }
-    
-    // 예약 데이터 조회
-    const { data: booking, error: selectError } = await supabase
+    // 예약 생성
+    const { data, error } = await supabase
       .from('bookings')
-      .select('*')
-      .eq('id', result.bookingId)
+      .insert({
+        booking_date: input.bookingDate,
+        start_time: startTime,
+        end_time: endTime,
+        space: input.space,
+        member_type: input.memberType,
+        household: input.household,
+        name: input.name,
+        phone: normalizedPhone,
+        amount,
+        status: input.memberType === 'member' ? 'confirmed' : 'pending',
+        payment_status: input.memberType === 'member' ? 'completed' : 'pending',
+        prepaid_hours_used: 0,
+        regular_hours: input.times.length
+      })
+      .select()
       .single()
     
-    if (selectError || !booking) {
-      console.error('❌ Failed to fetch created booking')
-      return { success: false, error: 'Failed to fetch booking' }
+    if (error) {
+      console.error('❌ Supabase error:', error)
+      throw error
     }
     
-    console.log('✅ Booking created:', booking)
-    
-    // ===== 📨 알림 발송 =====
-    const dateStr = new Date(booking.booking_date).toLocaleDateString('ko-KR', {
-      month: 'long',
-      day: 'numeric',
-    })
-    const timeStr = `${booking.start_time} ~ ${booking.end_time}`
-    const spaceStr = booking.space === 'nolter' ? '놀터' : '방음실'
-
-    if (paymentMethod === 'free') {
-      // 2-1: 회원 예약 완료
-      await sendNotification({
-        type: '2-1',
-        phone: normalizedPhone,
-        variables: {
-          name: input.name,
-          household: input.household || '',
-          date: dateStr,
-          time: timeStr,
-          space: spaceStr,
-        },
-        bookingId: booking.id,
-      })
-    } else if (paymentMethod === 'prepaid') {
-      // 🆕 선불권으로 완료 (새 알림 타입 필요 시 추가)
-      await sendNotification({
-        type: '2-1',  // 임시로 2-1 사용 (선불권 버전 추가 가능)
-        phone: normalizedPhone,
-        variables: {
-          name: input.name,
-          household: '',
-          date: dateStr,
-          time: timeStr,
-          space: spaceStr,
-        },
-        bookingId: booking.id,
-      })
-    } else if (paymentMethod === 'mixed' || paymentMethod === 'regular') {
-      // 2-2: 입금 안내 (혼합 또는 일반)
-      const deadline = new Date(booking.booking_date)
-      deadline.setDate(deadline.getDate() - 1)
-      const deadlineStr = deadline.toLocaleDateString('ko-KR', {
-        month: 'long',
-        day: 'numeric',
-      })
-
-      await sendNotification({
-        type: '2-2',
-        phone: normalizedPhone,
-        variables: {
-          name: input.name,
-          date: dateStr,
-          time: timeStr,
-          space: spaceStr,
-          amount: amount.toLocaleString(),
-          account: process.env.BANK_ACCOUNT || '카카오뱅크 7979-72-56275 (정상은)',
-          deadline: deadlineStr,
-        },
-        bookingId: booking.id,
-      })
-    }
-    
-    // ===== 선불권 정보 포함하여 반환 =====
-    let remainingPrepaidHours = 0
-    if (input.userId) {
-      const summary = await getPrepaidSummary(input.userId)
-      remainingPrepaidHours = summary.totalRemainingHours
-    }
+    console.log('✅ Booking created:', data)
+    // SMS 발송
+    await sendBookingNotifications(data, input, normalizedPhone)
     
     // 캘린더 갱신
     revalidatePath('/')
     
-    return {
-      success: true,
-      data: booking,
-      prepaidInfo: {
-        prepaidHoursUsed,
-        regularHours,
-        remainingPrepaidHours,
-        paymentMethod,
-        amountToPay: amount
-      }
-    }
+    return { success: true, data }
   } catch (error: any) {
     console.error('❌ Create booking error:', error)
     return { success: false, error: error.message }
@@ -250,6 +166,7 @@ export async function createBooking(input: CreateBookingInput): Promise<BookingR
 export async function getBookings(year: number, month: number, space: string) {
   try {
     const startDate = `${year}-${String(month).padStart(2, '0')}-01`
+    // 해당 월의 마지막 날 계산 (Date(year, month, 0) = 이전 달의 마지막 날)
     const lastDay = new Date(year, month, 0).getDate()
     const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
     
@@ -261,7 +178,7 @@ export async function getBookings(year: number, month: number, space: string) {
       .eq('space', space)
       .gte('booking_date', startDate)
       .lte('booking_date', endDate)
-      .in('status', ['confirmed', 'pending'])
+      .in('status', ['confirmed', 'pending']) // pending도 표시 (미입금 예약)
     
     if (error) {
       console.error('❌ Supabase error:', error)
@@ -277,11 +194,15 @@ export async function getBookings(year: number, month: number, space: string) {
   }
 }
 
+// ===== 전화번호로 예약 조회 =====
 export async function getBookingsByPhone(phone: string) {
   try {
     console.log('🔍 Fetching bookings for phone:', phone)
     
+    // 전화번호 정규화 (숫자만 추출)
     const normalizedPhone = phone.replace(/[^0-9]/g, '')
+    
+    // 오늘 날짜 (한국 시간)
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     const todayStr = today.toISOString().split('T')[0]
@@ -307,6 +228,7 @@ export async function getBookingsByPhone(phone: string) {
   }
 }
 
+// ===== 예약 취소 =====
 export async function cancelBooking(bookingId: string) {
   try {
     console.log('🗑️ Cancelling booking:', bookingId)
@@ -326,17 +248,18 @@ export async function cancelBooking(bookingId: string) {
       return { success: false, error: '이미 취소된 예약입니다.' }
     }
     
-    // 🆕 Phase 6.5: 선불권 복구 + 취소 트랜잭션
-    const result = await cancelBookingWithRestore(bookingId)
+    // 상태 업데이트
+    const { error } = await supabase
+      .from('bookings')
+      .update({ 
+        status: 'cancelled',
+        cancelled_at: new Date().toISOString(),
+      })
+      .eq('id', bookingId)
     
-    if (!result.success) {
-      console.error('❌ Cancel transaction failed:', result.error)
-      return { success: false, error: result.error }
-    }
-    
-    // 복구된 시간이 있으면 로그
-    if (result.restoredHours && result.restoredHours > 0) {
-      console.log(`✅ 선불권 ${result.restoredHours}시간 복구됨`)
+    if (error) {
+      console.error('❌ Supabase error:', error)
+      throw error
     }
     
     console.log('✅ Booking cancelled')
@@ -350,7 +273,7 @@ export async function cancelBooking(bookingId: string) {
       const timeStr = `${booking.start_time} ~ ${booking.end_time}`
       const spaceStr = booking.space === 'nolter' ? '놀터' : '방음실'
 
-      // 2-3: 예약 취소 알림
+      // 2-3: 예약 취소 알림 (입금 완료자만)
       await sendNotification({
         type: '2-3',
         phone: booking.phone,
@@ -363,7 +286,7 @@ export async function cancelBooking(bookingId: string) {
         bookingId: booking.id,
       })
 
-      // 5-3: 재무담당자 환불 안내
+      // 5-3: 재무담당자 환불 안내 (이용일 아닌 경우만)
       const today = new Date().toISOString().split('T')[0]
       if (booking.booking_date !== today && booking.amount > 0) {
         await sendNotification({
@@ -389,6 +312,7 @@ export async function cancelBooking(bookingId: string) {
   }
 }
 
+// ===== 세대별 예약 조회 =====
 export async function getBookingsByHousehold(household: string) {
   try {
     console.log('🏠 Fetching bookings by household:', household)
@@ -413,5 +337,73 @@ export async function getBookingsByHousehold(household: string) {
   } catch (error: any) {
     console.error('❌ Get bookings by household error:', error)
     return { success: false, error: error.message, data: [] }
+  }
+}
+
+// ===== SMS 발송 헬퍼 함수 =====
+async function sendBookingNotifications(
+  booking: any,
+  input: CreateBookingInput,
+  normalizedPhone: string
+) {
+  const dateStr = new Date(booking.booking_date).toLocaleDateString('ko-KR', {
+    month: 'long',
+    day: 'numeric',
+  })
+  const timeStr = `${booking.start_time} ~ ${booking.end_time}`
+  const spaceStr = booking.space === 'nolter' ? '놀터' : '방음실'
+
+  // Phase 6.5: 선불권 사용 예약
+  if (booking.payment_status === 'prepaid') {
+    // 전체 선불권 사용 - 임시로 2-1 타입 사용 (TODO: 7-3 타입 추가)
+    await sendNotification({
+      type: '2-1',
+      phone: normalizedPhone,
+      variables: {
+        name: input.name,
+        household: input.household || '',
+        date: dateStr,
+        time: timeStr,
+        space: spaceStr,
+      },
+      bookingId: booking.id,
+    })
+  } else if (input.memberType === 'member') {
+    // 2-1: 회원 예약 완료
+    await sendNotification({
+      type: '2-1',
+      phone: normalizedPhone,
+      variables: {
+        name: input.name,
+        household: input.household || '',
+        date: dateStr,
+        time: timeStr,
+        space: spaceStr,
+      },
+      bookingId: booking.id,
+    })
+  } else {
+    // 2-2: 비회원 예약 완료 (입금 안내)
+    const deadline = new Date(booking.booking_date)
+    deadline.setDate(deadline.getDate() - 1)
+    const deadlineStr = deadline.toLocaleDateString('ko-KR', {
+      month: 'long',
+      day: 'numeric',
+    })
+
+    await sendNotification({
+      type: '2-2',
+      phone: normalizedPhone,
+      variables: {
+        name: input.name,
+        date: dateStr,
+        time: timeStr,
+        space: spaceStr,
+        amount: booking.amount.toLocaleString(),
+        account: process.env.BANK_ACCOUNT || '카카오뱅크 7979-72-56275 (정상은)',
+        deadline: deadlineStr,
+      },
+      bookingId: booking.id,
+    })
   }
 }

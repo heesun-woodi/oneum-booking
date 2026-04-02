@@ -5,27 +5,14 @@ import { useState, useEffect } from 'react'
 import { createBooking, getBookings, getBookingsByPhone, getBookingsByHousehold, cancelBooking, CreateBookingInput } from './actions/bookings'
 import { signup, login } from './actions/auth'
 import { getSpacesInfo, getGeneralRulesFromDB, SpacesInfo, GeneralRules } from './actions/structured-settings'
+import { getMyPrepaidPurchases, PrepaidPurchase as PrepaidPurchaseType } from './actions/prepaid'
+import { getTotalRemainingHours, calculatePrepaidUsage } from '@/lib/prepaid-utils'
 import { SpaceGallery } from './components/space-gallery/SpaceGallery'
 import { PrepaidPurchaseModal } from './components/PrepaidPurchaseModal'
 import { PrepaidCard } from './components/PrepaidCard'
 
 // ===== 타입 정의 =====
-interface PrepaidProduct {
-  id: string
-  name: string
-  price: number
-  total_hours: number
-}
-
-interface PrepaidPurchase {
-  id: string
-  product: PrepaidProduct
-  status: 'pending' | 'paid' | 'refunded'
-  total_hours: number
-  remaining_hours: number
-  created_at: string
-  expires_at: string | null
-}
+type PrepaidPurchase = PrepaidPurchaseType // actions/prepaid.ts에서 import한 타입 사용
 
 interface UserSession {
   isLoggedIn: boolean
@@ -442,10 +429,13 @@ export default function Home() {
     
     console.log(`🔍 DEBUG: ${date}일 예약 시간:`, times)
     
-    // 로그인 상태면 사용자 정보 자동 입력
+    // 로그인 상태면 사용자 정보 자동 입력 + 선불권 조회
     if (userSession.isLoggedIn) {
       setName(userSession.name)
       setPhone(userSession.phone)
+      
+      // Phase 6.5: 선불권 조회
+      loadPrepaidPurchases()
     } else {
       setName('')
       setPhone('')
@@ -505,7 +495,8 @@ export default function Home() {
       memberType: userSession.isLoggedIn ? 'member' as const : 'non-member' as const,
       household: userSession.isLoggedIn ? userSession.household : undefined,
       name,
-      phone
+      phone,
+      userId: userSession.userId // Phase 6.5: 선불권 사용을 위한 userId 전달
     }
 
     console.log('🚀 예약 시작:', bookingInput)
@@ -521,15 +512,26 @@ export default function Home() {
       console.log('예약자:', userSession.isLoggedIn ? `${userSession.household}호 ${name}` : name)
       console.log('연락처:', phone)
 
-      const paymentInfo = userSession.isLoggedIn 
-        ? '' 
-        : `\n\n💰 결제 안내\n금액: ${selectedTimes.length * 14000}원\n계좌: 카카오뱅크 7979-72-56275 (정상은)\n예약자명으로 입금해주세요.`
+      // Phase 6.5: 선불권 사용 정보 표시
+      let paymentInfo = ''
+      if (result.data?.payment_status === 'prepaid') {
+        paymentInfo = `\n\n🎫 선불권 ${result.data.prepaid_hours_used}시간 사용\n잔여: (조회 필요)`
+      } else if (result.data?.prepaid_hours_used > 0) {
+        paymentInfo = `\n\n🎫 선불권 ${result.data.prepaid_hours_used}시간 사용\n💰 일반 결제 ${result.data.regular_hours}시간 (${result.data.amount}원)\n계좌: 카카오뱅크 7979-72-56275 (정상은)`
+      } else if (!userSession.isLoggedIn) {
+        paymentInfo = `\n\n💰 결제 안내\n금액: ${selectedTimes.length * 14000}원\n계좌: 카카오뱅크 7979-72-56275 (정상은)\n예약자명으로 입금해주세요.`
+      }
       
       alert(`예약이 완료되었습니다!\n\n날짜: ${month}월 ${selectedDate}일\n시간: ${selectedTimes.join(', ')} (총 ${selectedTimes.length}시간)\n공간: ${selectedSpace === 'nolter' ? '놀터' : '방음실'}${paymentInfo}`)
       setIsBookingModalOpen(false)
       
       // 예약 목록 새로고침
       loadBookings()
+      
+      // 선불권 사용한 경우 선불권 목록도 새로고침
+      if (result.data?.prepaid_hours_used > 0) {
+        loadPrepaidPurchases()
+      }
     } else {
       console.error('❌ 예약 실패:', result.error)
       alert(`예약 실패: ${result.error}`)
@@ -1206,6 +1208,55 @@ export default function Home() {
               {/* 회원 로그인 상태 */}
               {userSession.isLoggedIn ? (
                 <div className="space-y-4">
+                  {/* Phase 6.5: 선불권 정보 표시 */}
+                  {(() => {
+                    const totalHours = getTotalRemainingHours(prepaidPurchases)
+                    if (totalHours > 0 && selectedTimes.length > 0) {
+                      const usage = calculatePrepaidUsage(prepaidPurchases, selectedTimes.length)
+                      return (
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="text-sm font-semibold text-green-800">
+                              🎫 보유 선불권: {totalHours}시간
+                            </p>
+                          </div>
+                          <div className="text-sm text-green-700 space-y-1">
+                            {usage.isFullyPrepaid ? (
+                              <>
+                                <p>✅ 선불권 사용: {usage.prepaidHours}시간</p>
+                                <p>💰 결제 금액: 0원</p>
+                                <p className="text-xs text-green-600 mt-2">
+                                  잔여 선불권: {totalHours - usage.prepaidHours}시간
+                                </p>
+                              </>
+                            ) : (
+                              <>
+                                <p>🎫 선불권 사용: {usage.prepaidHours}시간</p>
+                                <p>💳 일반 결제: {usage.regularHours}시간</p>
+                                <p>💰 결제 금액: {usage.amount.toLocaleString()}원</p>
+                                <p className="text-xs text-orange-600 mt-2">
+                                  ⚠️ 선불권 {usage.prepaidHours}시간 소진 후 나머지는 일반 예약으로 처리됩니다.
+                                </p>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    } else if (totalHours > 0) {
+                      return (
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                          <p className="text-sm font-semibold text-blue-800">
+                            🎫 보유 선불권: {totalHours}시간
+                          </p>
+                          <p className="text-xs text-blue-600 mt-1">
+                            시간을 선택하면 선불권 사용 내역이 표시됩니다.
+                          </p>
+                        </div>
+                      )
+                    }
+                    return null
+                  })()}
+                  
                   <div>
                     <label className="block text-sm font-semibold text-gray-900 mb-3">
                       세대 정보
