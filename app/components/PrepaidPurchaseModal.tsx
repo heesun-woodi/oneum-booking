@@ -68,40 +68,56 @@ export function PrepaidPurchaseModal({
 
   // 구매 신청
   const handlePurchase = async (productId: string) => {
+    console.log('🛒 [PURCHASE] handlePurchase 실행됨')
+    console.log('🛒 [PURCHASE] productId:', productId)
+    console.log('🛒 [PURCHASE] userSession:', userSession)
+    console.log('🛒 [PURCHASE] userSession.isLoggedIn:', userSession.isLoggedIn)
+    console.log('🛒 [PURCHASE] userSession.userId:', userSession.userId)
+    
     if (!userSession.isLoggedIn || !userSession.userId) {
+      console.warn('⚠️ [PURCHASE] 로그인 필요 - isLoggedIn:', userSession.isLoggedIn, ', userId:', userSession.userId)
       alert('로그인이 필요합니다.')
       return
     }
 
+    console.log('🚀 [PURCHASE] API 호출 시작')
     setIsPurchasing(true)
 
     try {
+      const requestBody = {
+        product_id: productId,
+        user_id: userSession.userId,
+      }
+      console.log('📤 [PURCHASE] Request body:', requestBody)
+      
       const response = await fetch('/api/prepaid/purchase', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          product_id: productId,
-          user_id: userSession.userId,
-        }),
+        body: JSON.stringify(requestBody),
       })
 
+      console.log('📥 [PURCHASE] Response status:', response.status)
       const data = await response.json()
+      console.log('📥 [PURCHASE] Response data:', data)
 
       if (data.success) {
         alert(
           `${data.message}\n\n💰 입금 안내\n계좌: 카카오뱅크 7979-72-56275 (정상은)\n금액: ${products[0]?.price.toLocaleString()}원\n예약자명으로 입금해주세요.`
         )
         onClose()
+        console.log('✅ [PURCHASE] 구매 완료')
       } else {
+        console.error('❌ [PURCHASE] 구매 실패:', data.error)
         alert(`구매 실패: ${data.error}`)
       }
     } catch (err) {
-      console.error('구매 신청 오류:', err)
+      console.error('💥 [PURCHASE] 예외 발생:', err)
       alert('구매 신청 중 오류가 발생했습니다.')
     } finally {
       setIsPurchasing(false)
+      console.log('🏁 [PURCHASE] handlePurchase 종료')
     }
   }
 
