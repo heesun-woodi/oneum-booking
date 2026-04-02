@@ -35,6 +35,10 @@ interface Booking {
 }
 
 export default function Home() {
+  // ⭐ VERSION MARKER
+  console.log('🚀 [PAGE LOAD v1.0.5] 온음 예약 시스템 로드됨')
+  console.log('🚀 [VERSION] Login Debug Enhanced - 2025-04-02')
+  
   // ===== State 관리 =====
   
   // 사용자 세션 (localStorage에서 로드)
@@ -444,12 +448,16 @@ export default function Home() {
     }
   }
 
-  // ===== 로그인 =====
+  // ===== 로그인 ===== 
+  // ⭐ VERSION: v1.0.5 - Login Debug Enhanced
   
   const handleLogin = async () => {
-    console.log('🔑 [LOGIN] handleLogin 시작')
+    console.log('='.repeat(50))
+    console.log('🔑 [LOGIN v1.0.5] handleLogin 함수 실행됨!')
+    console.log('='.repeat(50))
     console.log('🔑 [LOGIN] authName:', authName)
     console.log('🔑 [LOGIN] authPassword:', authPassword ? '***' : '(empty)')
+    console.log('🔑 [LOGIN] authMode:', authMode)
     
     if (!authName.trim()) {
       console.warn('⚠️ [LOGIN] 이름 입력 필요')
@@ -1170,7 +1178,12 @@ export default function Home() {
       )}
 
       {/* ===== 로그인/회원가입 모달 ===== */}
-      {isAuthModalOpen && (
+      {isAuthModalOpen && (() => {
+        console.log('🪟 [MODAL v1.0.5] 인증 모달 렌더링됨')
+        console.log('🪟 [MODAL] authMode:', authMode)
+        console.log('🪟 [MODAL] authName:', authName)
+        return true
+      })() && (
         <div 
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
           onClick={() => setIsAuthModalOpen(false)}
@@ -1339,7 +1352,17 @@ export default function Home() {
 
                   {/* 로그인 버튼 */}
                   <button
-                    onClick={authMode === 'login' ? handleLogin : handleSignup}
+                    onClick={() => {
+                      console.log('🖱️ [BUTTON CLICK v1.0.5] 버튼 클릭 감지됨!')
+                      console.log('🖱️ [BUTTON] authMode:', authMode)
+                      console.log('🖱️ [BUTTON] 실행할 함수:', authMode === 'login' ? 'handleLogin' : 'handleSignup')
+                      
+                      if (authMode === 'login') {
+                        handleLogin()
+                      } else {
+                        handleSignup()
+                      }
+                    }}
                     className="w-full py-3 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 transition-colors"
                   >
                     {authMode === 'login' ? '로그인' : '가입하기'}
