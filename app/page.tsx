@@ -494,12 +494,14 @@ export default function Home() {
       space: selectedSpace,
       memberType: userSession.isLoggedIn ? 'member' as const : 'non-member' as const,
       household: userSession.isLoggedIn ? userSession.household : undefined,
-      name,
-      phone,
-      userId: userSession.isLoggedIn ? userSession.userId : undefined // Phase 6.5: 선불권 사용을 위한 userId 전달
+      name: userSession.isLoggedIn ? userSession.name : name,  // ⭐ Phase 6.5: 로그인 사용자는 세션 정보 사용
+      phone: userSession.isLoggedIn ? userSession.phone : phone, // ⭐ Phase 6.5: 로그인 사용자는 세션 정보 사용
+      userId: userSession.userId // ⭐ Phase 6.5: 선불권 사용을 위한 userId 전달
     }
 
     console.log('🚀 예약 시작:', bookingInput)
+    console.log('🎫 userId:', userSession.userId || '(없음 - 선불권 미사용)')
+    console.log('🎫 userId:', userSession.userId || '(없음 - 선불권 미사용)')
 
     // DB에 저장
     const result = await createBooking(bookingInput)
