@@ -54,7 +54,8 @@ export async function createBooking(input: CreateBookingInput) {
     const normalizedPhone = input.phone.replace(/[^0-9]/g, '')
     
     // Phase 6.5: 선불권 우선 사용 (userId가 있는 경우)
-    if (input.userId && input.memberType !== 'member') {
+    // 세대 회원도 월 8시간 초과 시 선불권 확인
+    if (input.userId) {
       console.log('🎫 선불권 확인 및 사용 시도 (userId:', input.userId, ')')
       
       try {

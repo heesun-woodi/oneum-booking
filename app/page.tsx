@@ -496,7 +496,7 @@ export default function Home() {
       household: userSession.isLoggedIn ? userSession.household : undefined,
       name,
       phone,
-      userId: userSession.userId // Phase 6.5: 선불권 사용을 위한 userId 전달
+      userId: userSession.isLoggedIn ? userSession.userId : undefined // Phase 6.5: 선불권 사용을 위한 userId 전달
     }
 
     console.log('🚀 예약 시작:', bookingInput)
