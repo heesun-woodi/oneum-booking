@@ -76,6 +76,7 @@ export default function Home() {
   const [authName, setAuthName] = useState<string>('')
   const [authPhone, setAuthPhone] = useState<string>('')
   const [authPassword, setAuthPassword] = useState<string>('')
+  const [authIsResident, setAuthIsResident] = useState<boolean>(false) // Phase 6.1: 세대원 여부
 
   // ===== localStorage 세션 관리 =====
   
@@ -482,7 +483,8 @@ export default function Home() {
   // ===== 회원가입 =====
   
   const handleSignup = async () => {
-    if (!authHousehold) {
+    // Phase 6.1: 세대원 체크 시에만 세대 번호 필수
+    if (authIsResident && !authHousehold) {
       alert('세대를 선택해주세요.')
       return
     }
@@ -500,10 +502,11 @@ export default function Home() {
     }
 
     const result = await signup({
-      household: authHousehold,
+      household: authIsResident ? authHousehold : '', // 세대원이 아니면 빈 문자열
       name: authName,
       phone: authPhone,
-      password: authPassword
+      password: authPassword,
+      isResident: authIsResident // Phase 6.1: 세대원 여부 추가
     })
 
     if (!result.success) {
@@ -519,6 +522,7 @@ export default function Home() {
     setAuthName('')
     setAuthPhone('')
     setAuthPassword('')
+    setAuthIsResident(false) // Phase 6.1: 초기화
   }
 
   // ===== 로그아웃 =====
@@ -1218,22 +1222,47 @@ export default function Home() {
               ) : (
                 /* 기존 로그인/회원가입 폼 */
                 <>
-                  {/* 회원가입: 세대 선택 */}
+                  {/* Phase 6.1: 회원가입 - 세대원 여부 체크 */}
                   {authMode === 'signup' && (
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-900 mb-2">
-                        세대 선택 *
-                      </label>
-                      <select
-                        value={authHousehold}
-                        onChange={(e) => setAuthHousehold(e.target.value)}
-                        className="w-full py-3 px-4 border border-gray-300 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      >
-                        <option value="">세대를 선택하세요</option>
-                        {households.map(h => (
-                          <option key={h} value={h}>{h}호</option>
-                        ))}
-                      </select>
+                    <div className="space-y-4">
+                      {/* 세대원 여부 체크박스 */}
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <label className="flex items-center gap-3 cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            checked={authIsResident}
+                            onChange={(e) => {
+                              setAuthIsResident(e.target.checked)
+                              if (!e.target.checked) {
+                                setAuthHousehold('') // 체크 해제 시 세대 번호 초기화
+                              }
+                            }}
+                            className="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                          />
+                          <span className="text-sm font-medium text-gray-900">
+                            저는 온음 세대 입주민입니다 (201~501호)
+                          </span>
+                        </label>
+                      </div>
+
+                      {/* 세대 선택 (세대원 체크 시에만 노출) */}
+                      {authIsResident && (
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-900 mb-2">
+                            세대 선택 *
+                          </label>
+                          <select
+                            value={authHousehold}
+                            onChange={(e) => setAuthHousehold(e.target.value)}
+                            className="w-full py-3 px-4 border border-gray-300 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          >
+                            <option value="">세대를 선택하세요</option>
+                            {households.map(h => (
+                              <option key={h} value={h}>{h}호</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
                     </div>
                   )}
 
