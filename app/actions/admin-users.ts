@@ -40,14 +40,33 @@ export async function approveSignup(userId: string, adminId: string) {
       return { success: false, error: '사용자를 찾을 수 없습니다.' }
     }
     
-    // 승인 처리
+    // 관리자 ID 검증 (admin_users 테이블에 존재하는지 확인)
+    let validAdminId: string | null = null
+    if (adminId) {
+      const { data: adminUser } = await supabase
+        .from('admin_users')
+        .select('id')
+        .eq('id', adminId)
+        .single()
+      
+      if (adminUser) {
+        validAdminId = adminUser.id
+      }
+    }
+    
+    // 승인 처리 (유효한 관리자 ID가 있을 때만 approved_by 설정)
+    const updateData: any = {
+      status: 'approved',
+      approved_at: new Date().toISOString()
+    }
+    
+    if (validAdminId) {
+      updateData.approved_by = validAdminId
+    }
+    
     const { error } = await supabase
       .from('users')
-      .update({
-        status: 'approved',
-        approved_at: new Date().toISOString(),
-        approved_by: adminId
-      })
+      .update(updateData)
       .eq('id', userId)
     
     if (error) {
