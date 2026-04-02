@@ -6,6 +6,7 @@ import { createBooking, getBookings, getBookingsByPhone, getBookingsByHousehold,
 import { signup, login } from './actions/auth'
 import { getSpacesInfo, getGeneralRulesFromDB, SpacesInfo, GeneralRules } from './actions/structured-settings'
 import { SpaceGallery } from './components/space-gallery/SpaceGallery'
+import { PrepaidPurchaseModal } from './components/PrepaidPurchaseModal'
 
 // ===== 타입 정의 =====
 interface UserSession {
@@ -14,6 +15,7 @@ interface UserSession {
   name: string
   phone: string
   isAdmin?: boolean
+  userId?: string // Phase 6.3: 선불권 구매를 위한 user_id
 }
 
 type SpaceType = 'nolter' | 'soundroom'
@@ -54,6 +56,7 @@ export default function Home() {
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false)
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
   const [authMode, setAuthMode] = useState<'login' | 'signup' | 'forgot'>('login')
+  const [isPrepaidModalOpen, setIsPrepaidModalOpen] = useState(false) // Phase 6.3: 선불권 구매 모달
   // 예약 관리 모달 상태
   const [isManageModalOpen, setIsManageModalOpen] = useState(false)
   const [managePhone, setManagePhone] = useState('')
@@ -143,7 +146,8 @@ export default function Home() {
       household: '',
       name: '',
       phone: '',
-      isAdmin: false
+      isAdmin: false,
+      userId: undefined
     })
     
     // ⭐ 예약 폼 상태도 초기화
@@ -468,7 +472,8 @@ export default function Home() {
       household: result.user.household,
       name: result.user.name,
       phone: result.user.phone,
-      isAdmin: result.user.is_admin || false
+      isAdmin: result.user.is_admin || false,
+      userId: result.user.id // Phase 6.3: 선불권 구매를 위한 user_id
     }
 
     saveSession(session)
@@ -687,6 +692,12 @@ export default function Home() {
                 회원 로그인
               </button>
             )}
+            <button
+              onClick={() => setIsPrepaidModalOpen(true)}
+              className="px-4 py-2 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 whitespace-nowrap"
+            >
+              🎟️ 선불권 구매
+            </button>
             <button type="button"
               onClick={() => {
                 setManagePhone('')
@@ -1520,6 +1531,23 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      {/* ===== 선불권 구매 모달 ===== */}
+      <PrepaidPurchaseModal
+        isOpen={isPrepaidModalOpen}
+        onClose={() => setIsPrepaidModalOpen(false)}
+        userSession={userSession}
+        onLoginClick={() => {
+          setIsPrepaidModalOpen(false)
+          setAuthMode('login')
+          setIsAuthModalOpen(true)
+        }}
+        onSignupClick={() => {
+          setIsPrepaidModalOpen(false)
+          setAuthMode('signup')
+          setIsAuthModalOpen(true)
+        }}
+      />
     </div>
   )
 }
