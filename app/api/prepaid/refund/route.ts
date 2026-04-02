@@ -16,7 +16,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createServiceRoleClient } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,7 +24,7 @@ const REGULAR_PRICE_PER_HOUR = 14000 // 정상가: 시간당 14,000원
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient()
+    const supabase = await createServiceRoleClient()
     const body = await request.json()
 
     const { purchase_id, user_id } = body
