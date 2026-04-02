@@ -447,42 +447,58 @@ export default function Home() {
   // ===== 로그인 =====
   
   const handleLogin = async () => {
+    console.log('🔑 [LOGIN] handleLogin 시작')
+    console.log('🔑 [LOGIN] authName:', authName)
+    console.log('🔑 [LOGIN] authPassword:', authPassword ? '***' : '(empty)')
+    
     if (!authName.trim()) {
+      console.warn('⚠️ [LOGIN] 이름 입력 필요')
       alert('이름을 입력해주세요.')
       return
     }
     if (!authPassword.trim()) {
+      console.warn('⚠️ [LOGIN] 비밀번호 입력 필요')
       alert('비밀번호를 입력해주세요.')
       return
     }
 
-    const result = await login({
-      name: authName,
-      password: authPassword
-    })
+    try {
+      console.log('🚀 [LOGIN] API 호출 시작...')
+      const result = await login({
+        name: authName,
+        password: authPassword
+      })
+      console.log('📥 [LOGIN] API 응답:', result)
 
-    if (!result.success) {
-      alert(result.error)
-      return
+      if (!result.success) {
+        console.error('❌ [LOGIN] 로그인 실패:', result.error)
+        alert(result.error)
+        return
+      }
+
+      // 세션 저장 (세대 정보 + 관리자 권한 자동 포함!)
+      const session: UserSession = {
+        isLoggedIn: true,
+        household: result.user.household,
+        name: result.user.name,
+        phone: result.user.phone,
+        isAdmin: result.user.is_admin || false,
+        userId: result.user.id // Phase 6.3: 선불권 구매를 위한 user_id
+      }
+
+      console.log('💾 [LOGIN] 세션 저장:', session)
+      saveSession(session)
+      setIsAuthModalOpen(false)
+      alert(`${result.user.name}님 로그인되었습니다!`)
+      console.log('✅ [LOGIN] 로그인 성공!')
+      
+      // 폼 초기화
+      setAuthName('')
+      setAuthPassword('')
+    } catch (error) {
+      console.error('💥 [LOGIN] 예외 발생:', error)
+      alert('로그인 중 오류가 발생했습니다. 다시 시도해주세요.')
     }
-
-    // 세션 저장 (세대 정보 + 관리자 권한 자동 포함!)
-    const session: UserSession = {
-      isLoggedIn: true,
-      household: result.user.household,
-      name: result.user.name,
-      phone: result.user.phone,
-      isAdmin: result.user.is_admin || false,
-      userId: result.user.id // Phase 6.3: 선불권 구매를 위한 user_id
-    }
-
-    saveSession(session)
-    setIsAuthModalOpen(false)
-    alert(`${result.user.name}님 로그인되었습니다!`)
-    
-    // 폼 초기화
-    setAuthName('')
-    setAuthPassword('')
   }
 
   // ===== 회원가입 =====
