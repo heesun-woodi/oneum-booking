@@ -7,8 +7,26 @@ import { signup, login } from './actions/auth'
 import { getSpacesInfo, getGeneralRulesFromDB, SpacesInfo, GeneralRules } from './actions/structured-settings'
 import { SpaceGallery } from './components/space-gallery/SpaceGallery'
 import { PrepaidPurchaseModal } from './components/PrepaidPurchaseModal'
+import { PrepaidCard } from './components/PrepaidCard'
 
 // ===== 타입 정의 =====
+interface PrepaidProduct {
+  id: string
+  name: string
+  price: number
+  total_hours: number
+}
+
+interface PrepaidPurchase {
+  id: string
+  product: PrepaidProduct
+  status: 'pending' | 'paid' | 'refunded'
+  total_hours: number
+  remaining_hours: number
+  created_at: string
+  expires_at: string | null
+}
+
 interface UserSession {
   isLoggedIn: boolean
   household: string // '201', '301', etc.
@@ -67,6 +85,10 @@ export default function Home() {
   const [myBookings, setMyBookings] = useState<Booking[]>([])
   const [isLoadingBookings, setIsLoadingBookings] = useState(false)
   
+  // Phase 6.4: 선불권 상태
+  const [prepaidPurchases, setPrepaidPurchases] = useState<PrepaidPurchase[]>([])
+  const [isLoadingPrepaid, setIsLoadingPrepaid] = useState(false)
+  
   // 달력 & 예약
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [selectedSpace, setSelectedSpace] = useState<SpaceType>('nolter')
@@ -121,6 +143,15 @@ export default function Home() {
     loadSettingsData()
   }, [])
 
+  // Phase 6.4: 선불권 조회 (로그인 시)
+  useEffect(() => {
+    if (userSession.isLoggedIn && userSession.userId) {
+      loadPrepaidPurchases()
+    } else {
+      setPrepaidPurchases([])
+    }
+  }, [userSession.isLoggedIn, userSession.userId])
+
   async function loadBookings() {
     const year = currentMonth.getFullYear()
     const month = currentMonth.getMonth() + 1
@@ -131,6 +162,63 @@ export default function Home() {
       console.log('✅ 예약 데이터 로드 완료:', result.data.length, '건')
     } else {
       console.error('❌ 예약 데이터 로드 실패:', result.error)
+    }
+  }
+
+  // Phase 6.4: 선불권 구매 내역 조회
+  async function loadPrepaidPurchases() {
+    if (!userSession.userId) {
+      console.warn('⚠️ userId 없음: 선불권 조회 불가')
+      return
+    }
+
+    setIsLoadingPrepaid(true)
+    try {
+      const response = await fetch(`/api/prepaid/my-purchases?user_id=${userSession.userId}`)
+      const data = await response.json()
+
+      if (data.success) {
+        setPrepaidPurchases(data.purchases || [])
+        console.log('✅ 선불권 조회 성공:', data.purchases.length, '건')
+      } else {
+        console.error('❌ 선불권 조회 실패:', data.error)
+      }
+    } catch (error) {
+      console.error('💥 선불권 조회 오류:', error)
+    } finally {
+      setIsLoadingPrepaid(false)
+    }
+  }
+
+  // Phase 6.4: 선불권 환불 처리
+  async function handlePrepaidRefund(purchaseId: string) {
+    if (!userSession.userId) {
+      alert('로그인이 필요합니다.')
+      return
+    }
+
+    try {
+      const response = await fetch('/api/prepaid/refund', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          purchase_id: purchaseId,
+          user_id: userSession.userId,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        alert(data.message)
+        // 선불권 목록 새로고침
+        await loadPrepaidPurchases()
+      } else {
+        alert(data.error || '환불 처리에 실패했습니다.')
+      }
+    } catch (error) {
+      console.error('💥 환불 처리 오류:', error)
+      alert('환불 처리 중 오류가 발생했습니다.')
     }
   }
 
@@ -867,6 +955,43 @@ export default function Home() {
             })}
           </div>
         </div>
+
+        {/* ===== Phase 6.4: 내 선불권 ===== */}
+        {userSession.isLoggedIn && (
+          <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              🎟️ 내 선불권
+            </h3>
+
+            {isLoadingPrepaid ? (
+              <div className="text-center py-8 text-gray-500">
+                선불권 조회 중...
+              </div>
+            ) : prepaidPurchases.length === 0 ? (
+              /* 선불권 없을 때 empty state */
+              <div className="text-center py-12 bg-gray-50 rounded-lg">
+                <p className="text-gray-600 mb-4">보유 중인 선불권이 없습니다.</p>
+                <button
+                  onClick={() => setIsPrepaidModalOpen(true)}
+                  className="px-6 py-3 bg-purple-600 text-white font-semibold rounded-lg hover:bg-purple-700 transition-colors"
+                >
+                  선불권 구매하기
+                </button>
+              </div>
+            ) : (
+              /* 선불권 목록 */
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {prepaidPurchases.map((purchase) => (
+                  <PrepaidCard
+                    key={purchase.id}
+                    purchase={purchase}
+                    onRefund={handlePrepaidRefund}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ===== 공간 정보 ===== */}
         {spacesInfo && (
