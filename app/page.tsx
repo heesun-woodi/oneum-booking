@@ -572,6 +572,10 @@ export default function Home() {
         return
       }
 
+      // 🐛 FIX: userId 디버깅
+      console.log('🔍 [LOGIN] result.user 전체:', result.user)
+      console.log('🔍 [LOGIN] result.user.id:', result.user.id)
+      
       // 세션 저장 (세대 정보 + 관리자 권한 자동 포함!)
       const session: UserSession = {
         isLoggedIn: true,
@@ -583,6 +587,7 @@ export default function Home() {
       }
 
       console.log('💾 [LOGIN] 세션 저장:', session)
+      console.log('💾 [LOGIN] userId 확인:', session.userId)
       saveSession(session)
       setIsAuthModalOpen(false)
       alert(`${result.user.name}님 로그인되었습니다!`)

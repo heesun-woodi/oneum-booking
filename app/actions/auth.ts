@@ -73,10 +73,10 @@ export async function login(data: {
   name: string
   password: string
 }) {
-  // 1. 이름으로 사용자 조회
+  // 1. 이름으로 사용자 조회 (id 명시적으로 포함)
   const { data: user, error } = await supabase
     .from('users')
-    .select('*')
+    .select('id, household, name, phone, password_hash, status, is_admin, is_resident')
     .eq('name', data.name)
     .single()
   
@@ -99,6 +99,9 @@ export async function login(data: {
   if (user.status === 'rejected') {
     return { success: false, error: '가입이 거부되었습니다. 관리자에게 문의하세요.' }
   }
+  
+  // 🐛 FIX: userId 포함 확인용 로그
+  console.log('✅ [LOGIN] user.id:', user.id)
   
   return { success: true, user }
 }
