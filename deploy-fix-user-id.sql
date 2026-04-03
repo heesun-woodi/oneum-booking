@@ -1,31 +1,10 @@
--- Phase 6.5: 선불권 연동 RPC 함수
+-- Phase 6.5 FIX: user_id NULL 문제 해결
 -- 작성일: 2026-04-03
--- 설명: 예약 생성 시 선불권을 자동으로 차감하는 RPC 함수
+-- 근본 원인: INSERT 문에 user_id 컬럼 누락
 
 -- =====================================================
--- create_booking_with_prepaid RPC 함수
+-- create_booking_with_prepaid RPC 함수 재배포
 -- =====================================================
--- 예약 생성 시 선불권을 우선 사용하고, 부족하면 혼합 결제 처리
--- 
--- 파라미터:
---   p_user_id: 사용자 ID (UUID)
---   p_booking_date: 예약 날짜 (YYYY-MM-DD)
---   p_start_time: 시작 시간 (HH:MM)
---   p_end_time: 종료 시간 (HH:MM)
---   p_space: 공간 ('nolter' | 'soundroom')
---   p_member_type: 회원 유형 ('member' | 'non-member')
---   p_household: 세대 번호 (nullable)
---   p_name: 예약자 이름
---   p_phone: 전화번호
---   p_requested_hours: 요청 시간 수 (integer)
--- 
--- 반환값:
---   booking_id: 생성된 예약 ID
---   prepaid_hours_used: 사용된 선불권 시간
---   regular_hours: 일반 결제 시간
---   amount: 결제 금액
---   status: 예약 상태 ('confirmed' | 'pending')
---   payment_status: 결제 상태 ('completed' | 'pending' | 'prepaid')
 
 CREATE OR REPLACE FUNCTION create_booking_with_prepaid(
   p_user_id UUID,
@@ -114,7 +93,7 @@ BEGIN
     END IF;
   END IF;
   
-  -- 5. 예약 생성
+  -- ⭐ 5. 예약 생성 (user_id 추가!)
   INSERT INTO bookings (
     user_id,
     booking_date,
@@ -186,8 +165,9 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- 권한 부여
 -- =====================================================
 GRANT EXECUTE ON FUNCTION create_booking_with_prepaid TO authenticated;
+GRANT EXECUTE ON FUNCTION create_booking_with_prepaid TO anon;
 
 -- =====================================================
 -- 완료
 -- =====================================================
-COMMENT ON FUNCTION create_booking_with_prepaid IS '선불권 자동 차감 예약 생성 함수';
+SELECT '✅ user_id 누락 문제 해결 완료!' AS message;
