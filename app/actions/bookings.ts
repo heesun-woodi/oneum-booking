@@ -95,8 +95,8 @@ export async function createBooking(input: CreateBookingInput) {
           name: input.name,
           phone: normalizedPhone,
           amount: result.amount,
-          status: result.status,
-          payment_status: result.payment_status,
+          status: result.booking_status,
+          payment_status: result.booking_payment_status,
           prepaid_hours_used: result.prepaid_hours_used,
           regular_hours: result.regular_hours
         }
