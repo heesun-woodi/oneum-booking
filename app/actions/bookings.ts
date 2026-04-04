@@ -136,11 +136,13 @@ export async function createBooking(input: CreateBookingInput) {
         household: input.household,
         name: input.name,
         phone: normalizedPhone,
+        user_id: input.userId || null,  // ⭐ 추가
         amount,
         status: input.memberType === 'member' ? 'confirmed' : 'pending',
         payment_status: input.memberType === 'member' ? 'completed' : 'pending',
         prepaid_hours_used: 0,
-        regular_hours: input.times.length
+        regular_hours: input.times.length,
+        payment_method: input.memberType === 'member' ? 'free' : 'regular'  // ⭐ 추가
       })
       .select()
       .single()
