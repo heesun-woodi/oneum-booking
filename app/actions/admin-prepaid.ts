@@ -2,6 +2,7 @@
 
 import { createServiceRoleClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { sendNotification } from '@/lib/notifications/sender'
 
 export interface AdminPrepaidPurchase {
   id: string
@@ -65,7 +66,11 @@ export async function confirmPrepaidPayment(purchaseId: string): Promise<{
 
   const { data: purchase, error: fetchError } = await supabase
     .from('prepaid_purchases')
-    .select('*, product:prepaid_products(validity_months)')
+    .select(`
+      *,
+      product:prepaid_products(validity_months, name, hours),
+      user:users(id, name, phone)
+    `)
     .eq('id', purchaseId)
     .single()
 
@@ -94,6 +99,23 @@ export async function confirmPrepaidPayment(purchaseId: string): Promise<{
 
   if (error) {
     return { success: false, error: error.message }
+  }
+
+  // SMS: 사용자에게 선불권 활성화 알림
+  if (purchase.user?.phone) {
+    await sendNotification({
+      type: '7-3',
+      phone: purchase.user.phone,
+      variables: {
+        name: purchase.user.name,
+        productName: purchase.product?.name || '선불권',
+        totalHours: String(purchase.product?.hours ?? purchase.total_hours),
+        expiresAt: expiresAt.toLocaleDateString('ko-KR', {
+          year: 'numeric', month: 'long', day: 'numeric',
+        }),
+      },
+      userId: purchase.user.id,
+    }).catch((e) => console.error('선불권 활성화 SMS 실패:', e))
   }
 
   revalidatePath('/admin/prepaid')

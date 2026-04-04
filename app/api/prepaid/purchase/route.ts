@@ -14,6 +14,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/server'
+import { sendNotification } from '@/lib/notifications/sender'
 
 export const dynamic = 'force-dynamic'
 
@@ -56,7 +57,7 @@ export async function POST(request: NextRequest) {
     // 사용자 확인
     const { data: user, error: userError } = await supabase
       .from('users')
-      .select('id, name, phone')
+      .select('id, name, phone, household')
       .eq('id', user_id)
       .eq('status', 'approved')
       .single()
@@ -95,8 +96,42 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // TODO: SMS 입금 안내 발송 (Phase 6.7에서 구현)
-    // await sendPurchaseNotification(user, product, purchase)
+    // SMS 발송: 사용자에게 입금 안내 + 재무담당자에게 알림
+    const deadline = new Date(purchase.created_at)
+    deadline.setHours(deadline.getHours() + 48)
+    const deadlineStr = deadline.toLocaleDateString('ko-KR', {
+      month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
+    })
+    const account = process.env.BANK_ACCOUNT || ''
+    const adminUrl = `${process.env.NEXT_PUBLIC_APP_URL || ''}/admin/prepaid`
+
+    await Promise.allSettled([
+      sendNotification({
+        type: '7-1',
+        phone: user.phone,
+        variables: {
+          name: user.name,
+          productName: product.name,
+          amount: product.price.toLocaleString(),
+          account,
+          deadline: deadlineStr,
+        },
+        userId: user.id,
+      }),
+      sendNotification({
+        type: '7-2',
+        phone: process.env.FINANCE_PHONE || '',
+        variables: {
+          name: user.name,
+          household: (user as { household?: string }).household || '',
+          phone: user.phone,
+          productName: product.name,
+          amount: product.price.toLocaleString(),
+          deadline: deadlineStr,
+          adminUrl,
+        },
+      }),
+    ])
 
     return NextResponse.json({
       success: true,

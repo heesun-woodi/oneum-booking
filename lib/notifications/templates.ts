@@ -3,13 +3,14 @@
  * 총 15개 메시지 타입
  */
 
-export type MessageType = 
+export type MessageType =
   | '1-2' | '1-3'           // 회원가입
   | '2-1' | '2-2' | '2-3'   // 예약
   | '3-1' | '3-2'           // 입금
   | '4-1' | '4-2' | '4-3'   // 리마인더
   | '5-2' | '5-3'           // 재무
   | '6-1'                   // 관리자
+  | '7-1' | '7-2' | '7-3'   // 선불권
 
 export interface TemplateVariables {
   name?: string
@@ -26,6 +27,9 @@ export interface TemplateVariables {
   list?: string
   adminUrl?: string
   phone?: string
+  productName?: string
+  totalHours?: string
+  expiresAt?: string
   [key: string]: string | undefined
 }
 
@@ -212,6 +216,55 @@ ${vars.adminUrl}`,
 ${vars.adminUrl}
 
 승인/거부 처리 부탁드립니다.`,
+    }),
+
+    // ===== 선불권 =====
+    '7-1': (vars) => ({
+      title: '[온음] 선불권 신청 완료 - 입금 안내',
+      message: `${vars.name}님, 선불권 신청이 완료되었습니다!
+
+🎟️ 상품: ${vars.productName}
+💰 금액: ${vars.amount}원
+
+[입금 정보]
+${vars.account}
+
+입금 기한: ${vars.deadline}까지
+* 기한 내 미입금 시 자동 취소됩니다.
+
+입금 후 관리자 확인 시 선불권이 활성화됩니다.
+감사합니다! 🎵`,
+    }),
+
+    '7-2': (vars) => ({
+      title: '[온음] 선불권 신청 알림',
+      message: `재무담당자님,
+
+선불권 신청이 들어왔습니다.
+
+이름: ${vars.name}
+세대: ${vars.household}호
+전화: ${vars.phone}
+상품: ${vars.productName}
+금액: ${vars.amount}원
+입금 기한: ${vars.deadline}까지
+
+관리자 페이지:
+${vars.adminUrl}
+
+입금 확인 후 승인 처리 부탁드립니다.`,
+    }),
+
+    '7-3': (vars) => ({
+      title: '[온음] 선불권 활성화 완료',
+      message: `${vars.name}님, 선불권이 활성화되었습니다!
+
+🎟️ 상품: ${vars.productName}
+⏱️ 총 시간: ${vars.totalHours}시간
+📅 만료일: ${vars.expiresAt}
+
+마이페이지에서 잔여 시간을 확인하실 수 있습니다.
+온음과 함께 즐거운 시간 보내세요! 🎵`,
     }),
   }
 
