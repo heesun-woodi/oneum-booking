@@ -241,7 +241,46 @@ export async function financeAlert(
 }
 
 /**
- * 5. 당일 예약 리마인더 (09:00)
+ * 5. 선불권 48시간 미입금 자동 취소 (매시간)
+ */
+export async function autoCancelPrepaid(): Promise<{
+  cancelled: number
+}> {
+  const cutoff = new Date()
+  cutoff.setHours(cutoff.getHours() - 48)
+
+  const { data: purchases, error } = await supabase
+    .from('prepaid_purchases')
+    .select('id, user_id, total_hours')
+    .eq('status', 'pending')
+    .lt('created_at', cutoff.toISOString())
+
+  if (error || !purchases) {
+    console.error('선불권 미입금 조회 실패:', error)
+    return { cancelled: 0 }
+  }
+
+  if (purchases.length === 0) return { cancelled: 0 }
+
+  const { error: updateError } = await supabase
+    .from('prepaid_purchases')
+    .update({
+      status: 'cancelled',
+      updated_at: new Date().toISOString(),
+    })
+    .in('id', purchases.map((p: { id: string }) => p.id))
+
+  if (updateError) {
+    console.error('선불권 자동 취소 실패:', updateError)
+    return { cancelled: 0 }
+  }
+
+  console.log(`선불권 자동 취소: ${purchases.length}건`)
+  return { cancelled: purchases.length }
+}
+
+/**
+ * 6. 당일 예약 리마인더 (09:00)
  */
 export async function sameDayReminder(): Promise<{
   sent: number

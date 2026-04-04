@@ -13,7 +13,7 @@ export interface AdminPrepaidPurchase {
   purchased_at: string
   paid_at: string | null
   expires_at: string | null
-  status: 'pending' | 'paid' | 'refund_requested' | 'refunded'
+  status: 'pending' | 'paid' | 'refund_requested' | 'refunded' | 'cancelled'
   refund_amount: number | null
   refunded_at: string | null
   created_at: string

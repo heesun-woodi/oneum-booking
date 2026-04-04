@@ -9,13 +9,14 @@ import {
 } from '@/app/actions/admin-prepaid'
 import { maskPhone } from '@/lib/notifications/templates'
 
-type PrepaidFilter = 'all' | 'pending' | 'paid' | 'refund_requested' | 'refunded'
+type PrepaidFilter = 'all' | 'pending' | 'paid' | 'refund_requested' | 'refunded' | 'cancelled'
 
 const STATUS_LABEL: Record<string, { label: string; className: string }> = {
   pending: { label: '입금대기', className: 'bg-yellow-100 text-yellow-800' },
   paid: { label: '사용중', className: 'bg-green-100 text-green-800' },
   refund_requested: { label: '환불신청', className: 'bg-orange-100 text-orange-800' },
   refunded: { label: '환불완료', className: 'bg-gray-100 text-gray-600' },
+  cancelled: { label: '자동취소', className: 'bg-red-100 text-red-600' },
 }
 
 export default function AdminPrepaidPage() {
@@ -74,6 +75,7 @@ export default function AdminPrepaidPage() {
     paid: purchases.filter((p) => p.status === 'paid').length,
     refund_requested: purchases.filter((p) => p.status === 'refund_requested').length,
     refunded: purchases.filter((p) => p.status === 'refunded').length,
+    cancelled: purchases.filter((p) => p.status === 'cancelled').length,
   }
 
   const filtered = filter === 'all' ? purchases : purchases.filter((p) => p.status === filter)
@@ -115,6 +117,7 @@ export default function AdminPrepaidPage() {
               { key: 'refund_requested', label: `환불신청 (${counts.refund_requested})`, active: 'bg-orange-500 text-white' },
               { key: 'paid', label: `활성 (${counts.paid})`, active: 'bg-green-500 text-white' },
               { key: 'refunded', label: `환불완료 (${counts.refunded})`, active: 'bg-gray-500 text-white' },
+              { key: 'cancelled', label: `자동취소 (${counts.cancelled})`, active: 'bg-red-500 text-white' },
               { key: 'all', label: `전체 (${counts.all})`, active: 'bg-blue-500 text-white' },
             ] as const
           ).map(({ key, label, active }) => (

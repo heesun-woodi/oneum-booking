@@ -21,6 +21,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth, withCronLogging } from '@/lib/cron/wrapper'
 import {
   autoCancelUnpaid,
+  autoCancelPrepaid,
   dayBeforeReminder,
   paymentReminder,
   financeAlert,
@@ -49,6 +50,10 @@ export async function GET(
     switch (job) {
       case 'auto-cancel':
         result = await withCronLogging('auto-cancel', autoCancelUnpaid)
+        break
+
+      case 'prepaid-auto-cancel':
+        result = await withCronLogging('prepaid-auto-cancel', autoCancelPrepaid)
         break
 
       case 'day-before-reminder':
