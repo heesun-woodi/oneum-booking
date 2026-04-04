@@ -109,6 +109,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   💰 입금 확인
                 </Link>
                 <Link
+                  href="/admin/prepaid"
+                  className={`px-3 py-2 rounded-md text-sm font-medium ${
+                    pathname === '/admin/prepaid'
+                      ? 'bg-blue-100 text-blue-700'
+                      : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  🎟️ 선불권
+                </Link>
+                <Link
                   href="/admin/bookings"
                   className={`px-3 py-2 rounded-md text-sm font-medium ${
                     pathname === '/admin/bookings'
@@ -223,6 +233,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   }`}
                 >
                   💰 입금 확인
+                </Link>
+                <Link
+                  href="/admin/prepaid"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`block px-3 py-2 rounded-md text-base font-medium ${
+                    pathname === '/admin/prepaid'
+                      ? 'bg-blue-100 text-blue-700'
+                      : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  🎟️ 선불권
                 </Link>
                 <Link
                   href="/admin/bookings"

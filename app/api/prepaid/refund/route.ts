@@ -110,13 +110,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 환불 처리
+    // 환불 신청 처리 (관리자 승인 대기)
     const { data: refundedPurchase, error: refundError } = await supabase
       .from('prepaid_purchases')
       .update({
-        status: 'refunded',
+        status: 'refund_requested',
         refund_amount: refund_amount,
-        refunded_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
       .eq('id', purchase_id)
@@ -124,18 +123,15 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (refundError) {
-      console.error('환불 처리 실패:', refundError)
+      console.error('환불 신청 처리 실패:', refundError)
       return NextResponse.json(
-        { 
-          success: false, 
-          error: '환불 처리에 실패했습니다.' 
+        {
+          success: false,
+          error: '환불 신청 처리에 실패했습니다.'
         },
         { status: 500 }
       )
     }
-
-    // TODO: SMS 환불 완료 알림 발송 (Phase 6.7에서 구현)
-    // await sendRefundNotification(user, purchase, refund_amount)
 
     return NextResponse.json({
       success: true,
@@ -148,7 +144,7 @@ export async function POST(request: NextRequest) {
         refund_amount,
         refundable: true,
       },
-      message: `환불이 완료되었습니다. 환불 금액: ${refund_amount.toLocaleString()}원`,
+      message: `환불 신청이 완료되었습니다. 관리자 승인 후 ${refund_amount.toLocaleString()}원이 환불됩니다.`,
     })
 
   } catch (error: any) {
