@@ -359,6 +359,26 @@ export async function getBookingsByHousehold(household: string) {
   }
 }
 
+export async function getPastBookingsByHousehold(household: string) {
+  try {
+    const today = new Date().toISOString().split('T')[0]
+
+    const { data, error } = await supabase
+      .from('bookings')
+      .select('*')
+      .eq('household', household)
+      .lt('booking_date', today)
+      .in('status', ['confirmed', 'completed', 'cancelled'])
+      .order('booking_date', { ascending: false })
+      .limit(30)
+
+    if (error) throw error
+    return { success: true, data: data || [] }
+  } catch (error: any) {
+    return { success: false, error: error.message, data: [] }
+  }
+}
+
 // ===== SMS 발송 헬퍼 함수 =====
 async function sendBookingNotifications(
   booking: any,

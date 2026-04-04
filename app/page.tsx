@@ -796,6 +796,12 @@ export default function Home() {
                   </button>
                 )}
                 <button
+                  onClick={() => window.location.href = '/mypage'}
+                  className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 whitespace-nowrap"
+                >
+                  마이페이지
+                </button>
+                <button
                   onClick={handleLogout}
                   className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 whitespace-nowrap"
                 >
