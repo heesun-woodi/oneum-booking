@@ -35,6 +35,10 @@
     {
       "path": "/api/cron/finance-alert-final",
       "schedule": "30 23 * * *"
+    },
+    {
+      "path": "/api/cron/prepaid-auto-cancel",
+      "schedule": "0 * * * *"
     }
   ]
 }
