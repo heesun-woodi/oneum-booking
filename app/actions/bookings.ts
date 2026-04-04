@@ -250,33 +250,49 @@ export async function cancelBooking(bookingId: string) {
     if (booking.status === 'cancelled') {
       return { success: false, error: '이미 취소된 예약입니다.' }
     }
-    
-    // 상태 업데이트
-    const { error } = await supabase
-      .from('bookings')
-      .update({ 
-        status: 'cancelled',
-        cancelled_at: new Date().toISOString(),
-      })
-      .eq('id', bookingId)
-    
-    if (error) {
-      console.error('❌ Supabase error:', error)
-      throw error
-    }
-    
-    console.log('✅ Booking cancelled')
-    
-    // ===== 📨 알림 발송 =====
-    if (booking.payment_status === 'completed') {
-      const dateStr = new Date(booking.booking_date).toLocaleDateString('ko-KR', {
-        month: 'long',
-        day: 'numeric',
-      })
-      const timeStr = `${booking.start_time} ~ ${booking.end_time}`
-      const spaceStr = booking.space === 'nolter' ? '놀터' : '방음실'
 
-      // 2-3: 예약 취소 알림 (입금 완료자만)
+    const isPrepaidBooking = (booking.prepaid_hours_used ?? 0) > 0
+
+    if (isPrepaidBooking) {
+      // 선불권 사용 예약: RPC로 원자적 취소 + 선불권 복구
+      const { data: rpcData, error: rpcError } = await supabase
+        .rpc('cancel_booking_restore_prepaid', { p_booking_id: bookingId })
+
+      if (rpcError) {
+        console.error('❌ RPC error:', rpcError)
+        throw rpcError
+      }
+      if (!rpcData?.success) {
+        return { success: false, error: rpcData?.error || '선불권 복구 중 오류가 발생했습니다' }
+      }
+      console.log('✅ Booking cancelled + prepaid restored:', rpcData.restoredHours, 'hours')
+    } else {
+      // 일반 예약 취소 (기존 로직)
+      const { error } = await supabase
+        .from('bookings')
+        .update({
+          status: 'cancelled',
+          cancelled_at: new Date().toISOString(),
+        })
+        .eq('id', bookingId)
+
+      if (error) {
+        console.error('❌ Supabase error:', error)
+        throw error
+      }
+      console.log('✅ Booking cancelled')
+    }
+
+    // ===== 📨 알림 발송 =====
+    const dateStr = new Date(booking.booking_date).toLocaleDateString('ko-KR', {
+      month: 'long',
+      day: 'numeric',
+    })
+    const timeStr = `${booking.start_time} ~ ${booking.end_time}`
+    const spaceStr = booking.space === 'nolter' ? '놀터' : '방음실'
+
+    if (booking.payment_status === 'completed' || isPrepaidBooking) {
+      // 2-3: 예약 취소 알림 (입금 완료 또는 선불권 사용자)
       await sendNotification({
         type: '2-3',
         phone: booking.phone,
@@ -289,9 +305,9 @@ export async function cancelBooking(bookingId: string) {
         bookingId: booking.id,
       })
 
-      // 5-3: 재무담당자 환불 안내 (이용일 아닌 경우만)
+      // 5-3: 재무담당자 환불 안내 (현금 입금 완료자이고 이용일이 아닌 경우만)
       const today = new Date().toISOString().split('T')[0]
-      if (booking.booking_date !== today && booking.amount > 0) {
+      if (booking.payment_status === 'completed' && booking.booking_date !== today && booking.amount > 0) {
         await sendNotification({
           type: '5-3',
           phone: process.env.FINANCE_PHONE || '',
