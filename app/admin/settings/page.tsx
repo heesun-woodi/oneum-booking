@@ -365,34 +365,16 @@ export default function AdminSettingsPage() {
                   <h4 className="text-sm font-semibold text-gray-700 mb-3">💰 이용 요금</h4>
                   {isEditing ? (
                     <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-gray-600 w-16 flex-shrink-0">회원:</span>
-                        <input
-                          type="text"
-                          value={space.pricing.member}
-                          onChange={(e) => handleSpacePricingChange(space.id, 'member', e.target.value)}
-                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-gray-600 w-16 flex-shrink-0">비회원:</span>
-                        <input
-                          type="text"
-                          value={space.pricing.nonMember}
-                          onChange={(e) => handleSpacePricingChange(space.id, 'nonMember', e.target.value)}
-                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                      </div>
+                      <input
+                        type="text"
+                        value={space.pricing.nonMember}
+                        onChange={(e) => handleSpacePricingChange(space.id, 'nonMember', e.target.value)}
+                        placeholder="예: 14,000원/시간"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
                     </div>
                   ) : (
-                    <div className="space-y-2">
-                      <p className="text-sm text-gray-600 break-words">
-                        <span className="font-medium">회원:</span> {space.pricing.member}
-                      </p>
-                      <p className="text-sm text-gray-600 break-words">
-                        <span className="font-medium">비회원:</span> {space.pricing.nonMember}
-                      </p>
-                    </div>
+                    <p className="text-sm text-gray-600 break-words">{space.pricing.nonMember}</p>
                   )}
                 </div>
               </div>
