@@ -79,8 +79,12 @@ export function PhotoManager() {
     if (!isHeic) return file
 
     try {
-      const heic2any = (await import('heic2any')).default
-      const result = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.85 })
+      const mod = await import('heic2any')
+      // UMD 모듈 호환: .default 또는 모듈 자체가 함수일 수 있음
+      type Heic2AnyFn = typeof import('heic2any').default
+      const modAsAny = mod as { default?: Heic2AnyFn } & Heic2AnyFn
+      const heic2anyFn: Heic2AnyFn = modAsAny.default ?? modAsAny
+      const result = await heic2anyFn({ blob: file, toType: 'image/jpeg', quality: 0.85 })
       const blob = Array.isArray(result) ? result[0] : result
       const newName = file.name.replace(/\.(heic|heif)$/i, '.jpg')
       return new File([blob], newName, { type: 'image/jpeg' })
@@ -136,7 +140,9 @@ export function PhotoManager() {
 
       const result = await uploadSpacePhoto(formData)
 
-      if (result.success) {
+      if (!result) {
+        setError('서버 오류가 발생했습니다. 다시 시도해주세요.')
+      } else if (result.success) {
         setSuccess('사진이 업로드되었습니다.')
         loadPhotos()
       } else {
@@ -180,7 +186,9 @@ export function PhotoManager() {
 
       const result = await replaceSpacePhoto(photoId, formData)
 
-      if (result.success) {
+      if (!result) {
+        setError('서버 오류가 발생했습니다. 다시 시도해주세요.')
+      } else if (result.success) {
         setSuccess('사진이 교체되었습니다.')
         loadPhotos()
       } else {

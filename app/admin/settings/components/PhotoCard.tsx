@@ -116,7 +116,7 @@ export function PhotoCard({ photo, onReplace, onDelete }: PhotoCardProps) {
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/jpeg,image/png,image/webp"
+        accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"
         onChange={handleFileChange}
         className="hidden"
       />
