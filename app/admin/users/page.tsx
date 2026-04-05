@@ -71,7 +71,7 @@ export default function AdminUsersPage() {
       return
     }
     const reason = prompt('거부 사유를 입력하세요:')
-    if (!reason) return
+    if (reason === null) return
     
     const result = await rejectSignup(userId, admin.id, reason)
     if (result.success) {

@@ -302,7 +302,9 @@ export async function sameDayReminder(): Promise<{
 
   // 계절 감지
   const month = now.getMonth() + 1
-  const season = month >= 6 && month <= 8 ? 'summer' : 'winter'
+  const season = month >= 6 && month <= 8 ? 'summer'
+    : (month === 12 || month <= 2) ? 'winter'
+    : 'other'
 
   let sent = 0
 

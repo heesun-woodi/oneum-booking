@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { PrepaidPurchase } from '@/app/actions/prepaid'
+import { PREPAID_STATUS_LABELS } from '@/lib/constants/status-labels'
 
 interface PrepaidCardProps {
   purchase: PrepaidPurchase
@@ -17,26 +18,13 @@ export function PrepaidCard({ purchase, onRefund }: PrepaidCardProps) {
 
   // 상태 뱃지
   const statusBadge = () => {
-    switch (purchase.status) {
-      case 'pending':
-        return (
-          <span className="inline-flex items-center gap-1 px-3 py-1 bg-yellow-100 text-yellow-700 text-sm font-semibold rounded-full">
-            🟡 입금 대기
-          </span>
-        )
-      case 'paid':
-        return (
-          <span className="inline-flex items-center gap-1 px-3 py-1 bg-green-100 text-green-700 text-sm font-semibold rounded-full">
-            🟢 사용 가능
-          </span>
-        )
-      case 'refunded':
-        return (
-          <span className="inline-flex items-center gap-1 px-3 py-1 bg-gray-100 text-gray-600 text-sm font-semibold rounded-full">
-            ⚫ 환불 완료
-          </span>
-        )
-    }
+    const statusInfo = PREPAID_STATUS_LABELS[purchase.status]
+    if (!statusInfo) return null
+    return (
+      <span className={`inline-flex items-center gap-1 px-3 py-1 text-sm font-semibold rounded-full ${statusInfo.className}`}>
+        {statusInfo.label}
+      </span>
+    )
   }
 
   // 유효기간 표시
@@ -75,7 +63,7 @@ export function PrepaidCard({ purchase, onRefund }: PrepaidCardProps) {
     const regularPrice = 14000
     const refundAmount = (purchase.product?.price || 0) - (usedHours * regularPrice)
 
-    const confirmMessage = `환불 시 사용한 회차는 14,000원으로 정산됩니다.\n\n예상 환불 금액: ${refundAmount.toLocaleString()}원\n\n환불하시겠습니까?`
+    const confirmMessage = `환불 시 사용한 시간은 시간당 14,000원으로 계산됩니다.\n\n예상 환불 금액: ${refundAmount.toLocaleString()}원\n\n환불하시겠습니까?`
 
     if (!confirm(confirmMessage)) {
       return
@@ -113,10 +101,10 @@ export function PrepaidCard({ purchase, onRefund }: PrepaidCardProps) {
       <div className="mb-4">
         <div className="flex items-center justify-between text-sm mb-2">
           <span className="text-gray-600">
-            사용: <span className="font-semibold text-purple-600">{usedHours}회</span>
+            사용: <span className="font-semibold text-purple-600">{usedHours}h</span>
           </span>
           <span className="text-gray-600">
-            남음: <span className="font-semibold text-purple-600">{purchase.remaining_hours}회</span>
+            남음: <span className="font-semibold text-purple-600">{purchase.remaining_hours}h</span>
           </span>
         </div>
 
@@ -157,7 +145,7 @@ export function PrepaidCard({ purchase, onRefund }: PrepaidCardProps) {
       {/* 환불 불가 안내 */}
       {purchase.status === 'paid' && usedHours >= 8 && (
         <div className="text-xs text-gray-500 text-center bg-gray-50 py-2 rounded">
-          이미 혜택을 충분히 사용하여 환불이 불가능합니다.
+          8시간 이상 사용하셨으므로 환불이 불가능합니다.
         </div>
       )}
     </div>

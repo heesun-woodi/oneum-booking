@@ -14,7 +14,6 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createServiceRoleClient()
     const { searchParams } = new URL(request.url)
     const user_id = searchParams.get('user_id')
 
@@ -28,6 +27,8 @@ export async function GET(request: NextRequest) {
         { status: 400 }
       )
     }
+
+    const supabase = await createServiceRoleClient()
 
     // 사용자 확인
     const { data: user, error: userError } = await supabase

@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { getBookingsByHousehold, getPastBookingsByHousehold } from '@/app/actions/bookings'
+import { getMonthlyUsage, UsageCount } from '@/app/actions/usage'
+import { PREPAID_STATUS_LABELS, BOOKING_STATUS_LABELS } from '@/lib/constants/status-labels'
 
 interface UserSession {
   isLoggedIn: boolean
@@ -43,20 +45,6 @@ interface PrepaidPurchase {
 
 const SPACE_LABEL: Record<string, string> = { nolter: '놀터', soundroom: '방음실' }
 
-const BOOKING_STATUS_LABEL: Record<string, { label: string; className: string }> = {
-  pending: { label: '입금대기', className: 'bg-yellow-100 text-yellow-700' },
-  confirmed: { label: '확정', className: 'bg-green-100 text-green-700' },
-  completed: { label: '이용완료', className: 'bg-blue-100 text-blue-700' },
-  cancelled: { label: '취소', className: 'bg-gray-100 text-gray-500' },
-}
-
-const PREPAID_STATUS_LABEL: Record<string, { label: string; className: string }> = {
-  pending: { label: '입금대기', className: 'bg-yellow-100 text-yellow-700' },
-  paid: { label: '사용중', className: 'bg-green-100 text-green-700' },
-  refund_requested: { label: '환불신청', className: 'bg-orange-100 text-orange-700' },
-  refunded: { label: '환불완료', className: 'bg-gray-100 text-gray-500' },
-  cancelled: { label: '자동취소', className: 'bg-red-100 text-red-600' },
-}
 
 type Tab = 'upcoming' | 'past' | 'prepaid'
 
@@ -67,6 +55,7 @@ export default function MyPage() {
   const [upcomingBookings, setUpcomingBookings] = useState<Booking[]>([])
   const [pastBookings, setPastBookings] = useState<Booking[]>([])
   const [prepaidPurchases, setPrepaidPurchases] = useState<PrepaidPurchase[]>([])
+  const [monthlyUsage, setMonthlyUsage] = useState<UsageCount[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -86,13 +75,14 @@ export default function MyPage() {
   useEffect(() => {
     if (!session) return
     loadAll(session)
-  }, [session])
+  }, [session]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadAll(s: UserSession) {
     setLoading(true)
     await Promise.all([
       loadBookings(s.household),
       s.userId ? loadPrepaid(s.userId) : Promise.resolve(),
+      loadUsage(s.household),
     ])
     setLoading(false)
   }
@@ -110,6 +100,11 @@ export default function MyPage() {
     const res = await fetch(`/api/prepaid/my-purchases?user_id=${userId}`)
     const json = await res.json()
     if (json.success) setPrepaidPurchases(json.purchases)
+  }
+
+  async function loadUsage(household: string) {
+    const res = await getMonthlyUsage(household)
+    if (res.success) setMonthlyUsage(res.usage)
   }
 
   const activePrepaid = prepaidPurchases.find((p) => p.status === 'paid')
@@ -157,6 +152,47 @@ export default function MyPage() {
             )}
           </div>
         </div>
+
+        {/* 이번 달 이용 현황 */}
+        {(() => {
+          const totalUsed = monthlyUsage.reduce((sum, u) => sum + u.effectiveCount, 0)
+          const FREE_LIMIT = 3
+          const remaining = Math.max(0, FREE_LIMIT - totalUsed)
+          const nolterUsed = monthlyUsage.find(u => u.space === 'nolter')?.effectiveCount ?? 0
+          const soundroomUsed = monthlyUsage.find(u => u.space === 'soundroom')?.effectiveCount ?? 0
+          return (
+            <div className="bg-white rounded-2xl shadow-sm p-5 mb-6">
+              <h2 className="text-sm font-semibold text-gray-500 mb-3">이번 달 무료 이용 현황</h2>
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-center">
+                  <p className="text-3xl font-bold text-blue-600">{remaining}</p>
+                  <p className="text-xs text-gray-400 mt-1">남은 무료 횟수</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-3xl font-bold text-gray-700">{totalUsed}</p>
+                  <p className="text-xs text-gray-400 mt-1">이번 달 이용</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-3xl font-bold text-gray-300">{FREE_LIMIT}</p>
+                  <p className="text-xs text-gray-400 mt-1">월 무료 한도</p>
+                </div>
+              </div>
+              <div className="w-full bg-gray-100 rounded-full h-2 mb-3">
+                <div
+                  className={`h-2 rounded-full transition-all ${totalUsed >= FREE_LIMIT ? 'bg-red-400' : 'bg-blue-400'}`}
+                  style={{ width: `${Math.min(100, (totalUsed / FREE_LIMIT) * 100)}%` }}
+                />
+              </div>
+              <div className="flex gap-3 text-xs text-gray-500">
+                <span>놀터 {nolterUsed}회</span>
+                <span>방음실 {soundroomUsed}회</span>
+                {totalUsed >= FREE_LIMIT && (
+                  <span className="text-red-500 font-medium ml-auto">무료 이용 초과 (선불권 또는 현장 결제)</span>
+                )}
+              </div>
+            </div>
+          )
+        })()}
 
         {/* 탭 */}
         <div className="flex gap-1 bg-gray-100 p-1 rounded-xl mb-6">
@@ -214,7 +250,7 @@ function BookingList({
   return (
     <div className="space-y-3">
       {bookings.map((b) => {
-        const statusInfo = BOOKING_STATUS_LABEL[b.status] ?? { label: b.status, className: 'bg-gray-100 text-gray-500' }
+        const statusInfo = BOOKING_STATUS_LABELS[b.status] ?? { label: b.status, className: 'bg-gray-100 text-gray-500' }
         const dateObj = new Date(b.booking_date)
         const dateStr = dateObj.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })
 
@@ -258,7 +294,7 @@ function PrepaidList({ purchases }: { purchases: PrepaidPurchase[] }) {
   return (
     <div className="space-y-3">
       {purchases.map((p) => {
-        const statusInfo = PREPAID_STATUS_LABEL[p.status] ?? { label: p.status, className: 'bg-gray-100 text-gray-500' }
+        const statusInfo = PREPAID_STATUS_LABELS[p.status] ?? { label: p.status, className: 'bg-gray-100 text-gray-500' }
         const usedHours = p.total_hours - p.remaining_hours
         const usagePercent = p.total_hours > 0 ? (usedHours / p.total_hours) * 100 : 0
 

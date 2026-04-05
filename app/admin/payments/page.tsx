@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { getAllBookingsForPayment, confirmPayment } from '@/app/actions/payments'
+import { getAllPrepaidPurchases, confirmPrepaidPayment } from '@/app/actions/admin-prepaid'
 import { maskPhone } from '@/lib/notifications/templates'
 
 type PaymentFilter = 'all' | 'pending' | 'completed'
@@ -19,6 +20,7 @@ interface Booking {
 
 export default function PaymentsPage() {
   const [bookings, setBookings] = useState<Booking[]>([])
+  const [prepaidPurchases, setPrepaidPurchases] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<PaymentFilter>('pending')
   const [dateRange, setDateRange] = useState({
@@ -28,6 +30,7 @@ export default function PaymentsPage() {
 
   useEffect(() => {
     loadBookings()
+    loadPrepaidPurchases()
   }, [dateRange])
 
   async function loadBookings() {
@@ -36,21 +39,39 @@ export default function PaymentsPage() {
       startDate: dateRange.startDate,
       endDate: dateRange.endDate,
     })
-    
+
     if (result.success) {
       setBookings(result.bookings)
     }
     setLoading(false)
   }
 
-  async function handleConfirmPayment(bookingId: string) {
-    if (!confirm('입금을 확인하시겠습니까?')) return
+  async function loadPrepaidPurchases() {
+    const result = await getAllPrepaidPurchases()
+    if (result.success) {
+      setPrepaidPurchases(result.purchases.filter(p => p.status === 'pending'))
+    }
+  }
+
+  async function handleConfirmPayment(bookingId: string, bookingName?: string, bookingAmount?: number) {
+    if (!confirm(`${bookingName || ''}님의 ${(bookingAmount ?? 0).toLocaleString()}원 입금을 확인하시겠습니까?`)) return
 
     const result = await confirmPayment(bookingId)
-    
+
     if (result.success) {
       alert('입금이 확인되었습니다.')
       loadBookings()
+    } else {
+      alert('오류: ' + result.error)
+    }
+  }
+
+  async function handleConfirmPrepaidPayment(purchaseId: string, userName: string, productName?: string, amount?: number) {
+    if (!confirm(`${userName}님의 ${productName || '선불권'}(${(amount ?? 0).toLocaleString()}원) 입금을 확인하시겠습니까?`)) return
+    const result = await confirmPrepaidPayment(purchaseId)
+    if (result.success) {
+      alert('선불권 입금이 확인되었습니다. 선불권이 활성화됩니다.')
+      loadPrepaidPurchases()
     } else {
       alert('오류: ' + result.error)
     }
@@ -136,6 +157,57 @@ export default function PaymentsPage() {
           </div>
         </div>
 
+        {/* 선불권 입금 대기 */}
+        {prepaidPurchases.length > 0 && (
+          <div className="bg-white rounded-lg shadow overflow-hidden mb-6">
+            <div className="px-6 py-4 border-b border-gray-200 bg-yellow-50">
+              <h2 className="text-lg font-semibold text-yellow-800">
+                🎟️ 선불권 입금 대기 ({prepaidPurchases.length}건)
+              </h2>
+              <p className="text-sm text-yellow-600 mt-1">선불권 구매 신청 후 입금 대기 중인 항목입니다.</p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">신청일</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">이름</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">세대</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">상품</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">금액</th>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">입금확인</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {prepaidPurchases.map((p) => (
+                    <tr key={p.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {new Date(p.created_at).toLocaleDateString('ko-KR')}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{p.user?.name}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{p.user?.household}호</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {p.product?.name} ({p.product?.hours}시간)
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {(p.product?.price ?? 0).toLocaleString()}원
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
+                        <button
+                          onClick={() => handleConfirmPrepaidPayment(p.id, p.user?.name, p.product?.name, p.product?.price)}
+                          className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 hover:bg-yellow-200 transition-colors cursor-pointer"
+                        >
+                          ☐ 입금확인
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
         {/* Table */}
         <div className="bg-white rounded-lg shadow overflow-hidden">
           {loading ? (
@@ -192,7 +264,7 @@ export default function PaymentsPage() {
                           </span>
                         ) : (
                           <button
-                            onClick={() => handleConfirmPayment(booking.id)}
+                            onClick={() => handleConfirmPayment(booking.id, booking.name, booking.amount)}
                             className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 hover:bg-red-200 transition-colors cursor-pointer"
                           >
                             ☐ 입금확인

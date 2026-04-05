@@ -60,7 +60,7 @@ export function getMessageTemplate(
 
 온음 회원 가입이 승인되지 않았습니다.
 
-사유: ${vars.reason || '관리자 확인 중'}
+사유: ${vars.reason || '조건 미충족'}
 
 문의사항이 있으시면 관리자에게 연락 부탁드립니다.`,
     }),
@@ -92,7 +92,7 @@ export function getMessageTemplate(
 
 * 기한 내 미입금 시 자동 취소됩니다.
 
-감사합니다! 🎵`,
+즐거운 시간 보내세요! 🎵`,
     }),
 
     '2-3': (vars) => ({
@@ -147,9 +147,11 @@ export function getMessageTemplate(
     }),
 
     '4-2': (vars) => {
-      const seasonMessage = vars.season === 'summer' 
-        ? '더운 날씨, 시원하게 보내세요!' 
-        : '따뜻하게 입고 오세요!';
+      const seasonMessage = vars.season === 'summer'
+        ? '더운 날씨, 시원하게 보내세요! ☀️'
+        : vars.season === 'winter'
+        ? '추운 날씨, 따뜻하게 입고 오세요! 🧥'
+        : '좋은 날씨, 즐거운 시간 보내세요! 🌸';
       
       return {
         title: '[온음] 오늘 예약 안내',

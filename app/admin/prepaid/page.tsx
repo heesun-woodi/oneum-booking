@@ -8,16 +8,10 @@ import {
   type AdminPrepaidPurchase,
 } from '@/app/actions/admin-prepaid'
 import { maskPhone } from '@/lib/notifications/templates'
+import { PREPAID_STATUS_LABELS } from '@/lib/constants/status-labels'
 
 type PrepaidFilter = 'all' | 'pending' | 'paid' | 'refund_requested' | 'refunded' | 'cancelled'
 
-const STATUS_LABEL: Record<string, { label: string; className: string }> = {
-  pending: { label: '입금대기', className: 'bg-yellow-100 text-yellow-800' },
-  paid: { label: '사용중', className: 'bg-green-100 text-green-800' },
-  refund_requested: { label: '환불신청', className: 'bg-orange-100 text-orange-800' },
-  refunded: { label: '환불완료', className: 'bg-gray-100 text-gray-600' },
-  cancelled: { label: '자동취소', className: 'bg-red-100 text-red-600' },
-}
 
 export default function AdminPrepaidPage() {
   const [purchases, setPurchases] = useState<AdminPrepaidPurchase[]>([])
@@ -38,8 +32,8 @@ export default function AdminPrepaidPage() {
     setLoading(false)
   }
 
-  async function handleConfirmPayment(purchaseId: string, userName: string) {
-    if (!confirm(`${userName}님의 선불권 입금을 확인하시겠습니까?`)) return
+  async function handleConfirmPayment(purchaseId: string, userName: string, productName?: string, productPrice?: number) {
+    if (!confirm(`${userName}님의 ${productName || '선불권'}(${(productPrice ?? 0).toLocaleString()}원) 입금을 확인하시겠습니까?`)) return
 
     setProcessingId(purchaseId)
     const result = await confirmPrepaidPayment(purchaseId)
@@ -62,7 +56,7 @@ export default function AdminPrepaidPage() {
     setProcessingId(null)
 
     if (result.success) {
-      alert(`환불이 승인되었습니다.\n환불 금액: ${(result.refundAmount ?? 0).toLocaleString()}원\n재무담당자에게 직접 환불을 진행해주세요.`)
+      alert(`환불이 승인되었습니다.\n환불 금액: ${(result.refundAmount ?? 0).toLocaleString()}원\n사용자 계좌로 직접 환불을 진행해주세요.`)
       loadPurchases()
     } else {
       alert('오류: ' + result.error)
@@ -113,11 +107,11 @@ export default function AdminPrepaidPage() {
         <div className="bg-white rounded-lg shadow p-4 mb-6 flex items-center gap-2 flex-wrap">
           {(
             [
-              { key: 'pending', label: `입금대기 (${counts.pending})`, active: 'bg-yellow-500 text-white' },
-              { key: 'refund_requested', label: `환불신청 (${counts.refund_requested})`, active: 'bg-orange-500 text-white' },
-              { key: 'paid', label: `활성 (${counts.paid})`, active: 'bg-green-500 text-white' },
-              { key: 'refunded', label: `환불완료 (${counts.refunded})`, active: 'bg-gray-500 text-white' },
-              { key: 'cancelled', label: `자동취소 (${counts.cancelled})`, active: 'bg-red-500 text-white' },
+              { key: 'pending', label: `입금 대기 (${counts.pending})`, active: 'bg-yellow-500 text-white' },
+              { key: 'refund_requested', label: `환불 신청 (${counts.refund_requested})`, active: 'bg-orange-500 text-white' },
+              { key: 'paid', label: `사용 중 (${counts.paid})`, active: 'bg-green-500 text-white' },
+              { key: 'refunded', label: `환불 완료 (${counts.refunded})`, active: 'bg-gray-500 text-white' },
+              { key: 'cancelled', label: `자동 취소 (${counts.cancelled})`, active: 'bg-red-500 text-white' },
               { key: 'all', label: `전체 (${counts.all})`, active: 'bg-blue-500 text-white' },
             ] as const
           ).map(({ key, label, active }) => (
@@ -162,7 +156,7 @@ export default function AdminPrepaidPage() {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {filtered.map((p) => {
-                    const statusInfo = STATUS_LABEL[p.status] ?? { label: p.status, className: 'bg-gray-100 text-gray-600' }
+                    const statusInfo = PREPAID_STATUS_LABELS[p.status] ?? { label: p.status, className: 'bg-gray-100 text-gray-600' }
                     const isProcessing = processingId === p.id
 
                     return (
@@ -206,7 +200,7 @@ export default function AdminPrepaidPage() {
                         <td className="px-4 py-4 whitespace-nowrap">
                           {p.status === 'pending' && (
                             <button
-                              onClick={() => handleConfirmPayment(p.id, p.user?.name ?? '')}
+                              onClick={() => handleConfirmPayment(p.id, p.user?.name ?? '', p.product?.name, p.product?.price)}
                               disabled={isProcessing}
                               className="px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
                             >
@@ -237,7 +231,7 @@ export default function AdminPrepaidPage() {
 
         {/* 입금 안내 */}
         <div className="mt-4 p-4 bg-blue-50 rounded-lg text-sm text-blue-700">
-          💡 입금 확인 후 사용자에게 선불권 활성화 SMS가 자동 발송됩니다. (Step 2에서 구현 예정)
+          💡 입금 확인 후 사용자에게 선불권 활성화 SMS가 자동 발송됩니다.
         </div>
       </div>
     </div>

@@ -765,6 +765,7 @@ export default function Home() {
   const year = currentMonth.getFullYear()
   const month = currentMonth.getMonth()
   const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const firstDayOfWeek = new Date(year, month, 1).getDay() // 0=일, 1=월, ..., 6=토
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 sm:p-8">
@@ -909,6 +910,9 @@ export default function Home() {
 
           {/* 날짜 - 모바일 세로 간격 증가 */}
           <div className="grid grid-cols-7 gap-x-2 gap-y-6 sm:gap-3">
+            {Array.from({ length: firstDayOfWeek }, (_, i) => (
+              <div key={`empty-${i}`} />
+            ))}
             {Array.from({ length: daysInMonth }, (_, i) => {
               const date = i + 1
               const isPast = isPastDate(date)

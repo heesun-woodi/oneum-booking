@@ -55,8 +55,9 @@ export default function AdminBookingsPage() {
     loadBookings()
   }, [status, space, household, startDate, endDate])
   
-  const handleCancelBooking = async (bookingId: string) => {
-    if (!confirm('정말 이 예약을 취소하시겠습니까?')) return
+  const handleCancelBooking = async (bookingId: string, booking: Booking) => {
+    const spaceName = booking.space === 'nolter' ? '놀터' : '방음실'
+    if (!confirm(`${booking.booking_date} ${booking.start_time}~${booking.end_time} ${spaceName} 예약을 취소하시겠습니까?`)) return
     
     const reason = prompt('취소 사유를 입력해주세요 (선택)')
     
@@ -226,7 +227,7 @@ export default function AdminBookingsPage() {
                     <td className="px-4 py-3">
                       {booking.status !== 'cancelled' && (
                         <button
-                          onClick={() => handleCancelBooking(booking.id)}
+                          onClick={() => handleCancelBooking(booking.id, booking)}
                           className="text-sm text-red-600 hover:text-red-800"
                         >
                           취소
