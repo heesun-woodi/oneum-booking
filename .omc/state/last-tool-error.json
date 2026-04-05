@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"VERCEL_TOKEN=\\\"vca_7vBayFudSjKck5Lx4hGyxRKGPzRz4VfZodAGWWq33JjMEkB8Gv2LjCjU\\\" vercel --prod --yes --token \\\"$VERCEL_TOKEN\\\" --scope woodis-projects-9d7584a3 2>&1\",\"timeout\":300000,\"descrip...",
+  "error": "Exit code 1\nVercel CLI 50.17.0\nError: You defined \"--token\", but it's missing a value\nLearn More: https://err.sh/vercel/missing-token-value",
+  "timestamp": "2026-04-05T02:55:55.765Z",
+  "retry_count": 1
+}
