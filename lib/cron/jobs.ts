@@ -16,14 +16,14 @@ export async function autoCancelUnpaid(): Promise<{
   tomorrow.setDate(tomorrow.getDate() + 1)
   const tomorrowStr = tomorrow.toISOString().split('T')[0]
 
-  // 내일 예약 중 미입금 비회원 조회
+  // 내일 예약 중 미입금 예약 조회 (비회원 + 놀터 유료 회원)
   const { data: bookings, error } = await supabase
     .from('bookings')
     .select('*')
-    .eq('member_type', 'non-member')
     .eq('payment_status', 'pending')
     .eq('booking_date', tomorrowStr)
     .eq('status', 'pending')
+    .gt('amount', 0)
 
   if (error || !bookings) {
     console.error('미입금 예약 조회 실패:', error)
@@ -122,14 +122,14 @@ export async function paymentReminder(daysUntil: number = 7): Promise<{
   targetDate.setDate(targetDate.getDate() + daysUntil)
   const targetDateStr = targetDate.toISOString().split('T')[0]
 
-  // D-X 미입금 예약 조회
+  // D-X 미입금 예약 조회 (비회원 + 놀터 유료 회원)
   const { data: bookings, error } = await supabase
     .from('bookings')
     .select('*')
-    .eq('member_type', 'non-member')
     .eq('payment_status', 'pending')
     .eq('booking_date', targetDateStr)
     .eq('status', 'pending')
+    .gt('amount', 0)
 
   if (error || !bookings) {
     return { sent: 0 }
@@ -184,10 +184,10 @@ export async function financeAlert(
     const { data: bookings } = await supabase
       .from('bookings')
       .select('*')
-      .eq('member_type', 'non-member')
       .eq('payment_status', 'pending')
       .eq('booking_date', todayStr)
       .eq('status', 'pending')
+      .gt('amount', 0)
       .lt('start_time', '21:00')
 
     targetBookings = bookings || []
@@ -198,10 +198,10 @@ export async function financeAlert(
     const { data: bookings } = await supabase
       .from('bookings')
       .select('*')
-      .eq('member_type', 'non-member')
       .eq('payment_status', 'pending')
       .eq('booking_date', todayStr)
       .eq('status', 'pending')
+      .gt('amount', 0)
 
     targetBookings = bookings || []
   } else if (type === 'final') {
@@ -212,10 +212,10 @@ export async function financeAlert(
     const { data: bookings } = await supabase
       .from('bookings')
       .select('*')
-      .eq('member_type', 'non-member')
       .eq('payment_status', 'pending')
       .eq('booking_date', tomorrowStr)
       .eq('status', 'pending')
+      .gt('amount', 0)
 
     targetBookings = bookings || []
   }
@@ -288,13 +288,13 @@ export async function sameDayReminder(): Promise<{
   const now = new Date()
   const todayStr = now.toISOString().split('T')[0]
 
-  // 오늘 전체 예약 조회 (비회원만)
+  // 오늘 유료 확정 예약 조회 (비회원 + 놀터 유료 회원)
   const { data: bookings, error } = await supabase
     .from('bookings')
     .select('*')
-    .eq('member_type', 'non-member')
     .eq('booking_date', todayStr)
     .eq('status', 'confirmed')
+    .gt('amount', 0)
 
   if (error || !bookings) {
     return { sent: 0 }

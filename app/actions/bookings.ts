@@ -53,7 +53,65 @@ export async function createBooking(input: CreateBookingInput) {
     // 전화번호 정규화 (숫자만 저장)
     const normalizedPhone = input.phone.replace(/[^0-9]/g, '')
     
-    // Phase 6.5: 선불권 우선 사용 (userId가 있는 경우)
+    // Phase 7: 온음 세대 회원 + 놀터 전용 정책 (월 3회 무료, 이후 10,000원/건)
+    if (input.memberType === 'member' && input.space === 'nolter') {
+      const now = new Date()
+      const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
+      const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+      const nextMonthStr = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, '0')}-01`
+
+      const { count, error: countError } = await supabase
+        .from('bookings')
+        .select('*', { count: 'exact', head: true })
+        .eq('household', input.household || '')
+        .eq('space', 'nolter')
+        .neq('status', 'cancelled')
+        .gte('booking_date', monthStart)
+        .lt('booking_date', nextMonthStr)
+
+      if (countError) throw countError
+
+      const currentCount = count ?? 0
+      const isFree = currentCount < 3
+      const amount = isFree ? 0 : 10000
+      const paymentMethod = isFree ? 'free' : 'nolter_paid'
+      const status = isFree ? 'confirmed' : 'pending'
+      const paymentStatus = isFree ? 'completed' : 'pending'
+
+      const { data, error } = await supabase
+        .from('bookings')
+        .insert({
+          booking_date: input.bookingDate,
+          start_time: startTime,
+          end_time: endTime,
+          space: input.space,
+          member_type: input.memberType,
+          household: input.household,
+          name: input.name,
+          phone: normalizedPhone,
+          user_id: input.userId || null,
+          amount,
+          status,
+          payment_status: paymentStatus,
+          prepaid_hours_used: 0,
+          regular_hours: input.times.length,
+          payment_method: paymentMethod,
+        })
+        .select()
+        .single()
+
+      if (error) {
+        console.error('❌ Supabase error (nolter):', error)
+        throw error
+      }
+
+      console.log(`✅ 놀터 회원 예약: ${isFree ? `무료 (${currentCount + 1}/3회)` : `유료 10,000원 (${currentCount + 1}회차)`}`)
+      await sendBookingNotifications(data, input, normalizedPhone)
+      revalidatePath('/')
+      return { success: true, data }
+    }
+
+    // Phase 6.5: 선불권 우선 사용 (userId가 있는 경우, 비회원 또는 방음실 회원)
     if (input.userId) {
       console.log('🎫 선불권 확인 및 사용 시도 (userId:', input.userId, ')')
 
@@ -417,6 +475,30 @@ export async function getPastBookingsByHousehold(household: string) {
   }
 }
 
+// ===== 세대별 이번 달 놀터 예약 건수 조회 (UI용) =====
+export async function getMemberNolterCount(household: string): Promise<{ success: boolean; count: number; error?: string }> {
+  try {
+    const now = new Date()
+    const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
+    const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+    const nextMonthStr = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, '0')}-01`
+
+    const { count, error } = await supabase
+      .from('bookings')
+      .select('*', { count: 'exact', head: true })
+      .eq('household', household)
+      .eq('space', 'nolter')
+      .neq('status', 'cancelled')
+      .gte('booking_date', monthStart)
+      .lt('booking_date', nextMonthStr)
+
+    if (error) throw error
+    return { success: true, count: count ?? 0 }
+  } catch (error: any) {
+    return { success: false, count: 0, error: error.message }
+  }
+}
+
 // ===== SMS 발송 헬퍼 함수 =====
 async function sendBookingNotifications(
   booking: any,
@@ -432,7 +514,6 @@ async function sendBookingNotifications(
 
   // Phase 6.5: 선불권 사용 예약
   if (booking.payment_status === 'prepaid') {
-    // 전체 선불권 사용 - 임시로 2-1 타입 사용 (TODO: 7-3 타입 추가)
     await sendNotification({
       type: '2-1',
       phone: normalizedPhone,
@@ -442,6 +523,25 @@ async function sendBookingNotifications(
         date: dateStr,
         time: timeStr,
         space: spaceStr,
+      },
+      bookingId: booking.id,
+    })
+  } else if (booking.payment_method === 'nolter_paid') {
+    // Phase 7: 놀터 회원 유료 예약 (4회차~) - 입금 안내
+    const deadline = new Date(booking.booking_date)
+    deadline.setDate(deadline.getDate() - 1)
+    const deadlineStr = deadline.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })
+    await sendNotification({
+      type: '2-2',
+      phone: normalizedPhone,
+      variables: {
+        name: input.name,
+        date: dateStr,
+        time: timeStr,
+        space: spaceStr,
+        amount: '10,000',
+        account: process.env.BANK_ACCOUNT || '카카오뱅크 7979-72-56275 (정상은)',
+        deadline: deadlineStr,
       },
       bookingId: booking.id,
     })

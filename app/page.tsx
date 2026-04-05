@@ -2,7 +2,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createBooking, getBookings, getBookingsByPhone, getBookingsByHousehold, cancelBooking, CreateBookingInput } from './actions/bookings'
+import { createBooking, getBookings, getBookingsByPhone, getBookingsByHousehold, cancelBooking, getMemberNolterCount, CreateBookingInput } from './actions/bookings'
 import { signup, login, resetPassword } from './actions/auth'
 import { getSpacesInfo, getGeneralRulesFromDB, SpacesInfo, GeneralRules } from './actions/structured-settings'
 import { getMyPrepaidPurchases, PrepaidPurchase as PrepaidPurchaseType } from './actions/prepaid'
@@ -76,6 +76,9 @@ export default function Home() {
   // Phase 6.4: 선불권 상태
   const [prepaidPurchases, setPrepaidPurchases] = useState<PrepaidPurchase[]>([])
   const [isLoadingPrepaid, setIsLoadingPrepaid] = useState(false)
+
+  // Phase 7: 놀터 회원 이번 달 예약 횟수
+  const [nolterCount, setNolterCount] = useState<number | null>(null)
   
   // 달력 & 예약
   const [currentMonth, setCurrentMonth] = useState(new Date())
@@ -139,6 +142,16 @@ export default function Home() {
       setPrepaidPurchases([])
     }
   }, [userSession.isLoggedIn, userSession.userId])
+
+  // Phase 7: 놀터 예약 횟수 조회 (회원 + 놀터 모달 오픈 시)
+  useEffect(() => {
+    if (isBookingModalOpen && userSession.isLoggedIn && selectedSpace === 'nolter' && userSession.household) {
+      setNolterCount(null)
+      getMemberNolterCount(userSession.household).then(result => {
+        if (result.success) setNolterCount(result.count)
+      })
+    }
+  }, [isBookingModalOpen, selectedSpace, userSession.isLoggedIn, userSession.household])
 
   async function loadBookings() {
     const year = currentMonth.getFullYear()
@@ -524,6 +537,8 @@ export default function Home() {
         paymentInfo = `\n\n🎫 선불권 ${result.data.prepaid_hours_used}시간 사용\n잔여: (조회 필요)`
       } else if (result.data?.prepaid_hours_used > 0) {
         paymentInfo = `\n\n🎫 선불권 ${result.data.prepaid_hours_used}시간 사용\n💰 일반 결제 ${result.data.regular_hours}시간 (${result.data.amount}원)\n계좌: 카카오뱅크 7979-72-56275 (정상은)`
+      } else if (result.data?.payment_method === 'nolter_paid') {
+        paymentInfo = `\n\n💰 결제 안내 (이번 달 무료 횟수 초과)\n금액: 10,000원\n계좌: 카카오뱅크 7979-72-56275 (정상은)\n예약자명으로 입금해주세요.`
       } else if (!userSession.isLoggedIn) {
         paymentInfo = `\n\n💰 결제 안내\n금액: ${selectedTimes.length * 14000}원\n계좌: 카카오뱅크 7979-72-56275 (정상은)\n예약자명으로 입금해주세요.`
       }
@@ -1246,6 +1261,36 @@ export default function Home() {
                     return null
                   })()}
                   
+                  {/* Phase 7: 놀터 회원 예약 횟수 배지 */}
+                  {selectedSpace === 'nolter' && (
+                    nolterCount === null ? (
+                      <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                        <p className="text-sm text-gray-500">이번 달 예약 현황 조회 중...</p>
+                      </div>
+                    ) : nolterCount < 3 ? (
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                        <p className="text-sm font-semibold text-green-800">
+                          🎟 이번 달 무료 예약: {nolterCount}/3회 사용
+                        </p>
+                        <p className="text-xs text-green-600 mt-1">
+                          남은 무료 횟수: {3 - nolterCount}회 (시간 제한 없음)
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                        <p className="text-sm font-semibold text-yellow-800">
+                          💰 이번 달 무료 예약 3회 모두 사용
+                        </p>
+                        <p className="text-sm text-yellow-700 mt-1">
+                          추가 예약: <strong>10,000원/건</strong> (시간 무관)
+                        </p>
+                        <p className="text-xs text-yellow-600 mt-1">
+                          입금계좌: 카카오뱅크 7979-72-56275 (정상은)
+                        </p>
+                      </div>
+                    )
+                  )}
+
                   <div>
                     <label className="block text-sm font-semibold text-gray-900 mb-3">
                       세대 정보
