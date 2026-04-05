@@ -979,43 +979,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* ===== Phase 6.4: 내 선불권 ===== */}
-        {userSession.isLoggedIn && (
-          <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              🎟️ 내 선불권
-            </h3>
-
-            {isLoadingPrepaid ? (
-              <div className="text-center py-8 text-gray-500">
-                선불권 조회 중...
-              </div>
-            ) : prepaidPurchases.length === 0 ? (
-              /* 선불권 없을 때 empty state */
-              <div className="text-center py-12 bg-gray-50 rounded-lg">
-                <p className="text-gray-600 mb-4">보유 중인 선불권이 없습니다.</p>
-                <button
-                  onClick={() => setIsPrepaidModalOpen(true)}
-                  className="px-6 py-3 bg-purple-600 text-white font-semibold rounded-lg hover:bg-purple-700 transition-colors"
-                >
-                  선불권 구매하기
-                </button>
-              </div>
-            ) : (
-              /* 선불권 목록 */
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {prepaidPurchases.map((purchase) => (
-                  <PrepaidCard
-                    key={purchase.id}
-                    purchase={purchase}
-                    onRefund={handlePrepaidRefund}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
         {/* ===== 공간 정보 ===== */}
         {spacesInfo && (
           <div className="bg-white rounded-lg shadow-sm p-6">

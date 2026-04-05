@@ -223,7 +223,11 @@ export default function MyPage() {
           <BookingList bookings={pastBookings} emptyMsg="지난 예약 내역이 없습니다." isPast />
         )}
         {tab === 'prepaid' && (
-          <PrepaidList purchases={prepaidPurchases} />
+          <PrepaidList
+            purchases={prepaidPurchases}
+            userId={session.userId}
+            onRefresh={() => session.userId && loadPrepaid(session.userId)}
+          />
         )}
       </div>
     </div>
@@ -282,7 +286,32 @@ function BookingList({
   )
 }
 
-function PrepaidList({ purchases }: { purchases: PrepaidPurchase[] }) {
+function PrepaidList({ purchases, userId, onRefresh }: {
+  purchases: PrepaidPurchase[]
+  userId?: string
+  onRefresh?: () => void
+}) {
+  async function handleRefund(purchaseId: string, productName: string, usedHours: number, totalPaid: number) {
+    const refundAmount = totalPaid - usedHours * 14000
+    const msg = usedHours > 0
+      ? `환불 시 사용한 시간(${usedHours}h)은 시간당 14,000원으로 계산됩니다.\n\n예상 환불 금액: ${refundAmount.toLocaleString()}원\n\n환불 신청하시겠습니까?`
+      : `${productName} 전액(${totalPaid.toLocaleString()}원) 환불 신청하시겠습니까?`
+    if (!confirm(msg)) return
+
+    const res = await fetch('/api/prepaid/refund', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ purchase_id: purchaseId, user_id: userId }),
+    })
+    const data = await res.json()
+    if (data.success) {
+      alert(`환불 신청이 완료되었습니다.\n관리자 승인 후 ${refundAmount.toLocaleString()}원이 환불됩니다.`)
+      onRefresh?.()
+    } else {
+      alert(data.error || '환불 신청에 실패했습니다.')
+    }
+  }
+
   if (purchases.length === 0) {
     return (
       <div className="bg-white rounded-2xl shadow-sm p-10 text-center text-gray-400">
@@ -325,9 +354,17 @@ function PrepaidList({ purchases }: { purchases: PrepaidPurchase[] }) {
                   />
                 </div>
                 {p.expires_at && (
-                  <p className="text-xs text-gray-400">
+                  <p className="text-xs text-gray-400 mb-3">
                     만료일 {new Date(p.expires_at).toLocaleDateString('ko-KR')}
                   </p>
+                )}
+                {userId && (
+                  <button
+                    onClick={() => handleRefund(p.id, p.product?.name ?? '선불권', usedHours, p.product?.price ?? 0)}
+                    className="w-full mt-2 py-2 text-sm font-medium text-red-500 bg-red-50 rounded-xl hover:bg-red-100 transition-colors"
+                  >
+                    환불 신청
+                  </button>
                 )}
               </>
             )}
