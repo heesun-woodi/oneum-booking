@@ -71,20 +71,46 @@ export function PhotoManager() {
     })
   }
 
+  // 파일 클라이언트 검증
+  const validateFileClient = (file: File): string | null => {
+    const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
+    if (!allowed.includes(file.type)) {
+      return 'JPG, PNG, WebP 파일만 업로드 가능합니다. (iPhone HEIC 파일은 카메라 설정에서 "가장 호환성 높은" 포맷으로 변경 후 촬영하거나, 사진 앱에서 공유 시 JPG로 변환해주세요.)'
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      return '파일 크기는 5MB 이하여야 합니다.'
+    }
+    return null
+  }
+
   // 업로드 핸들러
   const handleUpload = async (file: File) => {
+    const clientError = validateFileClient(file)
+    if (clientError) {
+      setError(clientError)
+      return
+    }
+
     setIsUploading(true)
     setError(null)
     setSuccess(null)
 
     try {
-      const dimensions = await getImageDimensions(file)
+      let width = 0
+      let height = 0
+      try {
+        const dimensions = await getImageDimensions(file)
+        width = dimensions.width
+        height = dimensions.height
+      } catch {
+        // 이미지 크기 추출 실패해도 업로드는 진행
+      }
 
       const formData = new FormData()
       formData.append('file', file)
       formData.append('space', selectedSpace)
-      formData.append('width', dimensions.width.toString())
-      formData.append('height', dimensions.height.toString())
+      formData.append('width', width.toString())
+      formData.append('height', height.toString())
 
       const result = await uploadSpacePhoto(formData)
 
@@ -95,7 +121,7 @@ export function PhotoManager() {
         setError(result.error)
       }
     } catch (err) {
-      setError('이미지 처리 중 오류가 발생했습니다.')
+      setError('업로드 중 오류가 발생했습니다.')
     }
 
     setIsUploading(false)
@@ -103,16 +129,30 @@ export function PhotoManager() {
 
   // 교체 핸들러
   const handleReplace = async (photoId: string, file: File) => {
+    const clientError = validateFileClient(file)
+    if (clientError) {
+      setError(clientError)
+      return
+    }
+
     setError(null)
     setSuccess(null)
 
     try {
-      const dimensions = await getImageDimensions(file)
+      let width = 0
+      let height = 0
+      try {
+        const dimensions = await getImageDimensions(file)
+        width = dimensions.width
+        height = dimensions.height
+      } catch {
+        // 이미지 크기 추출 실패해도 교체는 진행
+      }
 
       const formData = new FormData()
       formData.append('file', file)
-      formData.append('width', dimensions.width.toString())
-      formData.append('height', dimensions.height.toString())
+      formData.append('width', width.toString())
+      formData.append('height', height.toString())
 
       const result = await replaceSpacePhoto(photoId, formData)
 
@@ -123,7 +163,7 @@ export function PhotoManager() {
         setError(result.error)
       }
     } catch (err) {
-      setError('이미지 처리 중 오류가 발생했습니다.')
+      setError('교체 중 오류가 발생했습니다.')
     }
   }
 
