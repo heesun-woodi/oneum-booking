@@ -254,7 +254,7 @@ export async function getBookingsByPhone(phone: string) {
       .eq('phone', normalizedPhone)
       .in('status', ['confirmed', 'pending'])
       .gte('booking_date', todayStr)
-      .order('booking_date', { ascending: true })
+      .order('booking_date', { ascending: false })
     
     if (error) {
       console.error('❌ Supabase error:', error)
