@@ -71,6 +71,44 @@ export function PhotoManager() {
     })
   }
 
+  // Canvas로 이미지 압축 (최대 1920px, JPEG 80%)
+  const compressImage = async (file: File): Promise<File> => {
+    return new Promise((resolve) => {
+      const img = new window.Image()
+      const objectUrl = URL.createObjectURL(file)
+      img.onload = () => {
+        URL.revokeObjectURL(objectUrl)
+        const MAX = 1920
+        let { width, height } = img
+        if (width > MAX || height > MAX) {
+          if (width > height) {
+            height = Math.round((height * MAX) / width)
+            width = MAX
+          } else {
+            width = Math.round((width * MAX) / height)
+            height = MAX
+          }
+        }
+        const canvas = document.createElement('canvas')
+        canvas.width = width
+        canvas.height = height
+        const ctx = canvas.getContext('2d')!
+        ctx.drawImage(img, 0, 0, width, height)
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) { resolve(file); return }
+            const newName = file.name.replace(/\.(heic|heif|png|webp)$/i, '.jpg')
+            resolve(new File([blob], newName, { type: 'image/jpeg' }))
+          },
+          'image/jpeg',
+          0.82
+        )
+      }
+      img.onerror = () => { URL.revokeObjectURL(objectUrl); resolve(file) }
+      img.src = objectUrl
+    })
+  }
+
   // HEIC → JPEG 변환
   const convertHeicToJpeg = async (file: File): Promise<File> => {
     const name = file.name.toLowerCase()
@@ -121,11 +159,12 @@ export function PhotoManager() {
 
     try {
       const convertedFile = await convertHeicToJpeg(file)
+      const compressedFile = await compressImage(convertedFile)
 
       let width = 0
       let height = 0
       try {
-        const dimensions = await getImageDimensions(convertedFile)
+        const dimensions = await getImageDimensions(compressedFile)
         width = dimensions.width
         height = dimensions.height
       } catch {
@@ -133,7 +172,7 @@ export function PhotoManager() {
       }
 
       const formData = new FormData()
-      formData.append('file', convertedFile)
+      formData.append('file', compressedFile)
       formData.append('space', selectedSpace)
       formData.append('width', width.toString())
       formData.append('height', height.toString())
@@ -168,11 +207,12 @@ export function PhotoManager() {
 
     try {
       const convertedFile = await convertHeicToJpeg(file)
+      const compressedFile = await compressImage(convertedFile)
 
       let width = 0
       let height = 0
       try {
-        const dimensions = await getImageDimensions(convertedFile)
+        const dimensions = await getImageDimensions(compressedFile)
         width = dimensions.width
         height = dimensions.height
       } catch {
@@ -180,7 +220,7 @@ export function PhotoManager() {
       }
 
       const formData = new FormData()
-      formData.append('file', convertedFile)
+      formData.append('file', compressedFile)
       formData.append('width', width.toString())
       formData.append('height', height.toString())
 
