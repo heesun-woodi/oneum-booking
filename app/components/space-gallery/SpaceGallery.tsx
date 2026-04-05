@@ -98,7 +98,7 @@ export function SpaceGallery({ space }: SpaceGalleryProps) {
   // 로딩 상태
   if (isLoading) {
     return (
-      <div className="relative bg-gray-100 rounded-lg overflow-hidden h-48 sm:h-64 md:h-80 animate-pulse">
+      <div className="relative bg-gray-100 rounded-lg overflow-hidden h-64 sm:h-80 md:h-96 animate-pulse">
         <div className="absolute inset-0 bg-gray-200"></div>
       </div>
     )
@@ -122,7 +122,7 @@ export function SpaceGallery({ space }: SpaceGalleryProps) {
     <div className="relative bg-gray-100 rounded-lg overflow-hidden shadow-sm">
       {/* 슬라이드 영역 */}
       <div
-        className="relative h-48 sm:h-64 md:h-80"
+        className="relative h-64 sm:h-80 md:h-96"
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
