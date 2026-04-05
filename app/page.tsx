@@ -765,7 +765,12 @@ export default function Home() {
   const year = currentMonth.getFullYear()
   const month = currentMonth.getMonth()
   const daysInMonth = new Date(year, month + 1, 0).getDate()
-  const firstDayOfWeek = new Date(year, month, 1).getDay() // 0=일, 1=월, ..., 6=토
+  const firstDayOfWeek = new Date(year, month, 1).getDay() // 0=일(Sun)~6=토(Sat)
+  // null = 빈 칸, number = 날짜
+  const calendarCells: (number | null)[] = [
+    ...Array(firstDayOfWeek).fill(null),
+    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+  ]
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 sm:p-8">
@@ -910,11 +915,10 @@ export default function Home() {
 
           {/* 날짜 - 모바일 세로 간격 증가 */}
           <div className="grid grid-cols-7 gap-x-2 gap-y-6 sm:gap-3">
-            {Array.from({ length: firstDayOfWeek }, (_, i) => (
-              <div key={`empty-${i}`} />
-            ))}
-            {Array.from({ length: daysInMonth }, (_, i) => {
-              const date = i + 1
+            {calendarCells.map((date, idx) => {
+              if (date === null) {
+                return <div key={`empty-${idx}`} className="aspect-square" />
+              }
               const isPast = isPastDate(date)
               const bookingStatus = getBookingStatus(date)
               const totalHours = getTotalHoursForDate(date)
