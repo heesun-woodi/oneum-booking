@@ -119,7 +119,7 @@ export async function getSpaceInfo(): Promise<{ success: boolean; spaces: SpaceI
 
 // ===== 공간 정보 저장 (DB) =====
 export async function updateSpaceInfo(spaces: SpaceInfo[]): Promise<{ success: boolean; error?: string }> {
-  const supabase = createServiceRoleClient()
+  const supabase = await createServiceRoleClient()
   
   // 배열을 객체로 변환 (nolter, soundroom 키 사용)
   const spacesObj: Record<string, Omit<SpaceInfo, 'id'>> = {}
@@ -187,7 +187,7 @@ export async function getGeneralRules(): Promise<{ success: boolean; rules: Gene
 
 // ===== 이용 규칙 저장 (DB) =====
 export async function updateGeneralRules(rules: GeneralRules): Promise<{ success: boolean; error?: string }> {
-  const supabase = createServiceRoleClient()
+  const supabase = await createServiceRoleClient()
   
   const value = JSON.stringify(rules)
 
