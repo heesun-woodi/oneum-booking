@@ -157,8 +157,8 @@ export default function PaymentsPage() {
           </div>
         </div>
 
-        {/* 선불권 입금 대기 */}
-        {prepaidPurchases.length > 0 && (
+        {/* 선불권 입금 대기 - 미입금/전체 탭에서만 표시 */}
+        {prepaidPurchases.length > 0 && filter !== 'completed' && (
           <div className="bg-white rounded-lg shadow overflow-hidden mb-6">
             <div className="px-6 py-4 border-b border-gray-200 bg-yellow-50">
               <h2 className="text-lg font-semibold text-yellow-800">
