@@ -252,7 +252,7 @@ export default function Home() {
     return `${hour.toString().padStart(2, '0')}:00`
   })
   
-  const households = ['201', '301', '302', '401', '402', '501']
+  const households = ['201', '202', '301', '302', '401', '402', '501']
 
   // ===== 월 네비게이션 함수 =====
   
