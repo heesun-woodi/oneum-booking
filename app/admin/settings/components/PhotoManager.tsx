@@ -71,14 +71,26 @@ export function PhotoManager() {
     })
   }
 
+  // HEIC → JPEG 변환
+  const convertHeicToJpeg = async (file: File): Promise<File> => {
+    const isHeic = file.type === 'image/heic' || file.type === 'image/heif'
+      || file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif')
+    if (!isHeic) return file
+
+    const heic2any = (await import('heic2any')).default
+    const blob = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.85 }) as Blob
+    return new File([blob], file.name.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg'), { type: 'image/jpeg' })
+  }
+
   // 파일 클라이언트 검증
   const validateFileClient = (file: File): string | null => {
-    const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
-    if (!allowed.includes(file.type)) {
-      return 'JPG, PNG, WebP 파일만 업로드 가능합니다. (iPhone HEIC 파일은 카메라 설정에서 "가장 호환성 높은" 포맷으로 변경 후 촬영하거나, 사진 앱에서 공유 시 JPG로 변환해주세요.)'
+    const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/heic', 'image/heif']
+    const isHeicByName = file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif')
+    if (!allowed.includes(file.type) && !isHeicByName) {
+      return 'JPG, PNG, WebP, HEIC 파일만 업로드 가능합니다.'
     }
-    if (file.size > 5 * 1024 * 1024) {
-      return '파일 크기는 5MB 이하여야 합니다.'
+    if (file.size > 20 * 1024 * 1024) {
+      return '파일 크기는 20MB 이하여야 합니다.'
     }
     return null
   }
@@ -96,10 +108,12 @@ export function PhotoManager() {
     setSuccess(null)
 
     try {
+      const convertedFile = await convertHeicToJpeg(file)
+
       let width = 0
       let height = 0
       try {
-        const dimensions = await getImageDimensions(file)
+        const dimensions = await getImageDimensions(convertedFile)
         width = dimensions.width
         height = dimensions.height
       } catch {
@@ -107,7 +121,7 @@ export function PhotoManager() {
       }
 
       const formData = new FormData()
-      formData.append('file', file)
+      formData.append('file', convertedFile)
       formData.append('space', selectedSpace)
       formData.append('width', width.toString())
       formData.append('height', height.toString())
@@ -139,10 +153,12 @@ export function PhotoManager() {
     setSuccess(null)
 
     try {
+      const convertedFile = await convertHeicToJpeg(file)
+
       let width = 0
       let height = 0
       try {
-        const dimensions = await getImageDimensions(file)
+        const dimensions = await getImageDimensions(convertedFile)
         width = dimensions.width
         height = dimensions.height
       } catch {
@@ -150,7 +166,7 @@ export function PhotoManager() {
       }
 
       const formData = new FormData()
-      formData.append('file', file)
+      formData.append('file', convertedFile)
       formData.append('width', width.toString())
       formData.append('height', height.toString())
 
