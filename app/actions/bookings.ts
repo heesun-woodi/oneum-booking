@@ -54,70 +54,108 @@ export async function createBooking(input: CreateBookingInput) {
     const normalizedPhone = input.phone.replace(/[^0-9]/g, '')
     
     // Phase 6.5: 선불권 우선 사용 (userId가 있는 경우)
-    // 세대 회원도 월 8시간 초과 시 선불권 확인
     if (input.userId) {
       console.log('🎫 선불권 확인 및 사용 시도 (userId:', input.userId, ')')
-      
+
       try {
-        // RPC 함수 호출
-        const { data: rpcData, error: rpcError } = await supabase
-          .rpc('create_booking_with_prepaid', {
-            p_user_id: input.userId,
-            p_booking_date: input.bookingDate,
-            p_start_time: startTime,
-            p_end_time: endTime,
-            p_space: input.space,
-            p_member_type: input.memberType,
-            p_household: input.household || null,
-            p_name: input.name,
-            p_phone: normalizedPhone,
-            p_requested_hours: input.times.length
+        // 1. 사용 가능한 선불권 조회 (유효기간 임박 순)
+        const now = new Date().toISOString()
+        const { data: purchases, error: purchasesError } = await supabase
+          .from('prepaid_purchases')
+          .select('id, remaining_hours, expires_at')
+          .eq('user_id', input.userId)
+          .eq('status', 'paid')
+          .gt('remaining_hours', 0)
+          .gt('expires_at', now)
+          .order('expires_at', { ascending: true })
+
+        if (purchasesError) throw purchasesError
+
+        // 2. 차감 계획 계산
+        const requestedHours = input.times.length
+        let remainingToFill = requestedHours
+        let prepaidHoursUsed = 0
+        const deductionPlan: Array<{ purchaseId: string; hoursToDeduct: number }> = []
+
+        for (const purchase of (purchases || [])) {
+          if (remainingToFill === 0) break
+          const hoursToUse = Math.min(purchase.remaining_hours, remainingToFill)
+          prepaidHoursUsed += hoursToUse
+          remainingToFill -= hoursToUse
+          deductionPlan.push({ purchaseId: purchase.id, hoursToDeduct: hoursToUse })
+        }
+
+        // 선불권 사용 없으면 일반 예약으로
+        if (deductionPlan.length === 0) {
+          console.log('ℹ️ 사용 가능한 선불권 없음, 일반 예약으로 진행')
+        } else {
+          const regularHours = remainingToFill
+          const amount = regularHours * 14000
+          const paymentMethod = regularHours === 0 ? 'prepaid' : 'mixed'
+
+          // 3. RPC 호출 (올바른 JSONB 형식)
+          const { data: rpcData, error: rpcError } = await supabase
+            .rpc('create_booking_with_prepaid', {
+              p_booking_data: {
+                bookingDate: input.bookingDate,
+                startTime: startTime,
+                endTime: endTime,
+                space: input.space,
+                memberType: input.memberType,
+                household: input.household || '',
+                name: input.name,
+                phone: normalizedPhone,
+                userId: input.userId,
+                prepaidHoursUsed: prepaidHoursUsed,
+                regularHours: regularHours,
+                paymentMethod: paymentMethod,
+                amount: amount,
+              },
+              p_deduction_plan: deductionPlan,
+            })
+
+          if (rpcError) {
+            console.error('❌ RPC error:', rpcError)
+            throw rpcError
+          }
+
+          if (!rpcData?.success) {
+            throw new Error(rpcData?.error || 'RPC returned failure')
+          }
+
+          console.log('✅ 선불권 예약 완료:', rpcData)
+
+          const data = {
+            id: rpcData.bookingId,
+            booking_date: input.bookingDate,
+            start_time: startTime,
+            end_time: endTime,
+            space: input.space,
+            member_type: input.memberType,
+            household: input.household,
+            name: input.name,
+            phone: normalizedPhone,
+            amount: amount,
+            status: paymentMethod === 'prepaid' ? 'confirmed' : 'pending',
+            payment_status: paymentMethod === 'prepaid' ? 'completed' : 'pending',
+            prepaid_hours_used: prepaidHoursUsed,
+            regular_hours: regularHours,
+          }
+
+          console.log('🎫 선불권 사용 결과:', {
+            prepaid_hours: prepaidHoursUsed,
+            regular_hours: regularHours,
+            amount,
+            payment_method: paymentMethod,
           })
-        
-        if (rpcError) {
-          console.error('❌ RPC error:', rpcError)
-          // RPC 실패 시 일반 예약으로 폴백
-          throw rpcError
+
+          await sendBookingNotifications(data, input, normalizedPhone)
+          revalidatePath('/')
+
+          return { success: true, data }
         }
-        
-        console.log('✅ Booking created with prepaid:', rpcData)
-        
-        // RPC 결과 파싱
-        const result = rpcData[0]
-        const data = {
-          id: result.booking_id,
-          booking_date: input.bookingDate,
-          start_time: startTime,
-          end_time: endTime,
-          space: input.space,
-          member_type: input.memberType,
-          household: input.household,
-          name: input.name,
-          phone: normalizedPhone,
-          amount: result.amount,
-          status: result.booking_status,
-          payment_status: result.booking_payment_status,
-          prepaid_hours_used: result.prepaid_hours_used,
-          regular_hours: result.regular_hours
-        }
-        
-        console.log('🎫 선불권 사용 결과:', {
-          prepaid_hours: result.prepaid_hours_used,
-          regular_hours: result.regular_hours,
-          amount: result.amount,
-          payment_status: result.payment_status
-        })
-        
-        // SMS 발송
-        await sendBookingNotifications(data, input, normalizedPhone)
-        
-        // 캘린더 갱신
-        revalidatePath('/')
-        
-        return { success: true, data }
       } catch (rpcError) {
         console.warn('⚠️ RPC 실패, 일반 예약으로 폴백:', rpcError)
-        // RPC 실패 시 아래의 일반 예약 로직으로 계속 진행
       }
     }
     
