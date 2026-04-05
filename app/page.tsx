@@ -63,6 +63,7 @@ export default function Home() {
   
   // 모달 상태
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
   const [authMode, setAuthMode] = useState<'login' | 'signup' | 'forgot'>('login')
   const [isPrepaidModalOpen, setIsPrepaidModalOpen] = useState(false) // Phase 6.3: 선불권 구매 모달
@@ -466,6 +467,7 @@ export default function Home() {
   // ===== 예약하기 (실제 DB 저장) =====
   
   const handleBookingSubmit = async () => {
+    if (isSubmitting) return
     // 검증
     if (selectedTimes.length === 0) {
       alert('시간을 선택해주세요.')
@@ -504,7 +506,9 @@ export default function Home() {
     console.log('🎫 userId:', userSession.userId || '(없음 - 선불권 미사용)')
 
     // DB에 저장
+    setIsSubmitting(true)
     const result = await createBooking(bookingInput)
+    setIsSubmitting(false)
 
     if (result.success) {
       console.log('=== ✅ 예약 완료 ===')
@@ -1334,9 +1338,10 @@ export default function Home() {
             <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 p-6">
               <button
                 onClick={handleBookingSubmit}
-                className="w-full py-4 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 transition-colors"
+                disabled={isSubmitting}
+                className={`w-full py-4 text-white font-semibold rounded-lg transition-colors ${isSubmitting ? 'bg-blue-300 cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-600'}`}
               >
-                예약하기
+                {isSubmitting ? '예약 중...' : '예약하기'}
               </button>
             </div>
           </div>
