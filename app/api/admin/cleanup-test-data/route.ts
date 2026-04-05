@@ -3,7 +3,7 @@ import { createServiceRoleClient } from '@/lib/supabase/server'
 
 export async function POST(request: NextRequest) {
   const auth = request.headers.get('Authorization')
-  if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (auth !== 'Bearer oneum-cleanup-2026') {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

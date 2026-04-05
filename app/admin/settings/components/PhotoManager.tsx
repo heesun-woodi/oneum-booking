@@ -73,13 +73,21 @@ export function PhotoManager() {
 
   // HEIC → JPEG 변환
   const convertHeicToJpeg = async (file: File): Promise<File> => {
+    const name = file.name.toLowerCase()
     const isHeic = file.type === 'image/heic' || file.type === 'image/heif'
-      || file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif')
+      || name.endsWith('.heic') || name.endsWith('.heif')
     if (!isHeic) return file
 
-    const heic2any = (await import('heic2any')).default
-    const blob = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.85 }) as Blob
-    return new File([blob], file.name.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg'), { type: 'image/jpeg' })
+    try {
+      const heic2any = (await import('heic2any')).default
+      const result = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.85 })
+      const blob = Array.isArray(result) ? result[0] : result
+      const newName = file.name.replace(/\.(heic|heif)$/i, '.jpg')
+      return new File([blob], newName, { type: 'image/jpeg' })
+    } catch (err) {
+      console.error('HEIC 변환 실패:', err)
+      throw new Error('HEIC 파일 변환에 실패했습니다. 사진 앱에서 JPG로 내보낸 후 다시 시도해주세요.')
+    }
   }
 
   // 파일 클라이언트 검증
@@ -135,7 +143,7 @@ export function PhotoManager() {
         setError(result.error)
       }
     } catch (err) {
-      setError('업로드 중 오류가 발생했습니다.')
+      setError(err instanceof Error ? err.message : '업로드 중 오류가 발생했습니다.')
     }
 
     setIsUploading(false)
@@ -179,7 +187,7 @@ export function PhotoManager() {
         setError(result.error)
       }
     } catch (err) {
-      setError('교체 중 오류가 발생했습니다.')
+      setError(err instanceof Error ? err.message : '교체 중 오류가 발생했습니다.')
     }
   }
 
