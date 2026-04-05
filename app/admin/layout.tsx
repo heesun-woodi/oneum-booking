@@ -106,7 +106,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                       : 'text-gray-700 hover:bg-gray-100'
                   }`}
                 >
-                  💰 입금 확인
+                  💰 일반예약
                 </Link>
                 <Link
                   href="/admin/prepaid"
@@ -232,7 +232,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                       : 'text-gray-700 hover:bg-gray-100'
                   }`}
                 >
-                  💰 입금 확인
+                  💰 일반예약
                 </Link>
                 <Link
                   href="/admin/prepaid"

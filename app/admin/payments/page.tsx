@@ -68,8 +68,8 @@ export default function PaymentsPage() {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">입금 관리</h1>
-          <p className="mt-2 text-gray-600">비회원 예약의 입금 상태를 관리합니다.</p>
+          <h1 className="text-3xl font-bold text-gray-900">일반 예약 관리</h1>
+          <p className="mt-2 text-gray-600">일반예약의 입금상태를 관리합니다.</p>
         </div>
 
         {/* Filters */}
