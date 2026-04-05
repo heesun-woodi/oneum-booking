@@ -154,5 +154,5 @@ WHERE key = 'spaces_info';
 -- =====================================================
 -- 완료
 -- =====================================================
-COMMENT ON FUNCTION create_booking_with_prepaid IS
+COMMENT ON FUNCTION create_booking_with_prepaid(JSONB, JSONB) IS
   '예약 생성 + 선불권 차감 트랜잭션 (SECURITY DEFINER, Phase 7 업데이트)';
