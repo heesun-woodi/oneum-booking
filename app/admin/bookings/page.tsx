@@ -59,8 +59,9 @@ export default function AdminBookingsPage() {
     const spaceName = booking.space === 'nolter' ? '놀터' : '방음실'
     if (!confirm(`${booking.booking_date} ${booking.start_time}~${booking.end_time} ${spaceName} 예약을 취소하시겠습니까?`)) return
     
-    const reason = prompt('취소 사유를 입력해주세요 (선택)')
-    
+    const reason = prompt('취소 사유를 입력해주세요 (선택, 없으면 비우고 확인)')
+    if (reason === null) return  // 사유 창에서 취소 클릭 시 전체 취소 중단
+
     const result = await cancelBookingAdmin(bookingId, reason || undefined)
     
     if (result.success) {
