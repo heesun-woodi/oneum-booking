@@ -261,7 +261,7 @@ export default function Home() {
 
   // ===== 상수 =====
   
-  const timeSlots = Array.from({ length: 15 }, (_, i) => {
+  const timeSlots = Array.from({ length: 13 }, (_, i) => {
     const hour = i + 9
     return `${hour.toString().padStart(2, '0')}:00`
   })
