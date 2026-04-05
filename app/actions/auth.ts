@@ -3,6 +3,7 @@
 import { supabase } from '@/lib/supabase'
 import bcrypt from 'bcryptjs'
 import { sendNotification } from '@/lib/notifications/sender'
+import { solapi } from '@/lib/solapi'
 
 export async function signup(data: {
   household: string
@@ -102,6 +103,82 @@ export async function login(data: {
   
   // 🐛 FIX: userId 포함 확인용 로그
   console.log('✅ [LOGIN] user.id:', user.id)
-  
+
   return { success: true, user }
+}
+
+export async function changePassword(userId: string, currentPassword: string, newPassword: string) {
+  // 1. fetch user by id
+  const { data: user, error } = await supabase
+    .from('users')
+    .select('id, password_hash')
+    .eq('id', userId)
+    .single()
+
+  if (error || !user) {
+    return { success: false, error: '사용자를 찾을 수 없습니다.' }
+  }
+
+  // 2. verify current password
+  const isValid = await bcrypt.compare(currentPassword, user.password_hash)
+  if (!isValid) {
+    return { success: false, error: '현재 비밀번호가 올바르지 않습니다.' }
+  }
+
+  // 3. hash new password
+  const newHash = await bcrypt.hash(newPassword, 10)
+
+  // 4. update password_hash
+  const { error: updateError } = await supabase
+    .from('users')
+    .update({ password_hash: newHash })
+    .eq('id', userId)
+
+  if (updateError) {
+    return { success: false, error: updateError.message }
+  }
+
+  return { success: true }
+}
+
+export async function resetPassword(name: string, phone: string) {
+  // 1. normalize phone (digits only)
+  const normalizedPhone = phone.replace(/\D/g, '')
+
+  // 2. find user
+  const { data: user, error } = await supabase
+    .from('users')
+    .select('id, phone')
+    .eq('name', name)
+    .eq('phone', normalizedPhone)
+    .eq('status', 'approved')
+    .single()
+
+  if (error || !user) {
+    return { success: false, error: '일치하는 회원 정보를 찾을 수 없습니다.' }
+  }
+
+  // 3. generate 6-char alphanumeric temp password (uppercase + digits)
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+  let tempPassword = ''
+  for (let i = 0; i < 6; i++) {
+    tempPassword += chars[Math.floor(Math.random() * chars.length)]
+  }
+
+  // 4. hash and update
+  const newHash = await bcrypt.hash(tempPassword, 10)
+  const { error: updateError } = await supabase
+    .from('users')
+    .update({ password_hash: newHash })
+    .eq('id', user.id)
+
+  if (updateError) {
+    return { success: false, error: updateError.message }
+  }
+
+  // 5. send SMS
+  const message = `[온음] 임시 비밀번호: ${tempPassword}\n로그인 후 비밀번호를 변경해주세요.`
+  await solapi.sendAuto(normalizedPhone, message)
+
+  return { success: true }
 }

@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react'
 import { createBooking, getBookings, getBookingsByPhone, getBookingsByHousehold, cancelBooking, CreateBookingInput } from './actions/bookings'
-import { signup, login } from './actions/auth'
+import { signup, login, resetPassword } from './actions/auth'
 import { getSpacesInfo, getGeneralRulesFromDB, SpacesInfo, GeneralRules } from './actions/structured-settings'
 import { getMyPrepaidPurchases, PrepaidPurchase as PrepaidPurchaseType } from './actions/prepaid'
 import { getTotalRemainingHours, calculatePrepaidUsage } from '@/lib/prepaid-utils'
@@ -664,10 +664,10 @@ export default function Home() {
     }
   }
   // ===== 비밀번호 찾기 =====
-  
+
   const handleForgotPassword = async () => {
-    if (!authHousehold) {
-      alert('세대를 선택해주세요.')
+    if (!authName.trim()) {
+      alert('이름을 입력해주세요.')
       return
     }
     if (!authPhone.trim()) {
@@ -675,10 +675,16 @@ export default function Home() {
       return
     }
 
-    // Mock 응답 (Phase 4에서 실제 DB 연동)
-    alert(`${authHousehold}호로 등록된 계정 확인되었습니다.\n\n비밀번호 재설정은 관리자에게 문의해주세요.\n\n연락처: 010-XXXX-XXXX`)
-    
+    const result = await resetPassword(authName, authPhone)
+    if (!result.success) {
+      alert(result.error || '비밀번호 재설정에 실패했습니다.')
+      return
+    }
+
+    alert('임시 비밀번호가 등록된 전화번호로 발송되었습니다.')
     setAuthMode('login')
+    setAuthName('')
+    setAuthPhone('')
   }
 
 
@@ -1370,25 +1376,23 @@ export default function Home() {
               {authMode === 'forgot' ? (
                 /* ⭐ 비밀번호 찾기 폼 */
                 <>
+                  <p className="text-sm text-gray-500">가입 시 등록한 이름과 전화번호를 입력하세요.</p>
                   <div>
                     <label className="block text-sm font-semibold text-gray-900 mb-2">
-                      세대 선택 *
+                      이름 *
                     </label>
-                    <select
-                      value={authHousehold}
-                      onChange={(e) => setAuthHousehold(e.target.value)}
+                    <input
+                      type="text"
+                      value={authName}
+                      onChange={(e) => setAuthName(e.target.value)}
+                      placeholder="이름을 입력하세요"
                       className="w-full py-3 px-4 border border-gray-300 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">세대를 선택하세요</option>
-                      {households.map(h => (
-                        <option key={h} value={h}>{h}호</option>
-                      ))}
-                    </select>
+                    />
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-semibold text-gray-900 mb-2">
-                      가입 시 등록한 전화번호 *
+                      전화번호 *
                     </label>
                     <input
                       type="tel"
@@ -1398,19 +1402,19 @@ export default function Home() {
                       className="w-full py-3 px-4 border border-gray-300 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
-                  
+
                   <button
                     onClick={handleForgotPassword}
                     className="w-full py-3 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 transition-colors"
                   >
-                    확인
+                    임시 비밀번호 발급
                   </button>
-                  
+
                   <div className="text-center text-sm text-gray-600">
                     <button
                       onClick={() => {
                         setAuthMode('login')
-                        setAuthHousehold('')
+                        setAuthName('')
                         setAuthPhone('')
                       }}
                       className="text-blue-600 font-medium hover:underline"

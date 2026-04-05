@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { getBookingsByHousehold, getPastBookingsByHousehold } from '@/app/actions/bookings'
 import { getMonthlyUsage, UsageCount } from '@/app/actions/usage'
+import { changePassword } from '@/app/actions/auth'
 import { PREPAID_STATUS_LABELS, BOOKING_STATUS_LABELS } from '@/lib/constants/status-labels'
 
 interface UserSession {
@@ -153,6 +154,11 @@ export default function MyPage() {
           </div>
         </div>
 
+        {/* 비밀번호 변경 */}
+        {session.userId && (
+          <PasswordChangeCard userId={session.userId} />
+        )}
+
         {/* 이번 달 이용 현황 */}
         {(() => {
           const totalUsed = monthlyUsage.reduce((sum, u) => sum + u.effectiveCount, 0)
@@ -282,6 +288,100 @@ function BookingList({
           </div>
         )
       })}
+    </div>
+  )
+}
+
+function PasswordChangeCard({ userId }: { userId: string }) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  async function handleSubmit() {
+    setError('')
+    if (!currentPassword.trim()) {
+      setError('현재 비밀번호를 입력해주세요.')
+      return
+    }
+    if (newPassword.length < 4) {
+      setError('새 비밀번호는 4자 이상이어야 합니다.')
+      return
+    }
+    if (newPassword !== confirmPassword) {
+      setError('새 비밀번호가 일치하지 않습니다.')
+      return
+    }
+    setLoading(true)
+    const result = await changePassword(userId, currentPassword, newPassword)
+    setLoading(false)
+    if (!result.success) {
+      setError(result.error || '비밀번호 변경에 실패했습니다.')
+      return
+    }
+    alert('비밀번호가 변경되었습니다.')
+    setIsOpen(false)
+    setCurrentPassword('')
+    setNewPassword('')
+    setConfirmPassword('')
+  }
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm p-5 mb-6">
+      <button
+        onClick={() => { setIsOpen(!isOpen); setError('') }}
+        className="w-full flex items-center justify-between text-sm font-semibold text-gray-700"
+      >
+        <span>비밀번호 변경</span>
+        <span className="text-gray-400">{isOpen ? '▲' : '▼'}</span>
+      </button>
+
+      {isOpen && (
+        <div className="mt-4 space-y-3">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">현재 비밀번호</label>
+            <input
+              type="password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              placeholder="현재 비밀번호"
+              className="w-full py-2.5 px-3 border border-gray-300 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">새 비밀번호</label>
+            <input
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="새 비밀번호 (4자 이상)"
+              className="w-full py-2.5 px-3 border border-gray-300 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">새 비밀번호 확인</label>
+            <input
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="새 비밀번호 재입력"
+              className="w-full py-2.5 px-3 border border-gray-300 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            />
+          </div>
+          {error && (
+            <p className="text-sm text-red-500">{error}</p>
+          )}
+          <button
+            onClick={handleSubmit}
+            disabled={loading}
+            className="w-full py-2.5 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 transition-colors text-sm disabled:opacity-50"
+          >
+            {loading ? '변경 중...' : '변경하기'}
+          </button>
+        </div>
+      )}
     </div>
   )
 }
