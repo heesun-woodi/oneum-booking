@@ -11,6 +11,50 @@ import {
 } from '@/app/actions/admin-settings'
 import { PhotoManager } from './components/PhotoManager'
 
+// 컴포넌트 외부 정의 — 내부 정의 시 렌더링마다 새 타입으로 인식되어 한글 IME가 깨짐
+function ListEditor({
+  items,
+  onChange,
+  onAdd,
+  onRemove,
+  placeholder = '항목 입력...',
+}: {
+  items: string[]
+  onChange: (index: number, value: string) => void
+  onAdd: () => void
+  onRemove: (index: number) => void
+  placeholder?: string
+}) {
+  return (
+    <div className="space-y-2">
+      {items.map((item, index) => (
+        <div key={index} className="flex gap-2">
+          <input
+            type="text"
+            value={item}
+            onChange={(e) => onChange(index, e.target.value)}
+            placeholder={placeholder}
+            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <button
+            onClick={() => onRemove(index)}
+            className="px-3 py-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+            title="삭제"
+          >
+            ✕
+          </button>
+        </div>
+      ))}
+      <button
+        onClick={onAdd}
+        className="w-full px-3 py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-blue-400 hover:text-blue-500 transition-colors"
+      >
+        + 항목 추가
+      </button>
+    </div>
+  )
+}
+
 export default function AdminSettingsPage() {
   // 공간 정보
   const [spaces, setSpaces] = useState<SpaceInfo[]>([])
@@ -160,48 +204,6 @@ export default function AdminSettingsPage() {
       setSavingRules(false)
     }
   }
-
-  // ===== 리스트 편집 컴포넌트 =====
-  const ListEditor = ({ 
-    items, 
-    onChange, 
-    onAdd, 
-    onRemove,
-    placeholder = '항목 입력...'
-  }: {
-    items: string[]
-    onChange: (index: number, value: string) => void
-    onAdd: () => void
-    onRemove: (index: number) => void
-    placeholder?: string
-  }) => (
-    <div className="space-y-2">
-      {items.map((item, index) => (
-        <div key={index} className="flex gap-2">
-          <input
-            type="text"
-            value={item}
-            onChange={(e) => onChange(index, e.target.value)}
-            placeholder={placeholder}
-            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <button
-            onClick={() => onRemove(index)}
-            className="px-3 py-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-            title="삭제"
-          >
-            ✕
-          </button>
-        </div>
-      ))}
-      <button
-        onClick={onAdd}
-        className="w-full px-3 py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-blue-400 hover:text-blue-500 transition-colors"
-      >
-        + 항목 추가
-      </button>
-    </div>
-  )
 
   if (loading) {
     return (
