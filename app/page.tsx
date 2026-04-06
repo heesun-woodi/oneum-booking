@@ -825,7 +825,7 @@ export default function Home() {
                   {userSession.isResident && userSession.household?.trim() && (
                     <p className="text-xs sm:text-sm font-semibold text-gray-900">{userSession.household}호</p>
                   )}
-                  <p className="text-xs text-gray-600">{userSession.name}</p>
+                  <p className="text-sm font-medium text-gray-700">{userSession.name}</p>
                   {userSession.isAdmin && (
                     <p className="text-xs text-blue-600 font-medium">⚡ 관리자</p>
                   )}
