@@ -595,26 +595,22 @@ export default function Home() {
         return
       }
 
-      // 🐛 FIX: userId 디버깅
-      console.log('🔍 [LOGIN] result.user 전체:', result.user)
-      console.log('🔍 [LOGIN] result.user.id:', result.user?.id)
-      
+      const loginUser = (result as unknown as { user: { id: string; household: string; name: string; phone: string; is_admin: boolean; is_resident: boolean } }).user
+
       // 세션 저장 (세대 정보 + 관리자 권한 자동 포함!)
       const session: UserSession = {
         isLoggedIn: true,
-        household: result.user.household,
-        name: result.user.name,
-        phone: result.user.phone,
-        isAdmin: result.user.is_admin || false,
-        userId: result.user.id, // Phase 6.3: 선불권 구매를 위한 user_id
-        isResident: result.user.is_resident || !!result.user.household
+        household: loginUser.household,
+        name: loginUser.name,
+        phone: loginUser.phone,
+        isAdmin: loginUser.is_admin || false,
+        userId: loginUser.id,
+        isResident: loginUser.is_resident || !!loginUser.household
       }
 
-      console.log('💾 [LOGIN] 세션 저장:', session)
-      console.log('💾 [LOGIN] userId 확인:', session.userId)
       saveSession(session)
       setIsAuthModalOpen(false)
-      alert(`${result.user.name}님 로그인되었습니다!`)
+      alert(`${loginUser.name}님 로그인되었습니다!`)
       console.log('✅ [LOGIN] 로그인 성공!')
       
       // 폼 초기화
