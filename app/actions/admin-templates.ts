@@ -313,12 +313,18 @@ export async function sendTestMessage(
     
     const template = result.data
     
-    // 2. 변수 치환
+    // 2. 변수 치환 (content에서 직접 추출 + testVariables 값 적용)
+    const allVars = await extractVariables(template.content)
     let message = template.content
-    for (const [key, value] of Object.entries(testVariables)) {
-      message = message.replaceAll(`{${key}}`, value || '')
+    for (const key of allVars) {
+      const value = testVariables[key] ?? ''
+      message = message.replaceAll(`{${key}}`, value)
     }
-    
+    // testVariables에만 있는 키도 추가 치환
+    for (const [key, value] of Object.entries(testVariables)) {
+      message = message.replaceAll(`{${key}}`, value)
+    }
+
     // 3. 전화번호 정리
     const cleanPhone = testPhone.replace(/[^0-9]/g, '')
     if (cleanPhone.length < 10) {

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { getMessageTemplates, updateTemplate, sendTestMessage } from '@/app/actions/admin-templates'
+import { getMessageTemplates, updateTemplate, sendTestMessage, extractVariables } from '@/app/actions/admin-templates'
 
 interface MessageTemplate {
   id: string
@@ -52,11 +52,12 @@ export default function EditTemplatePage({ params }: { params: { id: string } })
         setTemplate(found)
         setForm({ title: found.title, content: found.content })
         
-        // 변수 기본값 설정
+        // 변수 기본값 설정 (DB에 없으면 content에서 직접 추출)
         const vars: Record<string, string> = {}
-        found.variables?.forEach((v: string) => { 
-          vars[v] = '' 
-        })
+        const varNames = (found.variables?.length > 0)
+          ? found.variables
+          : await extractVariables(found.content)
+        varNames.forEach((v: string) => { vars[v] = '' })
         setTestVars(vars)
       } else {
         alert('템플릿을 찾을 수 없습니다')
@@ -83,7 +84,8 @@ export default function EditTemplatePage({ params }: { params: { id: string } })
     
     setSaving(true)
     
-    const result = await updateTemplate(params.id, form)
+    const variables = await extractVariables(form.content)
+    const result = await updateTemplate(params.id, { ...form, variables })
     
     if (result.success) {
       alert('저장되었습니다')
