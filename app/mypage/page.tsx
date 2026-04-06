@@ -139,8 +139,11 @@ export default function MyPage() {
               🏠
             </div>
             <div>
-              <p className="text-xl font-bold text-gray-900">{session.household}호</p>
-              <p className="text-gray-600">{session.name}</p>
+              {session.household
+                ? <p className="text-xl font-bold text-gray-900">{session.household}호</p>
+                : <p className="text-xl font-bold text-gray-900">{session.name}</p>
+              }
+              {session.household && <p className="text-gray-600">{session.name}</p>}
               <p className="text-sm text-gray-400">{session.phone}</p>
             </div>
             {activePrepaid && (
