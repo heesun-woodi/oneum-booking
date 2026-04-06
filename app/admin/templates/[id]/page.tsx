@@ -87,7 +87,6 @@ export default function EditTemplatePage({ params }: { params: { id: string } })
     
     if (result.success) {
       alert('저장되었습니다')
-      router.push('/admin/templates')
     } else {
       alert('저장 실패: ' + result.error)
     }
