@@ -4,7 +4,7 @@
 
 import { supabase } from '../supabase'
 import { sendNotification } from '../notifications/sender'
-import { formatBookingList } from '../notifications/templates'
+import { formatBookingList, formatPrepaidSummaryVars } from '../notifications/templates'
 
 /**
  * 1. 미입금 자동 취소 (00:00)
@@ -277,6 +277,80 @@ export async function autoCancelPrepaid(): Promise<{
 
   console.log(`선불권 자동 취소: ${purchases.length}건`)
   return { cancelled: purchases.length }
+}
+
+/**
+ * 선불권 미입금 리마인더 헬퍼 - 공통 발송 로직
+ */
+async function sendPrepaidPaymentReminder(): Promise<{ sent: number }> {
+  const adminUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://oneum.vercel.app'}/admin/prepaid`
+
+  const { data: purchases, error } = await supabase
+    .from('prepaid_purchases')
+    .select(`
+      id, created_at,
+      user:users!prepaid_purchases_user_id_fkey(name, household, phone),
+      product:prepaid_products!prepaid_purchases_product_id_fkey(name, price)
+    `)
+    .eq('status', 'pending')
+    .order('created_at', { ascending: true })
+
+  if (error || !purchases || purchases.length === 0) {
+    console.log('선불권 미입금 없음')
+    return { sent: 0 }
+  }
+
+  const summaryItems = purchases.map((p: any) => {
+    const deadline = new Date(p.created_at)
+    deadline.setHours(deadline.getHours() + 48)
+    return {
+      name: p.user?.name || '알수없음',
+      household: p.user?.household || undefined,
+      productName: p.product?.name || '선불권',
+      amount: p.product?.price || 0,
+      deadline,
+    }
+  })
+
+  const summaryVars = formatPrepaidSummaryVars(summaryItems)
+
+  await sendNotification({
+    type: '7-2',
+    phone: process.env.FINANCE_PHONE || '',
+    variables: { ...summaryVars, adminUrl },
+  })
+
+  console.log(`선불권 미입금 리마인더 발송: ${purchases.length}건`)
+  return { sent: 1 }
+}
+
+/**
+ * 선불권 미입금 일일 리마인더 (매일 13:00 KST = 04:00 UTC)
+ */
+export async function prepaidPaymentReminder(): Promise<{ sent: number }> {
+  return sendPrepaidPaymentReminder()
+}
+
+/**
+ * 선불권 미입금 최종 리마인더 (매일 10:00 KST = 01:00 UTC, auto-cancel 1h 전)
+ * 44시간 이상 경과한 미입금 건만 대상
+ */
+export async function prepaidFinalReminder(): Promise<{ sent: number }> {
+  const cutoff44h = new Date()
+  cutoff44h.setHours(cutoff44h.getHours() - 44)
+
+  const { data: pending, error } = await supabase
+    .from('prepaid_purchases')
+    .select('id')
+    .eq('status', 'pending')
+    .lt('created_at', cutoff44h.toISOString())
+
+  if (error || !pending || pending.length === 0) {
+    console.log('선불권 최종 리마인더 대상 없음')
+    return { sent: 0 }
+  }
+
+  return sendPrepaidPaymentReminder()
 }
 
 /**

@@ -34,6 +34,26 @@ export interface TemplateVariables {
 }
 
 /**
+ * 선불권 미입금 요약 변수 생성 (7-2용)
+ */
+export function formatPrepaidSummaryVars(purchases: Array<{
+  name: string
+  household?: string
+  productName: string
+  amount: number
+  deadline: Date
+}>): { count: string; list: string; deadline: string } {
+  const count = purchases.length.toString()
+  const list = purchases
+    .map(p => `- ${p.name}${p.household ? ` (${p.household}호)` : ''} / ${p.productName} ${p.amount.toLocaleString()}원 (마감: ${p.deadline.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })})`)
+    .join('\n')
+  // 가장 빠른 마감일
+  const earliest = purchases.reduce((a, b) => a.deadline < b.deadline ? a : b)
+  const deadline = earliest.deadline.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+  return { count, list, deadline }
+}
+
+/**
  * 메시지 템플릿 가져오기
  */
 export function getMessageTemplate(
@@ -242,19 +262,13 @@ ${vars.account}
       title: '[온음] 선불권 신청 알림',
       message: `재무담당자님,
 
-선불권 신청이 들어왔습니다.
-
-이름: ${vars.name}
-세대: ${vars.household}호
-전화: ${vars.phone}
-상품: ${vars.productName}
-금액: ${vars.amount}원
+선불권 신청 ${vars.count}건이 있습니다.
+${vars.list}
+통장의 입금내역을 확인하시고 입금된 내역이 있다면 관리자 페이지에 접속해서 입금확인 처리 해주세요
 입금 기한: ${vars.deadline}까지
 
 관리자 페이지:
-${vars.adminUrl}
-
-입금 확인 후 승인 처리 부탁드립니다.`,
+${vars.adminUrl}`,
     }),
 
     '7-3': (vars) => ({

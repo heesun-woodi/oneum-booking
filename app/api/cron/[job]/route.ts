@@ -26,6 +26,8 @@ import {
   paymentReminder,
   financeAlert,
   sameDayReminder,
+  prepaidPaymentReminder,
+  prepaidFinalReminder,
 } from '@/lib/cron/jobs'
 
 export const dynamic = 'force-dynamic'
@@ -98,6 +100,14 @@ export async function GET(
 
       case 'same-day-reminder':
         result = await withCronLogging('same-day-reminder', sameDayReminder)
+        break
+
+      case 'prepaid-payment-reminder':
+        result = await withCronLogging('prepaid-payment-reminder', prepaidPaymentReminder)
+        break
+
+      case 'prepaid-final-reminder':
+        result = await withCronLogging('prepaid-final-reminder', prepaidFinalReminder)
         break
 
       default:
