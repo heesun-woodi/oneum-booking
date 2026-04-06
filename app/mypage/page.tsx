@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { getBookingsByHousehold, getPastBookingsByHousehold } from '@/app/actions/bookings'
+import { getBookingsByHousehold, getPastBookingsByHousehold, getBookingsByUserId, getPastBookingsByUserId } from '@/app/actions/bookings'
 import { getMonthlyUsage, UsageCount } from '@/app/actions/usage'
 import { changePassword } from '@/app/actions/auth'
 import { getPrepaidByPhone } from '@/app/actions/prepaid'
@@ -15,6 +15,7 @@ interface UserSession {
   name: string
   phone: string
   userId?: string
+  isResident?: boolean
 }
 
 interface Booking {
@@ -87,20 +88,29 @@ export default function MyPage() {
       : Promise.resolve()
 
     await Promise.all([
-      loadBookings(s.household),
+      loadBookings(s),
       prepaidPromise,
-      loadUsage(s.household),
+      s.household?.trim() ? loadUsage(s.household) : Promise.resolve(),
     ])
     setLoading(false)
   }
 
-  async function loadBookings(household: string) {
-    const [upcoming, past] = await Promise.all([
-      getBookingsByHousehold(household),
-      getPastBookingsByHousehold(household),
-    ])
-    if (upcoming.success) setUpcomingBookings(upcoming.data as Booking[])
-    if (past.success) setPastBookings(past.data as Booking[])
+  async function loadBookings(s: UserSession) {
+    if (s.household?.trim()) {
+      const [upcoming, past] = await Promise.all([
+        getBookingsByHousehold(s.household),
+        getPastBookingsByHousehold(s.household),
+      ])
+      if (upcoming.success) setUpcomingBookings(upcoming.data as Booking[])
+      if (past.success) setPastBookings(past.data as Booking[])
+    } else if (s.userId) {
+      const [upcoming, past] = await Promise.all([
+        getBookingsByUserId(s.userId),
+        getPastBookingsByUserId(s.userId),
+      ])
+      if (upcoming.success) setUpcomingBookings(upcoming.data as Booking[])
+      if (past.success) setPastBookings(past.data as Booking[])
+    }
   }
 
   async function loadUsage(household: string) {
@@ -162,8 +172,8 @@ export default function MyPage() {
           <PasswordChangeCard userId={session.userId} />
         )}
 
-        {/* 이번 달 이용 현황 */}
-        {(() => {
+        {/* 이번 달 이용 현황 - 세대원만 표시 */}
+        {session.isResident && (() => {
           const totalUsed = monthlyUsage.reduce((sum, u) => sum + u.effectiveCount, 0)
           const FREE_LIMIT = 3
           const remaining = Math.max(0, FREE_LIMIT - totalUsed)

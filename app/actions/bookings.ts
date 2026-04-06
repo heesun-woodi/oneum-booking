@@ -476,6 +476,42 @@ export async function getPastBookingsByHousehold(household: string) {
   }
 }
 
+// ===== userId 기반 예약 조회 (비세대원용) =====
+export async function getBookingsByUserId(userId: string) {
+  try {
+    const today = new Date().toISOString().split('T')[0]
+    const { data, error } = await supabase
+      .from('bookings')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('status', 'confirmed')
+      .gte('booking_date', today)
+      .order('booking_date', { ascending: true })
+    if (error) throw error
+    return { success: true, data: data || [] }
+  } catch (error: any) {
+    return { success: false, error: error.message, data: [] }
+  }
+}
+
+export async function getPastBookingsByUserId(userId: string) {
+  try {
+    const today = new Date().toISOString().split('T')[0]
+    const { data, error } = await supabase
+      .from('bookings')
+      .select('*')
+      .eq('user_id', userId)
+      .lt('booking_date', today)
+      .in('status', ['confirmed', 'completed', 'cancelled'])
+      .order('booking_date', { ascending: false })
+      .limit(30)
+    if (error) throw error
+    return { success: true, data: data || [] }
+  } catch (error: any) {
+    return { success: false, error: error.message, data: [] }
+  }
+}
+
 // ===== 세대별 이번 달 놀터 예약 건수 조회 (UI용) =====
 export async function getMemberNolterCount(household: string): Promise<{ success: boolean; count: number; error?: string }> {
   try {
