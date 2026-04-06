@@ -5,6 +5,8 @@
  * Phase 6.5: 프론트엔드 선불권 연동
  */
 
+import { createServiceRoleClient } from '@/lib/supabase/server'
+
 export interface PrepaidPurchase {
   id: string
   user_id: string
@@ -26,6 +28,38 @@ export interface PrepaidPurchase {
     regular_price: number
     hours: number
     validity_months: number
+  }
+}
+
+/**
+ * 전화번호로 선불권 구매 내역 직접 조회 (서버 액션)
+ */
+export async function getPrepaidByPhone(phone: string): Promise<{ success: boolean; data: PrepaidPurchase[]; error?: string }> {
+  try {
+    const supabase = await createServiceRoleClient()
+    const normalizedPhone = phone.replace(/[^0-9]/g, '')
+
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('phone', normalizedPhone)
+      .eq('status', 'approved')
+      .single()
+
+    if (userError || !user) {
+      return { success: false, data: [], error: '사용자를 찾을 수 없습니다.' }
+    }
+
+    const { data: purchases, error } = await supabase
+      .from('prepaid_purchases')
+      .select('*, product:prepaid_products(*)')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+
+    if (error) return { success: false, data: [], error: error.message }
+    return { success: true, data: (purchases || []) as PrepaidPurchase[] }
+  } catch (e: any) {
+    return { success: false, data: [], error: e.message }
   }
 }
 
