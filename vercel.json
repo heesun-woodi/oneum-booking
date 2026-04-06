@@ -26,15 +26,7 @@
     },
     {
       "path": "/api/cron/finance-alert-follow",
-      "schedule": "0 16 * * *"
-    },
-    {
-      "path": "/api/cron/finance-alert-first",
-      "schedule": "0 21 * * *"
-    },
-    {
-      "path": "/api/cron/finance-alert-final",
-      "schedule": "30 23 * * *"
+      "schedule": "0 4 * * *"
     },
     {
       "path": "/api/cron/prepaid-auto-cancel",
