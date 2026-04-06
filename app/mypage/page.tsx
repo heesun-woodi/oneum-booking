@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { getBookingsByHousehold, getPastBookingsByHousehold, getBookingsByUserId, getPastBookingsByUserId } from '@/app/actions/bookings'
+import { getBookingsByHousehold, getPastBookingsByHousehold, getBookingsByUserId, getPastBookingsByUserId, cancelBooking } from '@/app/actions/bookings'
 import { getMonthlyUsage, UsageCount } from '@/app/actions/usage'
 import { changePassword } from '@/app/actions/auth'
 import { getPrepaidByPhone } from '@/app/actions/prepaid'
@@ -236,7 +236,20 @@ export default function MyPage() {
 
         {/* 탭 콘텐츠 */}
         {tab === 'upcoming' && (
-          <BookingList bookings={upcomingBookings} emptyMsg="예정된 예약이 없습니다." />
+          <BookingList
+            bookings={upcomingBookings}
+            emptyMsg="예정된 예약이 없습니다."
+            onCancel={async (id) => {
+              if (!confirm('예약을 취소하시겠습니까?')) return
+              const result = await cancelBooking(id)
+              if (result.success) {
+                alert('예약이 취소되었습니다.')
+                loadAll(session)
+              } else {
+                alert(result.error || '취소에 실패했습니다.')
+              }
+            }}
+          />
         )}
         {tab === 'past' && (
           <BookingList bookings={pastBookings} emptyMsg="지난 예약 내역이 없습니다." isPast />
@@ -257,11 +270,14 @@ function BookingList({
   bookings,
   emptyMsg,
   isPast = false,
+  onCancel,
 }: {
   bookings: Booking[]
   emptyMsg: string
   isPast?: boolean
+  onCancel?: (id: string) => void
 }) {
+  const today = new Date().toISOString().split('T')[0]
   if (bookings.length === 0) {
     return (
       <div className="bg-white rounded-2xl shadow-sm p-10 text-center text-gray-400">
@@ -298,6 +314,16 @@ function BookingList({
                 {statusInfo.label}
               </span>
             </div>
+            {onCancel && b.booking_date > today && (
+              <div className="mt-3 pt-3 border-t border-gray-100">
+                <button
+                  onClick={() => onCancel(b.id)}
+                  className="text-sm text-red-500 font-medium hover:text-red-700"
+                >
+                  예약 취소
+                </button>
+              </div>
+            )}
           </div>
         )
       })}
