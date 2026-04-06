@@ -485,6 +485,19 @@ function PrepaidList({ purchases, userId, onRefresh }: {
                 <p className="text-xs text-yellow-600 bg-yellow-50 rounded-lg px-3 py-2">
                   입금 확인 대기 중입니다. 입금 후 관리자 확인 시 활성화됩니다.
                 </p>
+                <div className="bg-gray-50 rounded-lg px-3 py-2 space-y-1">
+                  <p className="text-xs text-gray-500">입금 계좌</p>
+                  <p className="text-xs text-gray-700">카카오뱅크 · 정상은</p>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText('7979-72-56275')
+                      alert('계좌번호가 복사되었습니다.')
+                    }}
+                    className="text-sm font-bold text-blue-600 hover:text-blue-700 active:text-blue-800"
+                  >
+                    7979-72-56275 복사
+                  </button>
+                </div>
                 <button
                   onClick={() => handleCancelPending(p.id)}
                   className="w-full py-2 text-sm font-medium text-gray-500 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
