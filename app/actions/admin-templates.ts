@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceRoleClient } from '@/lib/supabase/server'
 import { sendSMS, sendAuto } from '@/lib/solapi'
 
 // ===== 타입 정의 =====
@@ -293,62 +293,137 @@ export async function deleteTemplate(id: string): Promise<ActionResult> {
 // ===== 테스트 발송 =====
 
 /**
- * 템플릿 테스트 발송
- * @param templateId - 템플릿 ID
- * @param testPhone - 수신 전화번호
- * @param testVariables - 테스트용 변수 값
+ * 템플릿 타입별 실제 DB 데이터로 변수 자동 생성
+ */
+async function getAutoTestVariables(typeCode: string): Promise<Record<string, string>> {
+  const supabase = await createServiceRoleClient()
+  const vars: Record<string, string> = {}
+
+  const korDate = (d: string) =>
+    new Date(d).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })
+  const adminUrl = process.env.NEXT_PUBLIC_APP_URL
+    ? `${process.env.NEXT_PUBLIC_APP_URL}/admin/payments`
+    : 'https://oneum.vercel.app/admin/payments'
+
+  // 예약 관련 템플릿
+  if (['2-1','2-2','2-3','3-1','3-2','4-1','4-2','4-3'].includes(typeCode)) {
+    const { data: b } = await supabase
+      .from('bookings').select('*')
+      .neq('status', 'cancelled')
+      .order('created_at', { ascending: false })
+      .limit(1).maybeSingle()
+
+    if (b) {
+      const deadline = new Date(b.booking_date)
+      deadline.setDate(deadline.getDate() - 1)
+      vars.name     = b.name || '홍길동'
+      vars.household = b.household || '101호'
+      vars.date     = korDate(b.booking_date)
+      vars.time     = `${b.start_time} ~ ${b.end_time}`
+      vars.space    = b.space === 'nolter' ? '놀터' : '방음실'
+      vars.amount   = (b.amount || 0).toLocaleString()
+      vars.account  = process.env.BANK_ACCOUNT || '계좌정보없음'
+      vars.deadline = korDate(deadline.toISOString().split('T')[0])
+      vars.season   = '봄'
+    }
+  }
+
+  // 미입금 예약 알림 (5-2)
+  if (typeCode === '5-2') {
+    const today = new Date().toISOString().split('T')[0]
+    const { data: bookings } = await supabase
+      .from('bookings').select('*')
+      .eq('payment_status', 'pending').eq('status', 'pending')
+      .gt('amount', 0).gte('booking_date', today).limit(5)
+
+    const list = (bookings || [])
+      .map(b => `${b.name}${b.household ? ` (${b.household})` : ''} - ${korDate(b.booking_date)} ${b.start_time}~${b.end_time} (${b.space === 'nolter' ? '놀터' : '방음실'}) ${b.amount.toLocaleString()}원`)
+      .join('\n')
+
+    vars.count    = (bookings?.length || 0).toString()
+    vars.list     = list || '(미입금 예약 없음)'
+    vars.adminUrl = adminUrl
+  }
+
+  // 가입 승인/거부 (1-2, 1-3)
+  if (['1-2','1-3'].includes(typeCode)) {
+    const { data: u } = await supabase
+      .from('users').select('*')
+      .order('created_at', { ascending: false })
+      .limit(1).maybeSingle()
+    vars.name      = u?.name || '홍길동'
+    vars.household = u?.household || '101호'
+    vars.reason    = '가입 요건 미충족 (테스트)'
+  }
+
+  // 환불 안내 (5-3)
+  if (typeCode === '5-3') {
+    const { data: b } = await supabase
+      .from('bookings').select('*')
+      .order('created_at', { ascending: false })
+      .limit(1).maybeSingle()
+    vars.name   = b?.name || '홍길동'
+    vars.phone  = b?.phone || '01012345678'
+    vars.amount = (b?.amount || 0).toLocaleString()
+    vars.date   = b ? korDate(b.booking_date) : korDate(new Date().toISOString())
+  }
+
+  // 회원가입 신청 알림 (6-1)
+  if (typeCode === '6-1') {
+    const { data: u } = await supabase
+      .from('users').select('*')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false })
+      .limit(1).maybeSingle()
+    vars.name      = u?.name || '홍길동'
+    vars.household = u?.household || '101호'
+    vars.phone     = u?.phone || '01012345678'
+    vars.adminUrl  = process.env.NEXT_PUBLIC_APP_URL
+      ? `${process.env.NEXT_PUBLIC_APP_URL}/admin`
+      : 'https://oneum.vercel.app/admin'
+  }
+
+  return vars
+}
+
+/**
+ * 템플릿 테스트 발송 (실제 DB 데이터로 변수 자동 생성)
  */
 export async function sendTestMessage(
   templateId: string,
   testPhone: string,
-  testVariables: Record<string, string>
 ): Promise<ActionResult<{ messageId?: string; preview: string }>> {
   try {
     // 1. 템플릿 조회
     const result = await getTemplateById(templateId)
-    
     if (!result.success || !result.data) {
       return { success: false, error: '템플릿을 찾을 수 없습니다' }
     }
-    
     const template = result.data
-    
-    // 2. 변수 치환 (content에서 직접 추출 + testVariables 값 적용)
-    const allVars = await extractVariables(template.content)
+
+    // 2. 실제 DB 데이터로 변수 자동 생성
+    const autoVars = await getAutoTestVariables(template.type_code)
+
+    // 3. 변수 치환
     let message = template.content
-    for (const key of allVars) {
-      const value = testVariables[key] ?? ''
-      message = message.replaceAll(`{${key}}`, value)
-    }
-    // testVariables에만 있는 키도 추가 치환
-    for (const [key, value] of Object.entries(testVariables)) {
+    for (const [key, value] of Object.entries(autoVars)) {
       message = message.replaceAll(`{${key}}`, value)
     }
 
-    // 3. 전화번호 정리
+    // 4. 전화번호 정리
     const cleanPhone = testPhone.replace(/[^0-9]/g, '')
     if (cleanPhone.length < 10) {
       return { success: false, error: '올바른 전화번호를 입력하세요' }
     }
-    
-    // 4. Solapi 발송 (90자 초과 시 LMS 자동 전환)
+
+    // 5. 발송 (90byte 초과 시 LMS 자동 전환)
     const sendResult = await sendAuto(cleanPhone, message)
-    
+
     if (!sendResult.success) {
-      return { 
-        success: false, 
-        error: sendResult.error || '발송 실패',
-        data: { preview: message }
-      }
+      return { success: false, error: sendResult.error || '발송 실패', data: { preview: message } }
     }
-    
-    return { 
-      success: true, 
-      data: {
-        messageId: sendResult.msgId,
-        preview: message
-      }
-    }
+
+    return { success: true, data: { messageId: sendResult.msgId, preview: message } }
   } catch (error: any) {
     console.error('Send test message error:', error)
     return { success: false, error: error.message }

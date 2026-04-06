@@ -101,19 +101,10 @@ export default function EditTemplatePage({ params }: { params: { id: string } })
       alert('전화번호를 입력하세요')
       return
     }
-    
-    // 변수 검증 (필수 변수가 비어있는지 확인)
-    const emptyVars = Object.entries(testVars).filter(([_, v]) => !v.trim())
-    if (emptyVars.length > 0) {
-      const confirm = window.confirm(
-        `일부 변수가 비어있습니다: ${emptyVars.map(([k]) => k).join(', ')}\n계속하시겠습니까?`
-      )
-      if (!confirm) return
-    }
-    
+
     setSending(true)
-    
-    const result = await sendTestMessage(params.id, testPhone, testVars)
+
+    const result = await sendTestMessage(params.id, testPhone)
     
     if (result.success) {
       alert('테스트 발송 완료!')
@@ -264,27 +255,9 @@ export default function EditTemplatePage({ params }: { params: { id: string } })
             </div>
             
             {template.variables && template.variables.length > 0 && (
-              <>
-                <div className="border-t border-gray-200 pt-4">
-                  <p className="text-sm font-medium text-gray-700 mb-3">변수 입력</p>
-                  <div className="space-y-3">
-                    {template.variables.map((v: string) => (
-                      <div key={v}>
-                        <label className="block text-sm text-gray-600 mb-1">
-                          {v}
-                        </label>
-                        <input
-                          type="text"
-                          value={testVars[v] || ''}
-                          onChange={(e) => setTestVars({ ...testVars, [v]: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          placeholder={`예: ${getExampleValue(v)}`}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </>
+              <p className="text-xs text-gray-500">
+                💡 변수({template.variables.map((v: string) => `{${v}}`).join(', ')})는 실제 DB 데이터로 자동 적용됩니다
+              </p>
             )}
             
             <button
@@ -302,10 +275,10 @@ export default function EditTemplatePage({ params }: { params: { id: string } })
               실시간 미리보기
             </label>
             <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 whitespace-pre-wrap text-sm h-80 overflow-auto">
-              {preview || '변수를 입력하면 미리보기가 표시됩니다.'}
+              {preview || form.content || '템플릿 내용이 여기에 표시됩니다.'}
             </div>
             <p className="text-xs text-gray-500 mt-2">
-              💡 변수를 입력하면 실시간으로 미리보기가 업데이트됩니다
+              💡 테스트 발송 후 실제 적용된 메시지가 표시됩니다
             </p>
           </div>
         </div>
