@@ -469,17 +469,20 @@ export default function Home() {
   // ===== 시간 선택 핸들러 (다중 선택) =====
   
   const handleTimeToggle = (time: string) => {
+    // 다음 30분 슬롯 계산
+    const [h, m] = time.split(':').map(Number)
+    const nextMinutes = h * 60 + m + 30
+    const nextTime = `${String(Math.floor(nextMinutes / 60)).padStart(2, '0')}:${String(nextMinutes % 60).padStart(2, '0')}`
+
     setSelectedTimes(prev => {
       if (prev.includes(time)) {
-        // 이미 선택된 시간이면 제거
-        const newTimes = prev.filter(t => t !== time)
-        console.log('⏰ 시간 선택 해제:', time, '→', newTimes)
-        return newTimes
+        // 선택 취소: 클릭한 슬롯 + 다음 30분 슬롯 함께 제거
+        return prev.filter(t => t !== time && t !== nextTime).sort()
       } else {
-        // 새로 선택
-        const newTimes = [...prev, time].sort()
-        console.log('⏰ 시간 선택 추가:', time, '→', newTimes)
-        return newTimes
+        // 선택: 클릭한 슬롯 + 다음 30분 슬롯 함께 추가
+        const toAdd = [time]
+        if (!prev.includes(nextTime)) toAdd.push(nextTime)
+        return [...prev, ...toAdd].sort()
       }
     })
   }
