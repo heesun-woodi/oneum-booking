@@ -87,12 +87,13 @@ export async function login(data: {
   phone: string
   password: string
 }) {
-  // 1. 전화번호로 사용자 조회
+  // 1. 전화번호로 사용자 조회 (하이픈 유무 무관하게 조회)
   const normalizedPhone = data.phone.replace(/[^0-9]/g, '')
+  const formattedPhone = normalizedPhone.replace(/(\d{3})(\d{4})(\d{4})/, '$1-$2-$3')
   const { data: user, error } = await supabase
     .from('users')
     .select('id, household, name, phone, password_hash, status, is_admin, is_resident')
-    .eq('phone', normalizedPhone)
+    .or(`phone.eq.${normalizedPhone},phone.eq.${formattedPhone}`)
     .single()
 
   if (error || !user) {
