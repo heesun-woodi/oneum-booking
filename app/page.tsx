@@ -2,7 +2,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createBooking, getBookings, getBookingsByPhone, getBookingsByHousehold, cancelBooking, getMemberNolterCount, CreateBookingInput } from './actions/bookings'
+import { createBooking, getBookings, getBookingsByPhone, getBookingsByHousehold, getBookingsByUserId, cancelBooking, getMemberNolterCount, CreateBookingInput } from './actions/bookings'
 import { signup, login, resetPassword } from './actions/auth'
 import { getSpacesInfo, getGeneralRulesFromDB, SpacesInfo, GeneralRules } from './actions/structured-settings'
 import { getMyPrepaidPurchases, PrepaidPurchase as PrepaidPurchaseType } from './actions/prepaid'
@@ -721,10 +721,14 @@ export default function Home() {
   const handleFetchMyBookings = async () => {
     // 로그인된 경우: household로 조회
     // 비로그인: 전화번호로 조회
-    if (userSession.isLoggedIn && userSession.household) {
+    if (userSession.isLoggedIn) {
       setIsLoadingBookings(true)
       try {
-        const result = await getBookingsByHousehold(userSession.household)
+        const result = userSession.household?.trim()
+          ? await getBookingsByHousehold(userSession.household)
+          : userSession.userId
+            ? await getBookingsByUserId(userSession.userId)
+            : { success: false, data: [], error: '사용자 정보 없음' }
         if (result.success) {
           setMyBookings(result.data)
           if (result.data.length === 0) {
