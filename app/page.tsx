@@ -669,7 +669,7 @@ export default function Home() {
       return
     }
 
-    alert('회원가입이 완료되었습니다!')
+    alert('회원가입 신청이 되었습니다.\n관리자가 승인한 이후에 로그인 가능합니다.')
     setAuthMode('login')
     
     // 입력 필드 초기화
