@@ -1362,7 +1362,7 @@ export default function Home() {
                       type="tel"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
-                      placeholder="010-0000-0000"
+                      placeholder="01000000000"
                       className="w-full py-3 px-4 border border-gray-300 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
@@ -1453,7 +1453,7 @@ export default function Home() {
                       type="tel"
                       value={authPhone}
                       onChange={(e) => setAuthPhone(e.target.value)}
-                      placeholder="010-0000-0000"
+                      placeholder="01000000000"
                       className="w-full py-3 px-4 border border-gray-300 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
@@ -1534,7 +1534,7 @@ export default function Home() {
                       type="tel"
                       value={authPhone}
                       onChange={(e) => setAuthPhone(e.target.value)}
-                      placeholder="010-0000-0000"
+                      placeholder="01000000000"
                       className="w-full py-3 px-4 border border-gray-300 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
@@ -1696,7 +1696,7 @@ export default function Home() {
                       type="tel"
                       value={managePhone}
                       onChange={(e) => setManagePhone(e.target.value)}
-                      placeholder="010-0000-0000"
+                      placeholder="01000000000"
                       className="w-full py-3 px-4 border border-gray-300 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
