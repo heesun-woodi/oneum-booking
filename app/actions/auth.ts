@@ -12,6 +12,19 @@ export async function signup(data: {
   password: string
   isResident?: boolean // Phase 6.1: 세대원 여부 추가
 }) {
+  // 전화번호 중복 체크 (세대원/비세대원 무관)
+  const normalizedPhone = data.phone.replace(/[^0-9]/g, '')
+  const { data: existingPhone } = await supabase
+    .from('users')
+    .select('id')
+    .eq('phone', normalizedPhone)
+    .in('status', ['pending', 'approved'])
+    .maybeSingle()
+
+  if (existingPhone) {
+    return { success: false, error: '이미 가입된 전화번호입니다.' }
+  }
+
   // Phase 6.1: 세대원인 경우에만 중복 체크 (household + name)
   if (data.isResident && data.household) {
     const { data: existing } = await supabase
@@ -35,7 +48,7 @@ export async function signup(data: {
     .insert({
       household: data.isResident ? data.household : null, // Phase 6.1: 일반 회원은 null
       name: data.name,
-      phone: data.phone,
+      phone: normalizedPhone,
       password_hash: passwordHash,
       status: 'pending',  // 가입 대기 상태
       is_resident: data.isResident ?? false // Phase 6.1: 세대원 여부
