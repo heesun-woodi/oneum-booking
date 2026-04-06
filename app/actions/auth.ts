@@ -20,6 +20,7 @@ export async function signup(data: {
     .select('id')
     .eq('phone', normalizedPhone)
     .in('status', ['pending', 'approved'])
+    .is('deleted_at', null)
     .maybeSingle()
 
   if (existingPhone) {
@@ -97,12 +98,12 @@ export async function login(data: {
 
   const adminClient = await createServiceRoleClient()
   const { data: u1 } = await adminClient
-    .from('users').select(selectFields).eq('phone', normalizedPhone).maybeSingle()
+    .from('users').select(selectFields).eq('phone', normalizedPhone).is('deleted_at', null).maybeSingle()
   if (u1) {
     user = u1
   } else {
     const { data: u2 } = await adminClient
-      .from('users').select(selectFields).eq('phone', formattedPhone).maybeSingle()
+      .from('users').select(selectFields).eq('phone', formattedPhone).is('deleted_at', null).maybeSingle()
     if (u2) user = u2
   }
 
