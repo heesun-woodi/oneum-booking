@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
         *,
         product:prepaid_products(*)
       `)
-      .eq('user_id', user_id)
+      .eq('user_id', user.id)
       .order('expires_at', { ascending: false, nullsFirst: false })
       .order('created_at', { ascending: false })
 
