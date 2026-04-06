@@ -597,7 +597,7 @@ export default function Home() {
 
       // 🐛 FIX: userId 디버깅
       console.log('🔍 [LOGIN] result.user 전체:', result.user)
-      console.log('🔍 [LOGIN] result.user.id:', result.user.id)
+      console.log('🔍 [LOGIN] result.user.id:', result.user?.id)
       
       // 세션 저장 (세대 정보 + 관리자 권한 자동 포함!)
       const session: UserSession = {
