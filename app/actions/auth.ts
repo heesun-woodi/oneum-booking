@@ -97,14 +97,16 @@ export async function login(data: {
   let user = null
 
   const adminClient = await createServiceRoleClient()
-  const { data: u1 } = await adminClient
-    .from('users').select(selectFields).eq('phone', normalizedPhone).is('deleted_at', null).maybeSingle()
-  if (u1) {
-    user = u1
+  const { data: r1 } = await adminClient
+    .from('users').select(selectFields).eq('phone', normalizedPhone).is('deleted_at', null)
+    .order('created_at', { ascending: false }).limit(1)
+  if (r1 && r1.length > 0) {
+    user = r1[0]
   } else {
-    const { data: u2 } = await adminClient
-      .from('users').select(selectFields).eq('phone', formattedPhone).is('deleted_at', null).maybeSingle()
-    if (u2) user = u2
+    const { data: r2 } = await adminClient
+      .from('users').select(selectFields).eq('phone', formattedPhone).is('deleted_at', null)
+      .order('created_at', { ascending: false }).limit(1)
+    if (r2 && r2.length > 0) user = r2[0]
   }
 
   if (!user) {
