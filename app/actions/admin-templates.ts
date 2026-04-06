@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { sendSMS } from '@/lib/solapi'
+import { sendSMS, sendAuto } from '@/lib/solapi'
 
 // ===== 타입 정의 =====
 export interface MessageTemplate {
@@ -325,11 +325,8 @@ export async function sendTestMessage(
       return { success: false, error: '올바른 전화번호를 입력하세요' }
     }
     
-    // 4. Solapi 발송
-    const sendResult = await sendSMS({
-      to: cleanPhone,
-      text: message,
-    })
+    // 4. Solapi 발송 (90자 초과 시 LMS 자동 전환)
+    const sendResult = await sendAuto(cleanPhone, message)
     
     if (!sendResult.success) {
       return { 
