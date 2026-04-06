@@ -121,13 +121,10 @@ export function PrepaidCard({ purchase, onRefund }: PrepaidCardProps) {
         </div>
       </div>
 
-      {/* 구매일 & 유효기간 */}
+      {/* 구매일 */}
       <div className="space-y-2 text-sm text-gray-600 mb-4">
         <div>
           <span className="font-medium">구매일:</span> {purchaseDate}
-        </div>
-        <div>
-          <span className="font-medium">유효기간:</span> {getExpiryText()}
         </div>
       </div>
 

@@ -197,14 +197,10 @@ export function PrepaidPurchaseModal({
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div className="text-sm">
                       <div className="bg-white rounded-lg p-3">
                         <p className="text-gray-600 text-xs mb-1">구성</p>
                         <p className="font-semibold text-gray-900">1시간 × {product.hours}회</p>
-                      </div>
-                      <div className="bg-white rounded-lg p-3">
-                        <p className="text-gray-600 text-xs mb-1">유효기간</p>
-                        <p className="font-semibold text-gray-900">구매 후 {product.validity_months}개월</p>
                       </div>
                     </div>
 

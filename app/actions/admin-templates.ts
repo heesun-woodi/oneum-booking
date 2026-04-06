@@ -383,6 +383,31 @@ async function getAutoTestVariables(typeCode: string): Promise<Record<string, st
       : 'https://oneum.vercel.app/admin'
   }
 
+  // 선불권 관련 (7-1, 7-2, 7-3)
+  if (['7-1', '7-2', '7-3'].includes(typeCode)) {
+    const { data: u } = await supabase
+      .from('users').select('*')
+      .order('created_at', { ascending: false })
+      .limit(1).maybeSingle()
+    const { data: p } = await supabase
+      .from('prepaid_products').select('*')
+      .eq('is_active', true)
+      .limit(1).maybeSingle()
+    const deadline = new Date()
+    deadline.setHours(deadline.getHours() + 48)
+    vars.name        = u?.name || '홍길동'
+    vars.household   = u?.household || '101호'
+    vars.phone       = u?.phone || '01012345678'
+    vars.productName = p?.name || '10회 선불권'
+    vars.amount      = (p?.price || 100000).toLocaleString()
+    vars.account     = process.env.BANK_ACCOUNT || '계좌정보없음'
+    vars.deadline    = deadline.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+    vars.totalHours  = (p?.hours || 10).toString()
+    vars.adminUrl    = process.env.NEXT_PUBLIC_APP_URL
+      ? `${process.env.NEXT_PUBLIC_APP_URL}/admin/prepaid`
+      : 'https://oneum.vercel.app/admin/prepaid'
+  }
+
   return vars
 }
 

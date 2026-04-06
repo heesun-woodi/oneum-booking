@@ -12,6 +12,7 @@ const CATEGORIES = [
   { key: 'reminder', label: '리마인더' },
   { key: 'finance', label: '재무' },
   { key: 'admin', label: '관리자' },
+  { key: 'prepaid', label: '선불권' },
 ]
 
 interface MessageTemplate {

@@ -453,11 +453,6 @@ function PrepaidList({ purchases, userId, onRefresh }: {
                     style={{ width: `${100 - usagePercent}%` }}
                   />
                 </div>
-                {p.expires_at && (
-                  <p className="text-xs text-gray-400 mb-3">
-                    만료일 {new Date(p.expires_at).toLocaleDateString('ko-KR')}
-                  </p>
-                )}
                 {userId && (
                   <button
                     onClick={() => handleRefund(p.id, p.product?.name ?? '선불권', usedHours, p.product?.price ?? 0)}
