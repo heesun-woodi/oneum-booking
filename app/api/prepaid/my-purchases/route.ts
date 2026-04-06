@@ -16,34 +16,31 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const user_id = searchParams.get('user_id')
+    const phone = searchParams.get('phone')
 
-    // 필수 파라미터 검증
-    if (!user_id) {
+    if (!user_id && !phone) {
       return NextResponse.json(
-        { 
-          success: false, 
-          error: '사용자 ID가 필요합니다.' 
-        },
+        { success: false, error: '사용자 ID 또는 전화번호가 필요합니다.' },
         { status: 400 }
       )
     }
 
     const supabase = await createServiceRoleClient()
 
-    // 사용자 확인
-    const { data: user, error: userError } = await supabase
-      .from('users')
-      .select('id')
-      .eq('id', user_id)
-      .eq('status', 'approved')
-      .single()
+    // user_id 또는 phone으로 사용자 조회
+    let userQuery = supabase.from('users').select('id').eq('status', 'approved')
+    if (user_id) {
+      userQuery = userQuery.eq('id', user_id)
+    } else {
+      const normalizedPhone = phone!.replace(/[^0-9]/g, '')
+      userQuery = userQuery.eq('phone', normalizedPhone)
+    }
+
+    const { data: user, error: userError } = await userQuery.single()
 
     if (userError || !user) {
       return NextResponse.json(
-        { 
-          success: false, 
-          error: '유효하지 않은 사용자입니다.' 
-        },
+        { success: false, error: '유효하지 않은 사용자입니다.' },
         { status: 403 }
       )
     }

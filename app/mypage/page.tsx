@@ -80,9 +80,21 @@ export default function MyPage() {
 
   async function loadAll(s: UserSession) {
     setLoading(true)
+    // userId 없으면 phone으로 조회
+    let userId = s.userId
+    if (!userId && s.phone) {
+      const res = await fetch(`/api/prepaid/my-purchases?phone=${s.phone}`)
+      const json = await res.json()
+      if (json.success) {
+        setPrepaidPurchases(json.purchases)
+        await Promise.all([loadBookings(s.household), loadUsage(s.household)])
+        setLoading(false)
+        return
+      }
+    }
     await Promise.all([
       loadBookings(s.household),
-      s.userId ? loadPrepaid(s.userId) : Promise.resolve(),
+      userId ? loadPrepaid(userId) : Promise.resolve(),
       loadUsage(s.household),
     ])
     setLoading(false)
