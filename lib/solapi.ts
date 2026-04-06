@@ -57,10 +57,17 @@ export async function sendSMS({
     };
     
   } catch (error: any) {
+    const failedList = error?.failedMessageList ?? error?.response?.failedMessageList
+    if (failedList?.length) {
+      const detail = failedList[0]
+      console.error('❌ SMS 발송 실패 상세:', JSON.stringify(detail))
+      const reason = detail?.errorCode ? `[${detail.errorCode}] ${detail?.errorMessage || ''}` : JSON.stringify(detail)
+      return { success: false, error: `발송 실패: ${reason}` }
+    }
     console.error('❌ SMS 발송 실패:', error);
-    return { 
-      success: false, 
-      error: error.message || '알 수 없는 오류가 발생했습니다.' 
+    return {
+      success: false,
+      error: error.message || '알 수 없는 오류가 발생했습니다.'
     };
   }
 }
@@ -106,10 +113,17 @@ export async function sendLMS({
     };
     
   } catch (error: any) {
+    const failedList = error?.failedMessageList ?? error?.response?.failedMessageList
+    if (failedList?.length) {
+      const detail = failedList[0]
+      console.error('❌ LMS 발송 실패 상세:', JSON.stringify(detail))
+      const reason = detail?.errorCode ? `[${detail.errorCode}] ${detail?.errorMessage || ''}` : JSON.stringify(detail)
+      return { success: false, error: `발송 실패: ${reason}` }
+    }
     console.error('❌ LMS 발송 실패:', error);
-    return { 
-      success: false, 
-      error: error.message || '알 수 없는 오류가 발생했습니다.' 
+    return {
+      success: false,
+      error: error.message || '알 수 없는 오류가 발생했습니다.'
     };
   }
 }
