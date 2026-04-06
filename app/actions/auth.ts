@@ -90,13 +90,21 @@ export async function login(data: {
   // 1. 전화번호로 사용자 조회 (하이픈 유무 무관하게 조회)
   const normalizedPhone = data.phone.replace(/[^0-9]/g, '')
   const formattedPhone = normalizedPhone.replace(/(\d{3})(\d{4})(\d{4})/, '$1-$2-$3')
-  const { data: user, error } = await supabase
-    .from('users')
-    .select('id, household, name, phone, password_hash, status, is_admin, is_resident')
-    .or(`phone.eq.${normalizedPhone},phone.eq.${formattedPhone}`)
-    .single()
 
-  if (error || !user) {
+  const selectFields = 'id, household, name, phone, password_hash, status, is_admin, is_resident'
+  let user = null
+
+  const { data: u1 } = await supabase
+    .from('users').select(selectFields).eq('phone', normalizedPhone).maybeSingle()
+  if (u1) {
+    user = u1
+  } else {
+    const { data: u2 } = await supabase
+      .from('users').select(selectFields).eq('phone', formattedPhone).maybeSingle()
+    if (u2) user = u2
+  }
+
+  if (!user) {
     return { success: false, error: '전화번호를 찾을 수 없습니다.' }
   }
   
