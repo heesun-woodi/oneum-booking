@@ -94,13 +94,18 @@ export async function login(data: {
   const selectFields = 'id, household, name, phone, password_hash, status, is_admin, is_resident'
   let user = null
 
-  const { data: u1 } = await supabase
+  console.log('🔍 [LOGIN] normalizedPhone:', normalizedPhone)
+  console.log('🔍 [LOGIN] formattedPhone:', formattedPhone)
+
+  const { data: u1, error: e1 } = await supabase
     .from('users').select(selectFields).eq('phone', normalizedPhone).maybeSingle()
+  console.log('🔍 [LOGIN] u1 result:', u1, 'error:', e1)
   if (u1) {
     user = u1
   } else {
-    const { data: u2 } = await supabase
+    const { data: u2, error: e2 } = await supabase
       .from('users').select(selectFields).eq('phone', formattedPhone).maybeSingle()
+    console.log('🔍 [LOGIN] u2 result:', u2, 'error:', e2)
     if (u2) user = u2
   }
 
