@@ -484,7 +484,7 @@ export async function getBookingsByUserId(userId: string) {
       .from('bookings')
       .select('*')
       .eq('user_id', userId)
-      .eq('status', 'confirmed')
+      .in('status', ['confirmed', 'pending'])
       .gte('booking_date', today)
       .order('booking_date', { ascending: true })
     if (error) throw error
