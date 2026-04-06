@@ -266,10 +266,11 @@ export default function Home() {
 
   // ===== 상수 =====
   
-  const timeSlots = Array.from({ length: 13 }, (_, i) => {
-    const hour = i + 9
-    return `${hour.toString().padStart(2, '0')}:00`
-  })
+  const timeSlots: string[] = []
+  for (let h = 9; h <= 21; h++) {
+    timeSlots.push(`${String(h).padStart(2, '0')}:00`)
+    if (h < 21) timeSlots.push(`${String(h).padStart(2, '0')}:30`)
+  }
   
   const households = ['201', '202', '301', '302', '401', '402', '501']
 
@@ -327,25 +328,27 @@ export default function Home() {
     const dayBookings = bookingsData.filter(b => b.booking_date === dateStr && b.space === selectedSpace)
     
     console.log(`🔍 DEBUG: ${dateStr} ${selectedSpace} 예약 = ${dayBookings.length}건`, dayBookings)
-    // 각 예약의 start_time부터 end_time까지 모든 시간 슬롯 추출 (시간 → 예약자 이름)
+    // 각 예약의 start_time부터 end_time까지 모든 30분 슬롯 추출 (시간 → 예약자 이름)
     const bookedTimes: Record<string, string> = {}
     dayBookings.forEach(booking => {
       const start = booking.start_time.substring(0, 5) // "14:00:00" → "14:00"
       const end = booking.end_time.substring(0, 5)
 
       console.log(`🔍 DEBUG: 예약 ${booking.id}: start=${start}, end=${end}`)
-      const startHour = parseInt(start.split(':')[0])
-      let endHour = parseInt(end.split(':')[0])
+      const [startH, startM] = start.split(':').map(Number)
+      const [endH, endM] = end.split(':').map(Number)
+      let startMinutes = startH * 60 + startM
+      let endMinutes = endH * 60 + endM
 
-      console.log(`🔍 DEBUG: startHour=${startHour}, endHour=${endHour}`)
-      // ⭐ FIX: start_time == end_time일 때 1시간으로 처리
-      if (endHour === startHour) {
-        endHour = startHour + 1
-        console.log(`🔧 ${dateStr} ${start}~${end} → 1시간으로 처리 (${start}~${endHour}:00)`)
+      console.log(`🔍 DEBUG: startMinutes=${startMinutes}, endMinutes=${endMinutes}`)
+      // ⭐ FIX: start_time == end_time일 때 30분으로 처리
+      if (endMinutes === startMinutes) {
+        endMinutes = startMinutes + 30
+        console.log(`🔧 ${dateStr} ${start}~${end} → 30분으로 처리`)
       }
 
-      for (let h = startHour; h < endHour; h++) {
-        const timeSlot = `${h.toString().padStart(2, '0')}:00`
+      for (let m = startMinutes; m < endMinutes; m += 30) {
+        const timeSlot = `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
         if (!(timeSlot in bookedTimes)) {
           bookedTimes[timeSlot] = booking.name || '예약됨'
           console.log(`➕ Added time slot: ${timeSlot} (${booking.name})`)
@@ -396,24 +399,25 @@ export default function Home() {
     
     const dayBookings = bookingsData.filter(b => b.booking_date === dateStr && b.space === selectedSpace)
     
-    // 각 예약의 시간 합계
-    const totalHours = dayBookings.reduce((sum, booking) => {
+    // 각 예약의 시간 합계 (30분 단위)
+    const totalMinutes = dayBookings.reduce((sum, booking) => {
       const start = booking.start_time.substring(0, 5) // "14:00:00" → "14:00"
       const end = booking.end_time.substring(0, 5)
-      
-      const startHour = parseInt(start.split(':')[0])
-      let endHour = parseInt(end.split(':')[0])
-      
-      // start_time == end_time일 때 1시간으로 처리
-      if (endHour === startHour) {
-        endHour = startHour + 1
+
+      const [startH, startM] = start.split(':').map(Number)
+      const [endH, endM] = end.split(':').map(Number)
+      let startMinutes = startH * 60 + startM
+      let endMinutes = endH * 60 + endM
+
+      // start_time == end_time일 때 30분으로 처리
+      if (endMinutes === startMinutes) {
+        endMinutes = startMinutes + 30
       }
-      
-      const hours = endHour - startHour
-      return sum + hours
+
+      return sum + (endMinutes - startMinutes)
     }, 0)
-    
-    return totalHours
+
+    return totalMinutes / 60
   }
 
   // ===== 날짜 클릭 핸들러 =====
@@ -529,7 +533,7 @@ export default function Home() {
     if (result.success) {
       console.log('=== ✅ 예약 완료 ===')
       console.log('날짜:', bookingDate)
-      console.log('시간:', selectedTimes.join(', '), `(총 ${selectedTimes.length}시간)`)
+      console.log('시간:', selectedTimes.join(', '), `(총 ${selectedTimes.length * 0.5}시간)`)
       console.log('공간:', selectedSpace === 'nolter' ? '놀터' : '방음실')
       console.log('예약자:', userSession.isLoggedIn ? `${userSession.household}호 ${name}` : name)
       console.log('연락처:', phone)
@@ -543,10 +547,10 @@ export default function Home() {
       } else if (result.data?.payment_method === 'nolter_paid') {
         paymentInfo = `\n\n💰 결제 안내 (이번 달 무료 횟수 초과)\n금액: 10,000원\n계좌: 카카오뱅크 7979-72-56275 (정상은)\n예약자명으로 입금해주세요.`
       } else if (!userSession.isLoggedIn) {
-        paymentInfo = `\n\n💰 결제 안내\n금액: ${selectedTimes.length * 14000}원\n계좌: 카카오뱅크 7979-72-56275 (정상은)\n예약자명으로 입금해주세요.`
+        paymentInfo = `\n\n💰 결제 안내\n금액: ${selectedTimes.length * 7000}원\n계좌: 카카오뱅크 7979-72-56275 (정상은)\n예약자명으로 입금해주세요.`
       }
       
-      alert(`예약이 완료되었습니다!\n\n날짜: ${month}월 ${selectedDate}일\n시간: ${selectedTimes.join(', ')} (총 ${selectedTimes.length}시간)\n공간: ${selectedSpace === 'nolter' ? '놀터' : '방음실'}${paymentInfo}`)
+      alert(`예약이 완료되었습니다!\n\n날짜: ${month}월 ${selectedDate}일\n시간: ${selectedTimes.join(', ')} (총 ${selectedTimes.length * 0.5}시간)\n공간: ${selectedSpace === 'nolter' ? '놀터' : '방음실'}${paymentInfo}`)
       setIsBookingModalOpen(false)
       
       // 예약 목록 새로고침
@@ -1205,7 +1209,7 @@ export default function Home() {
                 </div>
                 {selectedTimes.length > 0 && (
                   <p className="mt-3 text-sm text-blue-600 font-medium">
-                    총 {selectedTimes.length}시간 선택됨: {selectedTimes.join(', ')}
+                    총 {selectedTimes.length * 0.5}시간 선택됨: {selectedTimes.join(', ')}
                   </p>
                 )}
               </div>
@@ -1366,7 +1370,7 @@ export default function Home() {
                   {!userSession.isLoggedIn && selectedTimes.length > 0 && (
                     <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mt-4">
                       <p className="text-sm font-semibold text-yellow-800">
-                        💰 예상 결제 금액: {selectedTimes.length * 14000}원
+                        💰 예상 결제 금액: {selectedTimes.length * 7000}원
                       </p>
                       <p className="text-xs text-yellow-700 mt-1">
                         입금계좌: 카카오뱅크 7979-72-56275 (정상은)

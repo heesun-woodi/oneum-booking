@@ -59,7 +59,7 @@ export function calculatePrepaidUsage(
   }
   
   const regularHours = remainingHours
-  const amount = regularHours * 14000
+  const amount = regularHours * 7000
   const isFullyPrepaid = regularHours === 0
   
   return {

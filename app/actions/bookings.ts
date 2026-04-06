@@ -45,10 +45,11 @@ export async function createBooking(input: CreateBookingInput) {
     
     // 시간대 파싱
     const startTime = input.times[0]
-    // endTime = 마지막 슬롯의 종료 시간 (마지막 시간 + 1시간)
+    // endTime = 마지막 슬롯의 종료 시간 (마지막 슬롯 + 30분)
     const lastTime = input.times[input.times.length - 1]
-    const lastHour = parseInt(lastTime.split(':')[0])
-    const endTime = `${String(lastHour + 1).padStart(2, '0')}:00`
+    const [lastH, lastM] = lastTime.split(':').map(Number)
+    const endMinutes = lastH * 60 + lastM + 30
+    const endTime = `${String(Math.floor(endMinutes / 60)).padStart(2, '0')}:${String(endMinutes % 60).padStart(2, '0')}`
     
     // 전화번호 정규화 (숫자만 저장)
     const normalizedPhone = input.phone.replace(/[^0-9]/g, '')
@@ -148,7 +149,7 @@ export async function createBooking(input: CreateBookingInput) {
           console.log('ℹ️ 사용 가능한 선불권 없음, 일반 예약으로 진행')
         } else {
           const regularHours = remainingToFill
-          const amount = regularHours * 14000
+          const amount = regularHours * 7000
           const paymentMethod = regularHours === 0 ? 'prepaid' : 'mixed'
 
           // 3. RPC 호출 (올바른 JSONB 형식)
@@ -218,7 +219,7 @@ export async function createBooking(input: CreateBookingInput) {
     }
     
     // 기존 로직: 일반 예약 (회원 무료 또는 비회원 유료)
-    const amount = input.memberType === 'member' ? 0 : input.times.length * 14000
+    const amount = input.memberType === 'member' ? 0 : input.times.length * 7000
     
     // 예약 생성
     const { data, error } = await supabase
