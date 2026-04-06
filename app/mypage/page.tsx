@@ -488,15 +488,18 @@ function PrepaidList({ purchases, userId, onRefresh }: {
                 <div className="bg-gray-50 rounded-lg px-3 py-2 space-y-1">
                   <p className="text-xs text-gray-500">입금 계좌</p>
                   <p className="text-xs text-gray-700">카카오뱅크 · 정상은</p>
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText('7979-72-56275')
-                      alert('계좌번호가 복사되었습니다.')
-                    }}
-                    className="text-sm font-bold text-blue-600 hover:text-blue-700 active:text-blue-800"
-                  >
-                    7979-72-56275 복사
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-gray-800">7979-72-56275</span>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText('7979-72-56275')
+                        alert('계좌번호가 복사되었습니다.')
+                      }}
+                      className="text-xs font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded px-2 py-0.5 hover:bg-blue-100 active:bg-blue-200"
+                    >
+                      복사
+                    </button>
+                  </div>
                 </div>
                 <button
                   onClick={() => handleCancelPending(p.id)}
