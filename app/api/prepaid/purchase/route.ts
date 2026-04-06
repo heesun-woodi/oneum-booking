@@ -15,7 +15,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/server'
 import { sendNotification } from '@/lib/notifications/sender'
-import { formatPrepaidSummaryVars } from '@/lib/notifications/templates'
 
 export const dynamic = 'force-dynamic'
 
@@ -106,34 +105,18 @@ export async function POST(request: NextRequest) {
     const account = process.env.BANK_ACCOUNT || ''
     const adminUrl = `${process.env.NEXT_PUBLIC_APP_URL || ''}/admin/prepaid`
 
-    // 7-2: 요약 형식으로 관리자 알림 (1건)
-    const summaryVars = formatPrepaidSummaryVars([{
-      name: user.name,
-      household: (user as { household?: string }).household || undefined,
-      productName: product.name,
-      amount: product.price,
-      deadline,
-    }])
-
-    await Promise.allSettled([
-      sendNotification({
-        type: '7-1',
-        phone: user.phone,
-        variables: {
-          name: user.name,
-          productName: product.name,
-          amount: product.price.toLocaleString(),
-          account,
-          deadline: deadlineStr,
-        },
-        userId: user.id,
-      }),
-      sendNotification({
-        type: '7-2',
-        phone: process.env.FINANCE_PHONE || '',
-        variables: { ...summaryVars, adminUrl },
-      }),
-    ])
+    await sendNotification({
+      type: '7-1',
+      phone: user.phone,
+      variables: {
+        name: user.name,
+        productName: product.name,
+        amount: product.price.toLocaleString(),
+        account,
+        deadline: deadlineStr,
+      },
+      userId: user.id,
+    })
 
     return NextResponse.json({
       success: true,
