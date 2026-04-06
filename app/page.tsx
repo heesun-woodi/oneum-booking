@@ -474,10 +474,16 @@ export default function Home() {
     const nextMinutes = h * 60 + m + 30
     const nextTime = `${String(Math.floor(nextMinutes / 60)).padStart(2, '0')}:${String(nextMinutes % 60).padStart(2, '0')}`
 
+    // 이전 30분 슬롯 계산
+    const prevMinutes = h * 60 + m - 30
+    const prevTime = prevMinutes >= 0
+      ? `${String(Math.floor(prevMinutes / 60)).padStart(2, '0')}:${String(prevMinutes % 60).padStart(2, '0')}`
+      : null
+
     setSelectedTimes(prev => {
       if (prev.includes(time)) {
-        // 선택 취소: 클릭한 슬롯 + 다음 30분 슬롯 함께 제거
-        return prev.filter(t => t !== time && t !== nextTime).sort()
+        // 선택 취소: 클릭한 슬롯 + 이전/다음 30분 슬롯 모두 제거 (페어 처리)
+        return prev.filter(t => t !== time && t !== nextTime && t !== prevTime).sort()
       } else {
         // 선택: 클릭한 슬롯 + 다음 30분 슬롯 함께 추가
         const toAdd = [time]
