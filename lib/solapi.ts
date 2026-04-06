@@ -129,14 +129,26 @@ export async function sendLMS({
 }
 
 /**
+ * EUC-KR 기준 byte 길이 계산 (한글 2byte, ASCII 1byte)
+ */
+function getEucKrByteLength(str: string): number {
+  let len = 0
+  for (let i = 0; i < str.length; i++) {
+    len += str.charCodeAt(i) > 0x7f ? 2 : 1
+  }
+  return len
+}
+
+/**
  * 메시지 길이에 따라 SMS/LMS 자동 선택 (Aligo 호환)
+ * SMS: 90byte 이하, LMS: 초과
  */
 export async function sendAuto(
   phone: string,
   message: string,
   title?: string
 ): Promise<SendResult> {
-  if (message.length <= 90 && !title) {
+  if (getEucKrByteLength(message) <= 90 && !title) {
     return sendSMS({ to: phone, text: message });
   } else {
     return sendLMS({ to: phone, text: message, subject: title || '온음 알림' });
