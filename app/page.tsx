@@ -21,6 +21,7 @@ interface UserSession {
   phone: string
   isAdmin?: boolean
   userId?: string // Phase 6.3: 선불권 구매를 위한 user_id
+  isResident?: boolean // 세대 회원 여부
 }
 
 type SpaceType = 'nolter' | 'soundroom'
@@ -105,6 +106,10 @@ export default function Home() {
     const savedSession = localStorage.getItem('oneumSession')
     if (savedSession) {
       const session = JSON.parse(savedSession)
+      // 구버전 세션에 isResident 없으면 household로 대체
+      if (session.isResident === undefined) {
+        session.isResident = !!session.household
+      }
       setUserSession(session)
       console.log('✅ 세션 복원:', session)
     }
@@ -312,7 +317,7 @@ export default function Home() {
 
   // ===== 해당 날짜에 예약된 시간대 조회 =====
   
-  const getBookedTimesForDate = (date: number): string[] => {
+  const getBookedTimesForDate = (date: number): Record<string, string> => {
     const year = currentMonth.getFullYear()
     const month = currentMonth.getMonth() + 1
     const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(date).padStart(2, '0')}`
@@ -604,7 +609,8 @@ export default function Home() {
         name: result.user.name,
         phone: result.user.phone,
         isAdmin: result.user.is_admin || false,
-        userId: result.user.id // Phase 6.3: 선불권 구매를 위한 user_id
+        userId: result.user.id, // Phase 6.3: 선불권 구매를 위한 user_id
+        isResident: result.user.is_resident || !!result.user.household
       }
 
       console.log('💾 [LOGIN] 세션 저장:', session)
@@ -1177,7 +1183,7 @@ export default function Home() {
                     const isBooked = time in bookedTimes
                     const isSelected = selectedTimes.includes(time)
                     const bookerName = bookedTimes[time] || '예약됨'
-                    const isMember = userSession.isLoggedIn && !!userSession.household
+                    const isMember = userSession.isLoggedIn && (!!userSession.isResident || !!userSession.household)
 
                     console.log(`🔍 ${time}: isBooked=${isBooked}, isSelected=${isSelected}`)
 
@@ -1326,7 +1332,7 @@ export default function Home() {
                 <div className="space-y-4">
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                     <p className="text-sm text-blue-800">
-                      💡 <strong>온음 세대 주민이신가요?</strong>{' '}
+                      💡 <strong>앞으로 계속 대관하실 생각이시면</strong>{' '}
                       <button
                         onClick={() => {
                           setIsBookingModalOpen(false)
