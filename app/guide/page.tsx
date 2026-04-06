@@ -41,14 +41,6 @@ export default function GuidePage() {
             </div>
           </div>
 
-          {/* 공간 선택 UI 예시 */}
-          <div className="mt-4 bg-white rounded-2xl shadow-sm p-4 border border-gray-100">
-            <p className="text-xs text-gray-400 mb-3 font-medium">화면 예시 — 공간 선택</p>
-            <div className="flex gap-2">
-              <div className="flex-1 bg-blue-500 text-white text-sm font-semibold rounded-xl py-3 text-center shadow">🏠 놀터</div>
-              <div className="flex-1 bg-gray-100 text-gray-500 text-sm font-semibold rounded-xl py-3 text-center">🎸 방음실</div>
-            </div>
-          </div>
         </section>
 
         {/* 섹션 2: 이용 요금 */}
@@ -57,7 +49,6 @@ export default function GuidePage() {
           <div className="mt-4 bg-white border border-gray-200 rounded-2xl p-5">
             <ul className="space-y-2 text-sm text-gray-700">
               <li className="flex items-start gap-2"><span className="text-blue-400 mt-0.5">✓</span><span><strong>놀터 / 방음실</strong> — 14,000원/시간</span></li>
-              <li className="flex items-start gap-2"><span className="text-blue-400 mt-0.5">✓</span><span>30분 단위 예약 가능 (7,000원/30분)</span></li>
             </ul>
           </div>
         </section>
@@ -104,7 +95,7 @@ export default function GuidePage() {
               num="3"
               icon="📅"
               title="예약하기"
-              desc="날짜 → 공간 → 시간 순서로 선택한 뒤 예약하기를 누르세요. 30분 단위로 시간을 고를 수 있습니다."
+              desc="날짜 → 공간 → 시간 순서로 선택한 뒤 예약하기를 누르세요."
             >
               <div className="mt-3 bg-gray-50 rounded-xl p-3">
                 <p className="text-xs text-gray-400 font-medium mb-2">화면 예시 — 시간 선택</p>
@@ -113,7 +104,6 @@ export default function GuidePage() {
                     <div key={t} className={`text-xs text-center py-1.5 rounded-lg font-medium ${i === 2 || i === 3 ? 'bg-blue-500 text-white' : 'bg-white border border-gray-200 text-gray-600'}`}>{t}</div>
                   ))}
                 </div>
-                <p className="text-xs text-gray-400 mt-2 text-center">클릭 한 번에 1시간(2슬롯) 자동 선택</p>
               </div>
             </StepCard>
 
@@ -147,7 +137,9 @@ export default function GuidePage() {
           <SectionTitle step="04" title="선불권 (할인 상품)" />
           <div className="mt-4 bg-white rounded-2xl shadow-sm p-5 border border-gray-100">
             <p className="text-sm text-gray-600 leading-relaxed mb-4">
-              시간을 미리 구매해 두는 할인 상품입니다. 구매 후 관리자 입금 확인 시 즉시 활성화되며, 예약 시 자동으로 차감됩니다.
+              공간을 예약할 수 있는 이용권을 미리 구매하는 할인 상품입니다.<br /><br />
+              <strong>총 10시간 이용권</strong>을 <strong>100,000원</strong>에 구매할 수 있습니다. (정가 140,000원에서 40,000원 할인)<br /><br />
+              선불권을 구매하면 원하는 날짜에 10시간 이용권을 원하는 만큼 나눠 예약할 수 있습니다. 관리자 입금 확인 후 즉시 활성화됩니다.
             </p>
             <div className="bg-purple-50 border border-purple-100 rounded-xl p-4">
               <p className="text-xs text-purple-500 font-medium mb-2">화면 예시 — 선불권 현황</p>
@@ -173,7 +165,7 @@ export default function GuidePage() {
             <PolicyItem icon="✅" text="이용일 전날까지 취소 가능" />
             <PolicyItem icon="❌" text="취소된 예약은 복구 불가" />
             <PolicyItem icon="🔄" text="시간 변경: 취소 후 재예약" />
-            <PolicyItem icon="💳" text="유료 예약 환불: 관리자에게 문의" />
+            <PolicyItem icon="💳" text="환불: 예약일 전까지 취소 시 100% 환불, 당일 취소 시 환불 불가" />
           </div>
         </section>
 
