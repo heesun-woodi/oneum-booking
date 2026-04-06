@@ -89,7 +89,7 @@ export default function Home() {
   // 예약 폼
   const [name, setName] = useState<string>('')
   const [phone, setPhone] = useState<string>('')
-  const [bookedTimes, setBookedTimes] = useState<string[]>([]) // 선택된 날짜의 예약된 시간들
+  const [bookedTimes, setBookedTimes] = useState<Record<string, string>>({}) // 시간 → 예약자 이름
   
   // 인증 폼
   const [authHousehold, setAuthHousehold] = useState<string>('')
@@ -322,34 +322,32 @@ export default function Home() {
     const dayBookings = bookingsData.filter(b => b.booking_date === dateStr && b.space === selectedSpace)
     
     console.log(`🔍 DEBUG: ${dateStr} ${selectedSpace} 예약 = ${dayBookings.length}건`, dayBookings)
-    // 각 예약의 start_time부터 end_time까지 모든 시간 슬롯 추출
-    const bookedTimes: string[] = []
+    // 각 예약의 start_time부터 end_time까지 모든 시간 슬롯 추출 (시간 → 예약자 이름)
+    const bookedTimes: Record<string, string> = {}
     dayBookings.forEach(booking => {
       const start = booking.start_time.substring(0, 5) // "14:00:00" → "14:00"
       const end = booking.end_time.substring(0, 5)
-      
+
       console.log(`🔍 DEBUG: 예약 ${booking.id}: start=${start}, end=${end}`)
       const startHour = parseInt(start.split(':')[0])
       let endHour = parseInt(end.split(':')[0])
-      
+
       console.log(`🔍 DEBUG: startHour=${startHour}, endHour=${endHour}`)
       // ⭐ FIX: start_time == end_time일 때 1시간으로 처리
       if (endHour === startHour) {
         endHour = startHour + 1
         console.log(`🔧 ${dateStr} ${start}~${end} → 1시간으로 처리 (${start}~${endHour}:00)`)
       }
-      
-      // start_time부터 end_time까지 모든 시간 추가 (end 포함 안 함)
-      // 예: 14:00-16:00 → ['14:00', '15:00']
+
       for (let h = startHour; h < endHour; h++) {
         const timeSlot = `${h.toString().padStart(2, '0')}:00`
-        if (!bookedTimes.includes(timeSlot)) {
-          bookedTimes.push(timeSlot)
-          console.log(`➕ Added time slot: ${timeSlot}`)
+        if (!(timeSlot in bookedTimes)) {
+          bookedTimes[timeSlot] = booking.name || '예약됨'
+          console.log(`➕ Added time slot: ${timeSlot} (${booking.name})`)
         }
       }
     })
-    
+
     console.log(`📋 ${dateStr} ${selectedSpace} 최종 예약된 시간:`, bookedTimes)
     return bookedTimes
   }
@@ -1176,11 +1174,13 @@ export default function Home() {
                 </label>
                 <div className="grid grid-cols-4 gap-2">
                   {timeSlots.map(time => {
-                    const isBooked = bookedTimes.includes(time)
+                    const isBooked = time in bookedTimes
                     const isSelected = selectedTimes.includes(time)
-                    
+                    const bookerName = bookedTimes[time] || '예약됨'
+                    const isMember = userSession.isLoggedIn && !!userSession.household
+
                     console.log(`🔍 ${time}: isBooked=${isBooked}, isSelected=${isSelected}`)
-                    
+
                     return (
                       <button
                         key={time}
@@ -1196,7 +1196,9 @@ export default function Home() {
                       >
                         <div>{time}</div>
                         {isBooked && (
-                          <div className="text-xs mt-1">예약됨</div>
+                          <div className="text-xs mt-1">
+                            {isMember ? bookerName : '예약됨'}
+                          </div>
                         )}
                       </button>
                     )
