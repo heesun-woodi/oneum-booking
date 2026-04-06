@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { getBookingsByHousehold, getPastBookingsByHousehold } from '@/app/actions/bookings'
 import { getMonthlyUsage, UsageCount } from '@/app/actions/usage'
 import { changePassword } from '@/app/actions/auth'
+import { getPrepaidByPhone } from '@/app/actions/prepaid'
 import { PREPAID_STATUS_LABELS, BOOKING_STATUS_LABELS } from '@/lib/constants/status-labels'
 
 interface UserSession {
@@ -80,12 +81,9 @@ export default function MyPage() {
 
   async function loadAll(s: UserSession) {
     setLoading(true)
-    // 선불권은 항상 phone으로 조회 (세션 userId 의존성 제거)
+    // 선불권은 항상 phone으로 직접 조회 (Server Action, 캐시 문제 없음)
     const prepaidPromise = s.phone
-      ? fetch(`/api/prepaid/my-purchases?phone=${s.phone}`)
-          .then(r => r.json())
-          .then(json => { if (json.success) setPrepaidPurchases(json.purchases) })
-          .catch(() => {})
+      ? getPrepaidByPhone(s.phone).then(result => { if (result.success) setPrepaidPurchases(result.data) })
       : Promise.resolve()
 
     await Promise.all([
@@ -103,12 +101,6 @@ export default function MyPage() {
     ])
     if (upcoming.success) setUpcomingBookings(upcoming.data as Booking[])
     if (past.success) setPastBookings(past.data as Booking[])
-  }
-
-  async function loadPrepaid(userId: string) {
-    const res = await fetch(`/api/prepaid/my-purchases?user_id=${userId}`)
-    const json = await res.json()
-    if (json.success) setPrepaidPurchases(json.purchases)
   }
 
   async function loadUsage(household: string) {
@@ -240,7 +232,7 @@ export default function MyPage() {
           <PrepaidList
             purchases={prepaidPurchases}
             userId={session.userId}
-            onRefresh={() => session.userId && loadPrepaid(session.userId)}
+            onRefresh={() => session.phone && getPrepaidByPhone(session.phone).then(r => { if (r.success) setPrepaidPurchases(r.data) })}
           />
         )}
       </div>
