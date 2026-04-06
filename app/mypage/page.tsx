@@ -80,21 +80,17 @@ export default function MyPage() {
 
   async function loadAll(s: UserSession) {
     setLoading(true)
-    // userId 없으면 phone으로 조회
-    let userId = s.userId
-    if (!userId && s.phone) {
-      const res = await fetch(`/api/prepaid/my-purchases?phone=${s.phone}`)
-      const json = await res.json()
-      if (json.success) {
-        setPrepaidPurchases(json.purchases)
-        await Promise.all([loadBookings(s.household), loadUsage(s.household)])
-        setLoading(false)
-        return
-      }
-    }
+    // 선불권은 항상 phone으로 조회 (세션 userId 의존성 제거)
+    const prepaidPromise = s.phone
+      ? fetch(`/api/prepaid/my-purchases?phone=${s.phone}`)
+          .then(r => r.json())
+          .then(json => { if (json.success) setPrepaidPurchases(json.purchases) })
+          .catch(() => {})
+      : Promise.resolve()
+
     await Promise.all([
       loadBookings(s.household),
-      userId ? loadPrepaid(userId) : Promise.resolve(),
+      prepaidPromise,
       loadUsage(s.household),
     ])
     setLoading(false)
@@ -403,6 +399,22 @@ function PrepaidList({ purchases, userId, onRefresh }: {
   userId?: string
   onRefresh?: () => void
 }) {
+  async function handleCancelPending(purchaseId: string) {
+    if (!confirm('선불권 신청을 취소하시겠습니까?\n(아직 입금하지 않은 경우에만 취소 가능합니다)')) return
+    const res = await fetch('/api/prepaid/cancel', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ purchase_id: purchaseId }),
+    })
+    const data = await res.json()
+    if (data.success) {
+      alert('신청이 취소되었습니다.')
+      onRefresh?.()
+    } else {
+      alert(data.error || '취소에 실패했습니다.')
+    }
+  }
+
   async function handleRefund(purchaseId: string, productName: string, usedHours: number, totalPaid: number) {
     const refundAmount = totalPaid - usedHours * 14000
     const msg = usedHours > 0
@@ -477,9 +489,17 @@ function PrepaidList({ purchases, userId, onRefresh }: {
             )}
 
             {p.status === 'pending' && (
-              <p className="text-xs text-yellow-600 bg-yellow-50 rounded-lg px-3 py-2">
-                입금 확인 대기 중입니다. 입금 후 관리자 확인 시 활성화됩니다.
-              </p>
+              <div className="space-y-2">
+                <p className="text-xs text-yellow-600 bg-yellow-50 rounded-lg px-3 py-2">
+                  입금 확인 대기 중입니다. 입금 후 관리자 확인 시 활성화됩니다.
+                </p>
+                <button
+                  onClick={() => handleCancelPending(p.id)}
+                  className="w-full py-2 text-sm font-medium text-gray-500 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
+                >
+                  신청 취소
+                </button>
+              </div>
             )}
 
             {p.status === 'refund_requested' && (
