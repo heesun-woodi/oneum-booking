@@ -35,6 +35,10 @@
     {
       "path": "/api/cron/prepaid-payment-reminder",
       "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/cron/prepaid-payment-guide",
+      "schedule": "0 1 * * *"
     }
   ]
 }

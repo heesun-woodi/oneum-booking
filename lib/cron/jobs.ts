@@ -354,7 +354,62 @@ export async function prepaidFinalReminder(): Promise<{ sent: number }> {
 }
 
 /**
- * 6. 당일 예약 리마인더 (09:00)
+ * 6. 선불권 입금 안내 (신청 다음날 10:00 KST = 01:00 UTC)
+ * 어제 KST 기준으로 신청된 pending 선불권에 개별 발송
+ */
+export async function prepaidPaymentGuide(): Promise<{ sent: number }> {
+  // KST 어제 범위 계산
+  const now = new Date()
+  const nowKST = new Date(now.getTime() + 9 * 60 * 60 * 1000)
+  const kstYesterdayStart = new Date(nowKST)
+  kstYesterdayStart.setUTCDate(kstYesterdayStart.getUTCDate() - 1)
+  kstYesterdayStart.setUTCHours(0, 0, 0, 0)
+  const kstYesterdayEnd = new Date(kstYesterdayStart)
+  kstYesterdayEnd.setUTCHours(23, 59, 59, 999)
+
+  const utcStart = new Date(kstYesterdayStart.getTime() - 9 * 60 * 60 * 1000)
+  const utcEnd = new Date(kstYesterdayEnd.getTime() - 9 * 60 * 60 * 1000)
+
+  const { data: purchases, error } = await supabase
+    .from('prepaid_purchases')
+    .select(`
+      id, created_at,
+      user:users!prepaid_purchases_user_id_fkey(name, phone),
+      product:prepaid_products!prepaid_purchases_product_id_fkey(name, price)
+    `)
+    .eq('status', 'pending')
+    .gte('created_at', utcStart.toISOString())
+    .lte('created_at', utcEnd.toISOString())
+
+  if (error || !purchases || purchases.length === 0) {
+    console.log('선불권 입금 안내 대상 없음')
+    return { sent: 0 }
+  }
+
+  let sent = 0
+  for (const p of purchases as any[]) {
+    const deadline = new Date(new Date(p.created_at).getTime() + 48 * 60 * 60 * 1000)
+    const deadlineStr = deadline.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })
+
+    await sendNotification({
+      type: '7-4',
+      phone: p.user?.phone || '',
+      variables: {
+        name: p.user?.name || '',
+        amount: (p.product?.price || 0).toLocaleString(),
+        account: process.env.BANK_ACCOUNT || '',
+        deadline: deadlineStr,
+      },
+    })
+    sent++
+  }
+
+  console.log(`선불권 입금 안내 발송: ${sent}건`)
+  return { sent }
+}
+
+/**
+ * 7. 당일 예약 리마인더 (09:00)
  */
 export async function sameDayReminder(): Promise<{
   sent: number
