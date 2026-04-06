@@ -819,6 +819,9 @@ export default function Home() {
           <div>
             <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-2">온음 공간 예약</h1>
             <p className="text-base sm:text-lg text-gray-600">놀터 & 방음실 예약 시스템</p>
+            <a href="/guide" className="inline-flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 mt-1.5 font-medium">
+              📖 처음이신가요? 이용 가이드 보기
+            </a>
           </div>
           
           {/* 우측 버튼들 */}
