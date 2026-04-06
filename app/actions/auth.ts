@@ -132,6 +132,13 @@ export async function login(data: {
   // 🐛 FIX: userId 포함 확인용 로그
   console.log('✅ [LOGIN] user.id:', user.id)
 
+  // 비회원 예약 병합: 같은 전화번호의 user_id 없는 예약을 현재 계정으로 연결
+  const fp = normalizedPhone.replace(/(\d{3})(\d{4})(\d{4})/, '$1-$2-$3')
+  await adminClient.from('bookings').update({ user_id: user.id })
+    .is('user_id', null).eq('phone', normalizedPhone)
+  await adminClient.from('bookings').update({ user_id: user.id })
+    .is('user_id', null).eq('phone', fp)
+
   return { success: true, user }
 }
 
