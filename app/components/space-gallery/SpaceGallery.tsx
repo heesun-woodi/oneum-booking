@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react' // useEffect kept for loadPhotos
 import { getSpacePhotos, type SpacePhoto } from '@/app/actions/space-photos'
 import { GallerySlide } from './GallerySlide'
 import { GalleryNav } from './GalleryNav'
@@ -37,17 +37,6 @@ export function SpaceGallery({ space }: SpaceGalleryProps) {
   useEffect(() => {
     loadPhotos()
   }, [loadPhotos])
-
-  // 자동 슬라이드 (5초 간격)
-  useEffect(() => {
-    if (photos.length <= 1 || isLightboxOpen) return
-
-    const timer = setInterval(() => {
-      setCurrentIndex(prev => (prev + 1) % photos.length)
-    }, 5000)
-
-    return () => clearInterval(timer)
-  }, [photos.length, isLightboxOpen])
 
   // 네비게이션 핸들러
   const handlePrev = () => {
