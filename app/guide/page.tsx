@@ -51,29 +51,14 @@ export default function GuidePage() {
           </div>
         </section>
 
-        {/* 섹션 2: 회원 종류 & 요금 */}
+        {/* 섹션 2: 이용 요금 */}
         <section>
-          <SectionTitle step="02" title="회원 종류 & 요금" />
-          <div className="mt-4 space-y-3">
-            <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <span className="bg-blue-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">세대원</span>
-                <span className="text-sm font-semibold text-blue-900">온음 세대 회원</span>
-              </div>
-              <ul className="space-y-1.5 text-sm text-blue-800">
-                <li className="flex items-start gap-2"><span className="text-blue-400 mt-0.5">✓</span><span><strong>놀터</strong> — 월 3회 무료 (초과 시 10,000원/건)</span></li>
-                <li className="flex items-start gap-2"><span className="text-blue-400 mt-0.5">✓</span><span><strong>방음실</strong> — 횟수·시간 제한 없이 무료</span></li>
-              </ul>
-            </div>
-            <div className="bg-white border border-gray-200 rounded-2xl p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <span className="bg-gray-400 text-white text-xs font-bold px-2 py-0.5 rounded-full">일반</span>
-                <span className="text-sm font-semibold text-gray-800">일반 회원</span>
-              </div>
-              <ul className="space-y-1.5 text-sm text-gray-600">
-                <li className="flex items-start gap-2"><span className="text-gray-400 mt-0.5">✓</span><span><strong>놀터 / 방음실</strong> — 14,000원/시간</span></li>
-              </ul>
-            </div>
+          <SectionTitle step="02" title="이용 요금" />
+          <div className="mt-4 bg-white border border-gray-200 rounded-2xl p-5">
+            <ul className="space-y-2 text-sm text-gray-700">
+              <li className="flex items-start gap-2"><span className="text-blue-400 mt-0.5">✓</span><span><strong>놀터 / 방음실</strong> — 14,000원/시간</span></li>
+              <li className="flex items-start gap-2"><span className="text-blue-400 mt-0.5">✓</span><span>30분 단위 예약 가능 (7,000원/30분)</span></li>
+            </ul>
           </div>
         </section>
 
@@ -87,9 +72,8 @@ export default function GuidePage() {
               num="1"
               icon="📝"
               title="회원가입 신청"
-              desc="전화번호·이름·비밀번호를 입력해 가입 신청합니다. 세대원이라면 세대 번호도 선택하세요."
+              desc="전화번호·이름·비밀번호를 입력해 가입 신청합니다."
             >
-              {/* 가입 UI 예시 */}
               <div className="mt-3 bg-gray-50 rounded-xl p-3 space-y-2">
                 <p className="text-xs text-gray-400 font-medium mb-2">화면 예시 — 회원가입</p>
                 <MockInput label="전화번호" placeholder="01012345678" />
@@ -137,7 +121,7 @@ export default function GuidePage() {
             <StepCard
               num="4"
               icon="💰"
-              title="입금 (유료 예약만)"
+              title="입금"
               desc="예약 후 문자로 입금 안내가 발송됩니다. 예약일 전날까지 입금하지 않으면 자동 취소됩니다."
             >
               <div className="mt-3 bg-yellow-50 border border-yellow-100 rounded-xl p-3">
