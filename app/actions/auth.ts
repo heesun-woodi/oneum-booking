@@ -84,18 +84,19 @@ export async function signup(data: {
 }
 
 export async function login(data: {
-  name: string
+  phone: string
   password: string
 }) {
-  // 1. 이름으로 사용자 조회 (id 명시적으로 포함)
+  // 1. 전화번호로 사용자 조회
+  const normalizedPhone = data.phone.replace(/[^0-9]/g, '')
   const { data: user, error } = await supabase
     .from('users')
     .select('id, household, name, phone, password_hash, status, is_admin, is_resident')
-    .eq('name', data.name)
+    .eq('phone', normalizedPhone)
     .single()
-  
+
   if (error || !user) {
-    return { success: false, error: '이름을 찾을 수 없습니다.' }
+    return { success: false, error: '전화번호를 찾을 수 없습니다.' }
   }
   
   // 2. 비밀번호 확인

@@ -573,21 +573,18 @@ export default function Home() {
     console.log('🔑 [LOGIN] authPassword:', authPassword ? '***' : '(empty)')
     console.log('🔑 [LOGIN] authMode:', authMode)
     
-    if (!authName.trim()) {
-      console.warn('⚠️ [LOGIN] 이름 입력 필요')
-      alert('이름을 입력해주세요.')
+    if (!authPhone.trim()) {
+      alert('전화번호를 입력해주세요.')
       return
     }
     if (!authPassword.trim()) {
-      console.warn('⚠️ [LOGIN] 비밀번호 입력 필요')
       alert('비밀번호를 입력해주세요.')
       return
     }
 
     try {
-      console.log('🚀 [LOGIN] API 호출 시작...')
       const result = await login({
-        name: authName,
+        phone: authPhone,
         password: authPassword
       })
       console.log('📥 [LOGIN] API 응답:', result)
@@ -1528,31 +1525,31 @@ export default function Home() {
                     </div>
                   )}
 
-                  {/* 이름 (로그인 + 회원가입 공통) */}
+                  {/* 전화번호 (로그인 + 회원가입 공통) */}
                   <div>
                     <label className="block text-sm font-semibold text-gray-900 mb-2">
-                      이름 *
+                      전화번호 *
                     </label>
                     <input
-                      type="text"
-                      value={authName}
-                      onChange={(e) => setAuthName(e.target.value)}
-                      placeholder="이름을 입력하세요"
+                      type="tel"
+                      value={authPhone}
+                      onChange={(e) => setAuthPhone(e.target.value)}
+                      placeholder="010-0000-0000"
                       className="w-full py-3 px-4 border border-gray-300 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
 
-                  {/* 회원가입: 전화번호 */}
+                  {/* 회원가입: 이름 */}
                   {authMode === 'signup' && (
                     <div>
                       <label className="block text-sm font-semibold text-gray-900 mb-2">
-                        전화번호 *
+                        이름 *
                       </label>
                       <input
-                        type="tel"
-                        value={authPhone}
-                        onChange={(e) => setAuthPhone(e.target.value)}
-                        placeholder="010-0000-0000"
+                        type="text"
+                        value={authName}
+                        onChange={(e) => setAuthName(e.target.value)}
+                        placeholder="이름을 입력하세요"
                         className="w-full py-3 px-4 border border-gray-300 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
