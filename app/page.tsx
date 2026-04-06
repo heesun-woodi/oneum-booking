@@ -822,7 +822,9 @@ export default function Home() {
             {userSession.isLoggedIn ? (
               <>
                 <div className="text-left sm:text-right mr-0 sm:mr-3">
-                  <p className="text-xs sm:text-sm font-semibold text-gray-900">{userSession.household}호</p>
+                  {userSession.isResident && userSession.household?.trim() && (
+                    <p className="text-xs sm:text-sm font-semibold text-gray-900">{userSession.household}호</p>
+                  )}
                   <p className="text-xs text-gray-600">{userSession.name}</p>
                   {userSession.isAdmin && (
                     <p className="text-xs text-blue-600 font-medium">⚡ 관리자</p>
@@ -1275,8 +1277,8 @@ export default function Home() {
                     return null
                   })()}
                   
-                  {/* Phase 7: 놀터 회원 예약 횟수 배지 */}
-                  {selectedSpace === 'nolter' && (
+                  {/* Phase 7: 놀터 회원 예약 횟수 배지 - 세대원만 */}
+                  {selectedSpace === 'nolter' && userSession.isResident && (
                     nolterCount === null ? (
                       <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
                         <p className="text-sm text-gray-500">이번 달 예약 현황 조회 중...</p>
@@ -1305,14 +1307,16 @@ export default function Home() {
                     )
                   )}
 
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-900 mb-3">
-                      세대 정보
-                    </label>
-                    <div className="py-3 px-4 bg-gray-100 rounded-lg text-gray-700">
-                      {userSession.household}호
+                  {userSession.isResident && userSession.household?.trim() && (
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-900 mb-3">
+                        세대 정보
+                      </label>
+                      <div className="py-3 px-4 bg-gray-100 rounded-lg text-gray-700">
+                        {userSession.household}호
+                      </div>
                     </div>
-                  </div>
+                  )}
                   <div>
                     <label className="block text-sm font-semibold text-gray-900 mb-3">
                       이름 *
@@ -1683,7 +1687,7 @@ export default function Home() {
                   <div className="flex items-center gap-2 mb-3">
                     <span className="text-lg">👤</span>
                     <span className="font-medium text-blue-900">
-                      {userSession.household}호 {userSession.name}님
+                      {userSession.isResident && userSession.household?.trim() ? `${userSession.household}호 ` : ''}{userSession.name}님
                     </span>
                   </div>
                   <button
