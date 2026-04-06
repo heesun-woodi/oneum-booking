@@ -42,15 +42,14 @@ export function formatPrepaidSummaryVars(purchases: Array<{
   productName: string
   amount: number
   deadline: Date
-}>): { count: string; list: string; deadline: string } {
-  const count = purchases.length.toString()
-  const list = purchases
+}>): { prepaidCount: string; prepaidList: string; prepaidDeadline: string } {
+  const prepaidCount = purchases.length.toString()
+  const prepaidList = purchases
     .map(p => `- ${p.name}${p.household ? ` (${p.household}호)` : ''} / ${p.productName} ${p.amount.toLocaleString()}원 (마감: ${p.deadline.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })})`)
     .join('\n')
-  // 가장 빠른 마감일
   const earliest = purchases.reduce((a, b) => a.deadline < b.deadline ? a : b)
-  const deadline = earliest.deadline.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-  return { count, list, deadline }
+  const prepaidDeadline = earliest.deadline.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+  return { prepaidCount, prepaidList, prepaidDeadline }
 }
 
 /**
@@ -262,10 +261,10 @@ ${vars.account}
       title: '[온음] 선불권 신청 알림',
       message: `재무담당자님,
 
-선불권 신청 ${vars.count}건이 있습니다.
-${vars.list}
+선불권 신청 ${vars.prepaidCount}건이 있습니다.
+${vars.prepaidList}
 통장의 입금내역을 확인하시고 입금된 내역이 있다면 관리자 페이지에 접속해서 입금확인 처리 해주세요
-입금 기한: ${vars.deadline}까지
+입금 기한: ${vars.prepaidDeadline}까지
 
 관리자 페이지:
 ${vars.adminUrl}`,

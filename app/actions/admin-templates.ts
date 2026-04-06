@@ -395,17 +395,24 @@ async function getAutoTestVariables(typeCode: string): Promise<Record<string, st
       .limit(1).maybeSingle()
     const deadline = new Date()
     deadline.setHours(deadline.getHours() + 48)
+    const deadlineStr = deadline.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+    const adminPrepaidUrl = process.env.NEXT_PUBLIC_APP_URL
+      ? `${process.env.NEXT_PUBLIC_APP_URL}/admin/prepaid`
+      : 'https://oneum.vercel.app/admin/prepaid'
+    // 7-1, 7-3 변수
     vars.name        = u?.name || '홍길동'
     vars.household   = u?.household || '101호'
     vars.phone       = u?.phone || '01012345678'
     vars.productName = p?.name || '10회 선불권'
     vars.amount      = (p?.price || 100000).toLocaleString()
     vars.account     = process.env.BANK_ACCOUNT || '계좌정보없음'
-    vars.deadline    = deadline.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+    vars.deadline    = deadlineStr
     vars.totalHours  = (p?.hours || 10).toString()
-    vars.adminUrl    = process.env.NEXT_PUBLIC_APP_URL
-      ? `${process.env.NEXT_PUBLIC_APP_URL}/admin/prepaid`
-      : 'https://oneum.vercel.app/admin/prepaid'
+    vars.adminUrl    = adminPrepaidUrl
+    // 7-2 전용 변수 (선불권 요약)
+    vars.prepaidCount    = '1'
+    vars.prepaidList     = `- ${u?.name || '홍길동'}${u?.household ? ` (${u.household}호)` : ''} / ${p?.name || '10회 선불권'} ${(p?.price || 100000).toLocaleString()}원 (마감: ${deadlineStr})`
+    vars.prepaidDeadline = deadlineStr
   }
 
   return vars
