@@ -193,7 +193,7 @@ export default function EditTemplatePage({ params }: { params: { id: string } })
               type="text"
               value={form.title}
               onChange={(e) => setForm({ ...form, title: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
               placeholder="[온음] 예약 완료"
             />
           </div>
@@ -207,7 +207,7 @@ export default function EditTemplatePage({ params }: { params: { id: string } })
               value={form.content}
               onChange={(e) => setForm({ ...form, content: e.target.value })}
               rows={12}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="메시지 내용을 입력하세요..."
             />
             <p className="text-xs text-gray-500 mt-2">
