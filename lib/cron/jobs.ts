@@ -228,6 +228,7 @@ export async function financeAlert(
   await sendNotification({
     type: '5-2',
     phone: process.env.FINANCE_PHONE || '',
+    recipientName: '재무담당자',
     variables: {
       count: targetBookings.length.toString(),
       list: formatBookingList(targetBookings),
@@ -317,6 +318,7 @@ async function sendPrepaidPaymentReminder(): Promise<{ sent: number }> {
   await sendNotification({
     type: '7-2',
     phone: process.env.FINANCE_PHONE || '',
+    recipientName: '재무담당자',
     variables: { ...summaryVars, adminUrl },
   })
 

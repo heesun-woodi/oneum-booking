@@ -67,6 +67,7 @@ export async function signup(data: {
   await sendNotification({
     type: '6-1',
     phone: process.env.ADMIN_PHONE || '',
+    recipientName: '관리자',
     variables: {
       name: data.name,
       household: data.isResident ? data.household : '일반회원', // Phase 6.1: 일반회원 표시

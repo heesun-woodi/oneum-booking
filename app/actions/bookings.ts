@@ -408,6 +408,7 @@ export async function cancelBooking(bookingId: string) {
         await sendNotification({
           type: '5-3',
           phone: process.env.FINANCE_PHONE || '',
+          recipientName: '재무담당자',
           variables: {
             name: booking.name,
             phone: booking.phone,
@@ -625,6 +626,7 @@ async function sendBookingNotifications(
       await sendNotification({
         type: '5-4',
         phone: process.env.FINANCE_PHONE || '',
+        recipientName: '재무담당자',
         variables: {
           name: input.name,
           phone: input.phone,

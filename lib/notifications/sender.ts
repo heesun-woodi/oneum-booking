@@ -18,6 +18,7 @@ export interface SendNotificationParams {
   bookingId?: string
   userId?: string
   scheduledAt?: Date
+  recipientName?: string  // 실제 수신자 이름 (미지정 시 variables.name 사용)
 }
 
 export interface SendNotificationResult {
@@ -32,7 +33,7 @@ export interface SendNotificationResult {
 export async function sendNotification(
   params: SendNotificationParams
 ): Promise<SendNotificationResult> {
-  const { type, phone, variables, bookingId, userId, scheduledAt } = params
+  const { type, phone, variables, bookingId, userId, scheduledAt, recipientName } = params
 
   try {
     // 1. 메시지 템플릿 가져오기
@@ -44,7 +45,7 @@ export async function sendNotification(
       .insert({
         message_type: type,
         recipient_phone: normalizePhone(phone),
-        recipient_name: variables.name,
+        recipient_name: recipientName ?? variables.name,
         booking_id: bookingId,
         user_id: userId,
         status: scheduledAt ? 'pending' : 'pending',

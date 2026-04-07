@@ -122,6 +122,7 @@ export async function POST(request: NextRequest) {
     await sendNotification({
       type: '7-5',
       phone: process.env.FINANCE_PHONE || '',
+      recipientName: '재무담당자',
       variables: {
         name: user.name,
         productName: product.name,

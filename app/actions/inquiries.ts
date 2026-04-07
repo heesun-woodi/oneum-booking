@@ -30,6 +30,7 @@ export async function createInquiry(data: {
     await sendNotification({
       type: '6-2',
       phone: process.env.ADMIN_PHONE || '',
+      recipientName: '관리자',
       variables: {
         name: data.name,
         phone: data.phone,
@@ -86,6 +87,7 @@ export async function answerInquiry(inquiryId: string, answer: string) {
       await sendNotification({
         type: '6-3',
         phone: inquiry.phone,
+        recipientName: inquiry.name,
         variables: {
           name: inquiry.name,
           inquiryUrl: 'https://oneum.vercel.app/inquiry',
