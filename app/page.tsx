@@ -1160,7 +1160,12 @@ export default function Home() {
         {/* 푸터 */}
         <div className="mt-8 text-center text-sm text-gray-500">
           <p>온음 공동체 공간 예약 시스템</p>
-          <a href="/inquiry" className="text-blue-500 hover:text-blue-700 mt-1 inline-block">문의 게시판</a>
+          <div className="mt-4">
+            <a href="/inquiry" className="inline-block bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-lg px-5 py-3 text-center transition-colors">
+              <p className="text-amber-700 text-xs mb-1">기타 문의사항이나 오류 발생시 여기를 이용해주세요</p>
+              <p className="text-amber-900 font-semibold text-sm">📬 문의 게시판 →</p>
+            </a>
+          </div>
         </div>
       </div>
 

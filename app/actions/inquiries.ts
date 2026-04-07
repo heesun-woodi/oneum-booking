@@ -63,6 +63,14 @@ export async function getInquiries() {
 export async function answerInquiry(inquiryId: string, answer: string) {
   try {
     const adminClient = await createServiceRoleClient()
+
+    // 문의자 정보 조회
+    const { data: inquiry } = await adminClient
+      .from('inquiries')
+      .select('name, phone')
+      .eq('id', inquiryId)
+      .single()
+
     const { error } = await adminClient
       .from('inquiries')
       .update({
@@ -72,6 +80,19 @@ export async function answerInquiry(inquiryId: string, answer: string) {
       .eq('id', inquiryId)
 
     if (error) throw error
+
+    // 문의자에게 답변 알림
+    if (inquiry?.phone) {
+      await sendNotification({
+        type: '6-3',
+        phone: inquiry.phone,
+        variables: {
+          name: inquiry.name,
+          inquiryUrl: 'https://oneum.vercel.app/inquiry',
+        },
+      })
+    }
+
     return { success: true }
   } catch (error: any) {
     return { success: false, error: error.message }

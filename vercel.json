@@ -10,7 +10,7 @@
     },
     {
       "path": "/api/cron/same-day-reminder",
-      "schedule": "0 9 * * *"
+      "schedule": "0 1 * * *"
     },
     {
       "path": "/api/cron/payment-reminder-d7",
