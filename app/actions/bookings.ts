@@ -597,7 +597,7 @@ async function sendBookingNotifications(
       bookingId: booking.id,
     })
   } else {
-    // 2-2: 비회원 예약 완료 (입금 안내)
+    // 2-2: 비회원/일반회원 예약 완료 (입금 안내)
     const deadline = new Date(booking.booking_date)
     deadline.setDate(deadline.getDate() - 1)
     const deadlineStr = deadline.toLocaleDateString('ko-KR', {
@@ -619,5 +619,23 @@ async function sendBookingNotifications(
       },
       bookingId: booking.id,
     })
+
+    // 5-4: 재무담당자 즉시 알림
+    if (booking.amount > 0) {
+      await sendNotification({
+        type: '5-4',
+        phone: process.env.FINANCE_PHONE || '',
+        variables: {
+          name: input.name,
+          phone: input.phone,
+          date: dateStr,
+          time: timeStr,
+          space: spaceStr,
+          amount: booking.amount.toLocaleString(),
+          adminUrl: `${process.env.NEXT_PUBLIC_APP_URL || ''}/admin/bookings`,
+        },
+        bookingId: booking.id,
+      })
+    }
   }
 }

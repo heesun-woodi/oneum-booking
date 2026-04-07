@@ -8,9 +8,9 @@ export type MessageType =
   | '2-1' | '2-2' | '2-3'   // 예약
   | '3-1' | '3-2'           // 입금
   | '4-1' | '4-2' | '4-3'   // 리마인더
-  | '5-2' | '5-3'           // 재무
+  | '5-2' | '5-3' | '5-4'   // 재무
   | '6-1'                   // 관리자
-  | '7-1' | '7-2' | '7-3' | '7-4'  // 선불권
+  | '7-1' | '7-2' | '7-3' | '7-4' | '7-5'  // 선불권
 
 export interface TemplateVariables {
   name?: string
@@ -208,6 +208,21 @@ ${vars.list}
 ${vars.adminUrl}`,
     }),
 
+    '5-4': (vars) => ({
+      title: '[온음] 새 예약 신청',
+      message: `재무담당자님, 새 예약 신청이 들어왔습니다.
+
+이름: ${vars.name}
+전화: ${vars.phone}
+날짜: ${vars.date}
+시간: ${vars.time}
+공간: ${vars.space}
+금액: ${vars.amount}원
+
+입금 확인 후 승인 처리 부탁드립니다.
+${vars.adminUrl}`,
+    }),
+
     '5-3': (vars) => ({
       title: '[온음] 환불 안내',
       message: `재무담당자님,
@@ -280,6 +295,19 @@ ${vars.adminUrl}`,
 
 마이페이지에서 잔여 시간을 확인하실 수 있습니다.
 온음과 함께 즐거운 시간 보내세요! 🎵`,
+    }),
+
+    '7-5': (vars) => ({
+      title: '[온음] 선불권 신청',
+      message: `재무담당자님, 선불권 신청이 들어왔습니다.
+
+이름: ${vars.name}
+상품: ${vars.productName}
+금액: ${vars.amount}원
+입금 기한: ${vars.deadline}까지
+
+입금 확인 후 활성화 처리 부탁드립니다.
+${vars.adminUrl}`,
     }),
 
     '7-4': (vars) => ({

@@ -118,6 +118,20 @@ export async function POST(request: NextRequest) {
       userId: user.id,
     })
 
+    // 7-5: 재무담당자 즉시 알림
+    await sendNotification({
+      type: '7-5',
+      phone: process.env.FINANCE_PHONE || '',
+      variables: {
+        name: user.name,
+        productName: product.name,
+        amount: product.price.toLocaleString(),
+        deadline: deadlineStr,
+        adminUrl: `${process.env.NEXT_PUBLIC_APP_URL || ''}/admin/prepaid`,
+      },
+      userId: user.id,
+    })
+
     return NextResponse.json({
       success: true,
       purchase,
