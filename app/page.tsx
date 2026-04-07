@@ -555,8 +555,8 @@ export default function Home() {
         paymentInfo = `\n\n🎫 선불권 ${result.data.prepaid_hours_used}시간 사용\n💰 일반 결제 ${result.data.regular_hours}시간 (${result.data.amount}원)\n계좌: 카카오뱅크 7979-72-56275 (정상은)`
       } else if (result.data?.payment_method === 'nolter_paid') {
         paymentInfo = `\n\n💰 결제 안내 (이번 달 무료 횟수 초과)\n금액: 10,000원\n계좌: 카카오뱅크 7979-72-56275 (정상은)\n예약자명으로 입금해주세요.`
-      } else if (!userSession.isLoggedIn) {
-        paymentInfo = `\n\n💰 결제 안내\n금액: ${selectedTimes.length * 7000}원\n계좌: 카카오뱅크 7979-72-56275 (정상은)\n예약자명으로 입금해주세요.`
+      } else if (result.data?.amount > 0) {
+        paymentInfo = `\n\n💰 결제 안내\n금액: ${result.data.amount.toLocaleString()}원\n계좌: 카카오뱅크 7979-72-56275 (정상은)\n예약자명으로 입금해주세요.`
       }
       
       alert(`예약이 완료되었습니다!\n\n날짜: ${month}월 ${selectedDate}일\n시간: ${selectedTimes.join(', ')} (총 ${selectedTimes.length * 0.5}시간)\n공간: ${selectedSpace === 'nolter' ? '놀터' : '방음실'}${paymentInfo}`)
