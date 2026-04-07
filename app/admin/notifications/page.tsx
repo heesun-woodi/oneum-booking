@@ -71,18 +71,27 @@ export default function AdminNotificationsPage() {
   
   const getMessageTypeName = (type: string) => {
     const typeMap: Record<string, string> = {
-      '1-1': '가입승인',
-      '1-2': '가입거절',
+      '1-2': '가입승인',
+      '1-3': '가입거절',
       '2-1': '회원 예약완료',
       '2-2': '비회원 예약완료',
       '2-3': '예약취소',
       '3-1': '입금확인',
-      '3-2': '입금거절',
-      '4-1': '이용 리마인더',
-      '4-2': '월간 이용한도',
-      '5-1': '재무-입금내역',
+      '3-2': '입금안내',
+      '4-1': '전날 리마인더',
+      '4-2': '당일 리마인더',
+      '4-3': '전날 리마인더(회원)',
       '5-2': '재무-미입금',
       '5-3': '재무-환불안내',
+      '5-4': '재무-신규예약',
+      '6-1': '관리자-회원가입신청',
+      '6-2': '관리자-문의접수',
+      '6-3': '문의답변안내',
+      '7-1': '선불권-입금안내',
+      '7-2': '선불권-신청알림',
+      '7-3': '선불권-활성화',
+      '7-4': '선불권-입금리마인더',
+      '7-5': '선불권-신청(재무)',
     }
     return typeMap[type] || type
   }
@@ -177,15 +186,27 @@ export default function AdminNotificationsPage() {
               className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
             >
               <option value="">전체</option>
-              <option value="1-1">가입승인</option>
-              <option value="1-2">가입거절</option>
+              <option value="1-2">가입승인</option>
+              <option value="1-3">가입거절</option>
               <option value="2-1">회원 예약완료</option>
               <option value="2-2">비회원 예약완료</option>
               <option value="2-3">예약취소</option>
               <option value="3-1">입금확인</option>
-              <option value="3-2">입금거절</option>
-              <option value="4-1">이용 리마인더</option>
-              <option value="4-2">월간 이용한도</option>
+              <option value="3-2">입금안내</option>
+              <option value="4-1">전날 리마인더</option>
+              <option value="4-2">당일 리마인더</option>
+              <option value="4-3">전날 리마인더(회원)</option>
+              <option value="5-2">재무-미입금</option>
+              <option value="5-3">재무-환불안내</option>
+              <option value="5-4">재무-신규예약</option>
+              <option value="6-1">관리자-회원가입신청</option>
+              <option value="6-2">관리자-문의접수</option>
+              <option value="6-3">문의답변안내</option>
+              <option value="7-1">선불권-입금안내</option>
+              <option value="7-2">선불권-신청알림</option>
+              <option value="7-3">선불권-활성화</option>
+              <option value="7-4">선불권-입금리마인더</option>
+              <option value="7-5">선불권-신청(재무)</option>
             </select>
           </div>
           
