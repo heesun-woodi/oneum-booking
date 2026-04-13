@@ -64,6 +64,7 @@ export default function Home() {
   
   // 모달 상태
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false)
+  const [isViewOnlyMode, setIsViewOnlyMode] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
   const [authMode, setAuthMode] = useState<'login' | 'signup' | 'forgot'>('login')
@@ -423,47 +424,39 @@ export default function Home() {
   // ===== 날짜 클릭 핸들러 =====
   
   const handleDateClick = (date: number) => {
-    // ⭐ FIX 1: 과거 날짜 차단
-    // ⭐ 오늘 날짜도 차단 (당일 예약 불가)
-    if (isToday(date)) {
-      console.log(`⛔ 당일 예약 차단: ${date}일`)
-      return
-    }
-    if (isPastDate(date)) {
-      console.log(`⛔ 과거 날짜 클릭 차단: ${date}일`)
-      return
-    }
-    
-    // 마감된 날짜 차단
+    const viewOnly = isToday(date) || isPastDate(date)
+
+    // 마감된 날짜는 미래여도 예약 불가 (조회는 가능)
     const bookingStatus = getBookingStatus(date)
-    if (bookingStatus.status === 'full') {
+    if (!viewOnly && bookingStatus.status === 'full') {
       console.log(`⛔ 마감된 날짜 클릭 차단: ${date}일`)
       return
     }
-    
+
     setSelectedDate(date)
     setSelectedTimes([])
-    
+    setIsViewOnlyMode(viewOnly)
+
     // ⭐ 예약된 시간 조회
     const times = getBookedTimesForDate(date)
     setBookedTimes(times)
-    
+
     console.log(`🔍 DEBUG: ${date}일 예약 시간:`, times)
-    
-    // 로그인 상태면 사용자 정보 자동 입력 + 선불권 조회
-    if (userSession.isLoggedIn) {
-      setName(userSession.name)
-      setPhone(userSession.phone)
-      
-      // Phase 6.5: 선불권 조회
-      loadPrepaidPurchases()
-    } else {
-      setName('')
-      setPhone('')
+
+    if (!viewOnly) {
+      // 로그인 상태면 사용자 정보 자동 입력 + 선불권 조회
+      if (userSession.isLoggedIn) {
+        setName(userSession.name)
+        setPhone(userSession.phone)
+        loadPrepaidPurchases()
+      } else {
+        setName('')
+        setPhone('')
+      }
     }
-    
+
     setIsBookingModalOpen(true)
-    console.log(`📌 날짜 선택: ${currentMonth.getFullYear()}년 ${currentMonth.getMonth() + 1}월 ${date}일`)
+    console.log(`📌 날짜 선택: ${currentMonth.getFullYear()}년 ${currentMonth.getMonth() + 1}월 ${date}일 (${viewOnly ? '조회모드' : '예약모드'})`)
   }
 
   // ===== 시간 선택 핸들러 (다중 선택) =====
@@ -976,7 +969,7 @@ export default function Home() {
                     onClick={() => handleDateClick(date)}
                     className={`w-full aspect-square rounded-xl p-2 transition-all ${
                       isPast || isTodayDate
-                        ? 'opacity-50 cursor-not-allowed bg-gray-100 border-2 border-gray-300'
+                        ? 'opacity-60 cursor-pointer bg-gray-100 border-2 border-gray-300 hover:border-gray-400'
                         : 
                       bookingStatus.status === 'full'
                         ? 'bg-gray-100 border-2 border-gray-400 cursor-not-allowed'
@@ -984,7 +977,7 @@ export default function Home() {
                         ? 'bg-blue-100 border-2 border-blue-400 hover:bg-blue-200'
                         : 'bg-white border-2 border-gray-200 hover:bg-blue-50 hover:border-blue-400'
                     }`}
-                    disabled={isPast || isTodayDate || bookingStatus.status === 'full'}
+                    disabled={false}
                   >
                     {/* 날짜 + 시간 레이아웃 */}
                     <div className="flex flex-col items-center justify-center h-full">
@@ -1171,21 +1164,23 @@ export default function Home() {
 
       {/* ===== 예약 모달 ===== */}
       {isBookingModalOpen && selectedDate !== null && (
-        <div 
+        <div
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
-          onClick={() => setIsBookingModalOpen(false)}
+          onClick={() => { setIsBookingModalOpen(false); setIsViewOnlyMode(false) }}
         >
-          <div 
+          <div
             className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             {/* 모달 헤더 */}
             <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex items-center justify-between">
               <h2 className="text-2xl font-bold text-gray-900">
-                {selectedSpace === 'nolter' ? '🏠 놀터' : '🎵 방음실'} 예약하기 - {month + 1}월 {selectedDate}일
+                {isViewOnlyMode
+                  ? `${selectedSpace === 'nolter' ? '🏠 놀터' : '🎵 방음실'} 예약 현황 — ${month + 1}월 ${selectedDate}일`
+                  : `${selectedSpace === 'nolter' ? '🏠 놀터' : '🎵 방음실'} 예약하기 — ${month + 1}월 ${selectedDate}일`}
               </h2>
-              <button 
-                onClick={() => setIsBookingModalOpen(false)}
+              <button
+                onClick={() => { setIsBookingModalOpen(false); setIsViewOnlyMode(false) }}
                 className="text-gray-400 hover:text-gray-600 text-3xl leading-none"
               >
                 ×
@@ -1194,10 +1189,16 @@ export default function Home() {
 
             {/* 모달 본문 */}
             <div className="p-6 space-y-6">
+              {/* 조회 모드 안내 */}
+              {isViewOnlyMode && (
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                  <p className="text-sm text-gray-500">과거/당일 날짜는 조회만 가능합니다.</p>
+                </div>
+              )}
               {/* 시간 선택 (다중) */}
               <div>
                 <label className="block text-sm font-semibold text-gray-900 mb-3">
-                  시간 선택 * (연속 시간 선택 가능)
+                  {isViewOnlyMode ? '시간대별 예약 현황' : '시간 선택 * (연속 시간 선택 가능)'}
                 </label>
                 <div className="grid grid-cols-4 gap-2">
                   {timeSlots.map(time => {
@@ -1211,8 +1212,8 @@ export default function Home() {
                     return (
                       <button
                         key={time}
-                        onClick={() => !isBooked && handleTimeToggle(time)}
-                        disabled={isBooked}
+                        onClick={() => !isViewOnlyMode && !isBooked && handleTimeToggle(time)}
+                        disabled={isBooked || isViewOnlyMode}
                         className={`py-3 px-4 rounded-lg border font-medium transition-colors ${
                           isBooked
                             ? 'bg-gray-200 text-gray-400 border-gray-300 cursor-not-allowed'
@@ -1238,8 +1239,8 @@ export default function Home() {
                 )}
               </div>
 
-              {/* 회원 로그인 상태 */}
-              {userSession.isLoggedIn ? (
+              {/* 예약 폼 (조회 모드에서는 숨김) */}
+              {!isViewOnlyMode && (userSession.isLoggedIn ? (
                 <div className="space-y-4">
                   {/* Phase 6.5: 선불권 정보 표시 */}
                   {(() => {
@@ -1407,18 +1408,27 @@ export default function Home() {
                     </div>
                   )}
                 </div>
-              )}
+              ))}
             </div>
 
             {/* 모달 푸터 */}
             <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 p-6">
-              <button
-                onClick={handleBookingSubmit}
-                disabled={isSubmitting}
-                className={`w-full py-4 text-white font-semibold rounded-lg transition-colors ${isSubmitting ? 'bg-blue-300 cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-600'}`}
-              >
-                {isSubmitting ? '예약 중...' : '예약하기'}
-              </button>
+              {isViewOnlyMode ? (
+                <button
+                  onClick={() => { setIsBookingModalOpen(false); setIsViewOnlyMode(false) }}
+                  className="w-full py-4 text-white font-semibold rounded-lg transition-colors bg-gray-500 hover:bg-gray-600"
+                >
+                  확인
+                </button>
+              ) : (
+                <button
+                  onClick={handleBookingSubmit}
+                  disabled={isSubmitting}
+                  className={`w-full py-4 text-white font-semibold rounded-lg transition-colors ${isSubmitting ? 'bg-blue-300 cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-600'}`}
+                >
+                  {isSubmitting ? '예약 중...' : '예약하기'}
+                </button>
+              )}
             </div>
           </div>
         </div>
