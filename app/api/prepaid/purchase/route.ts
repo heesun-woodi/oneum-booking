@@ -133,6 +133,23 @@ export async function POST(request: NextRequest) {
       userId: user.id,
     })
 
+    // 7-5: 관리자 알림
+    if (process.env.ADMIN_PHONE) {
+      await sendNotification({
+        type: '7-5',
+        phone: process.env.ADMIN_PHONE,
+        recipientName: '관리자',
+        variables: {
+          name: user.name,
+          productName: product.name,
+          amount: product.price.toLocaleString(),
+          deadline: deadlineStr,
+          adminUrl: `${process.env.NEXT_PUBLIC_APP_URL || ''}/admin/prepaid`,
+        },
+        userId: user.id,
+      })
+    }
+
     return NextResponse.json({
       success: true,
       purchase,

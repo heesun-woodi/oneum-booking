@@ -9,7 +9,7 @@ export type MessageType =
   | '3-1' | '3-2'           // 입금
   | '4-1' | '4-2' | '4-3'   // 리마인더
   | '5-2' | '5-3' | '5-4'   // 재무
-  | '6-1' | '6-2' | '6-3'   // 관리자
+  | '6-1' | '6-2' | '6-3' | '6-4'   // 관리자
   | '7-1' | '7-2' | '7-3' | '7-4' | '7-5'  // 선불권
 
 export interface TemplateVariables {
@@ -258,6 +258,21 @@ ${vars.adminUrl}`,
 
 아래 링크에서 확인해주세요:
 ${vars.inquiryUrl}`,
+    }),
+
+    '6-4': (vars) => ({
+      title: '[온음] 새 예약',
+      message: `관리자님, 새 예약이 접수되었습니다.
+
+이름: ${vars.name}${vars.household ? ` (${vars.household}호)` : ''}
+전화: ${vars.phone}
+날짜: ${vars.date}
+시간: ${vars.time}
+공간: ${vars.space}
+구분: ${vars.category}
+금액: ${vars.amount ? `${vars.amount}원` : '무료'}
+
+${vars.adminUrl}`,
     }),
 
     '6-1': (vars) => ({
