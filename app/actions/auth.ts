@@ -12,7 +12,12 @@ export async function signup(data: {
   phone: string
   password: string
   isResident?: boolean // Phase 6.1: 세대원 여부 추가
+  consentGiven: boolean
 }) {
+  if (!data.consentGiven) {
+    return { success: false, error: '개인정보 수집·이용에 동의해 주세요.' }
+  }
+
   // 전화번호 중복 체크 (세대원/비세대원 무관)
   const normalizedPhone = data.phone.replace(/[^0-9]/g, '')
   const { data: existingPhone } = await supabase
@@ -53,7 +58,9 @@ export async function signup(data: {
       phone: normalizedPhone,
       password_hash: passwordHash,
       status: 'pending',  // 가입 대기 상태
-      is_resident: data.isResident ?? false // Phase 6.1: 세대원 여부
+      is_resident: data.isResident ?? false, // Phase 6.1: 세대원 여부
+      pii_consent_given: true,
+      pii_consent_at: new Date().toISOString(),
     })
     .select()
     .single()

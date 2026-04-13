@@ -91,6 +91,7 @@ export default function Home() {
   // 예약 폼
   const [name, setName] = useState<string>('')
   const [phone, setPhone] = useState<string>('')
+  const [nonMemberConsent, setNonMemberConsent] = useState<boolean>(false)
   const [bookedTimes, setBookedTimes] = useState<Record<string, string>>({}) // 시간 → 예약자 이름
   
   // 인증 폼
@@ -99,6 +100,7 @@ export default function Home() {
   const [authPhone, setAuthPhone] = useState<string>('')
   const [authPassword, setAuthPassword] = useState<string>('')
   const [authIsResident, setAuthIsResident] = useState<boolean>(false) // Phase 6.1: 세대원 여부
+  const [signupConsent, setSignupConsent] = useState<boolean>(false)
 
   // ===== localStorage 세션 관리 =====
   
@@ -505,6 +507,10 @@ export default function Home() {
         alert('전화번호를 입력해주세요.')
         return
       }
+      if (!nonMemberConsent) {
+        alert('개인정보 수집·이용에 동의해 주세요.')
+        return
+      }
     }
 
     const year = currentMonth.getFullYear()
@@ -520,7 +526,8 @@ export default function Home() {
       household: userSession.isLoggedIn ? userSession.household : undefined,
       name: userSession.isLoggedIn ? userSession.name : name,  // ⭐ Phase 6.5: 로그인 사용자는 세션 정보 사용
       phone: userSession.isLoggedIn ? userSession.phone : phone, // ⭐ Phase 6.5: 로그인 사용자는 세션 정보 사용
-      userId: userSession.userId // ⭐ Phase 6.5: 선불권 사용을 위한 userId 전달
+      userId: userSession.userId, // ⭐ Phase 6.5: 선불권 사용을 위한 userId 전달
+      consentGiven: userSession.isLoggedIn ? true : nonMemberConsent,
     }
 
     console.log('🚀 예약 시작:', bookingInput)
@@ -554,6 +561,7 @@ export default function Home() {
       
       alert(`예약이 완료되었습니다!\n\n날짜: ${month}월 ${selectedDate}일\n시간: ${selectedTimes.join(', ')} (총 ${selectedTimes.length * 0.5}시간)\n공간: ${selectedSpace === 'nolter' ? '놀터' : '방음실'}${paymentInfo}`)
       setIsBookingModalOpen(false)
+      setNonMemberConsent(false)
       
       // 예약 목록 새로고침
       loadBookings()
@@ -649,12 +657,18 @@ export default function Home() {
       return
     }
 
+    if (!signupConsent) {
+      alert('개인정보 수집·이용에 동의해 주세요.')
+      return
+    }
+
     const result = await signup({
       household: authIsResident ? authHousehold : '', // 세대원이 아니면 빈 문자열
       name: authName,
       phone: authPhone,
       password: authPassword,
-      isResident: authIsResident // Phase 6.1: 세대원 여부 추가
+      isResident: authIsResident, // Phase 6.1: 세대원 여부 추가
+      consentGiven: signupConsent,
     })
 
     if (!result.success) {
@@ -663,6 +677,7 @@ export default function Home() {
     }
 
     alert('회원가입 신청이 되었습니다.\n관리자가 승인한 이후에 로그인 가능합니다.')
+    setSignupConsent(false)
     setAuthMode('login')
     
     // 입력 필드 초기화
@@ -1166,7 +1181,7 @@ export default function Home() {
       {isBookingModalOpen && selectedDate !== null && (
         <div
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
-          onClick={() => { setIsBookingModalOpen(false); setIsViewOnlyMode(false) }}
+          onClick={() => { setIsBookingModalOpen(false); setIsViewOnlyMode(false); setNonMemberConsent(false) }}
         >
           <div
             className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
@@ -1180,7 +1195,7 @@ export default function Home() {
                   : `${selectedSpace === 'nolter' ? '🏠 놀터' : '🎵 방음실'} 예약하기 — ${month + 1}월 ${selectedDate}일`}
               </h2>
               <button
-                onClick={() => { setIsBookingModalOpen(false); setIsViewOnlyMode(false) }}
+                onClick={() => { setIsBookingModalOpen(false); setIsViewOnlyMode(false); setNonMemberConsent(false) }}
                 className="text-gray-400 hover:text-gray-600 text-3xl leading-none"
               >
                 ×
@@ -1393,6 +1408,22 @@ export default function Home() {
                       className="w-full py-3 px-4 border border-gray-300 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
+                  {/* 개인정보 수집·이용 동의 */}
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                    <label className="flex items-start gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={nonMemberConsent}
+                        onChange={(e) => setNonMemberConsent(e.target.checked)}
+                        className="mt-0.5 w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500 flex-shrink-0"
+                      />
+                      <span className="text-sm text-gray-700">
+                        <span className="font-semibold text-gray-900">[필수] 개인정보 수집·이용 동의</span>
+                        <br />
+                        <span className="text-xs text-gray-500">수집 항목: 이름, 전화번호 / 수집 목적: 예약 확인 및 안내 문자 발송 / 보유 기간: 예약 종료 후 1년</span>
+                      </span>
+                    </label>
+                  </div>
                   {/* ⭐ 비회원 결제 안내 */}
                   {!userSession.isLoggedIn && selectedTimes.length > 0 && (
                     <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mt-4">
@@ -1415,7 +1446,7 @@ export default function Home() {
             <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 p-6">
               {isViewOnlyMode ? (
                 <button
-                  onClick={() => { setIsBookingModalOpen(false); setIsViewOnlyMode(false) }}
+                  onClick={() => { setIsBookingModalOpen(false); setIsViewOnlyMode(false); setNonMemberConsent(false) }}
                   className="w-full py-4 text-white font-semibold rounded-lg transition-colors bg-gray-500 hover:bg-gray-600"
                 >
                   확인
@@ -1423,8 +1454,8 @@ export default function Home() {
               ) : (
                 <button
                   onClick={handleBookingSubmit}
-                  disabled={isSubmitting}
-                  className={`w-full py-4 text-white font-semibold rounded-lg transition-colors ${isSubmitting ? 'bg-blue-300 cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-600'}`}
+                  disabled={isSubmitting || (!userSession.isLoggedIn && !nonMemberConsent)}
+                  className={`w-full py-4 text-white font-semibold rounded-lg transition-colors ${isSubmitting || (!userSession.isLoggedIn && !nonMemberConsent) ? 'bg-blue-300 cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-600'}`}
                 >
                   {isSubmitting ? '예약 중...' : '예약하기'}
                 </button>
@@ -1605,20 +1636,40 @@ export default function Home() {
                     />
                   </div>
 
+                  {/* 회원가입: 개인정보 수집·이용 동의 */}
+                  {authMode === 'signup' && (
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                      <label className="flex items-start gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={signupConsent}
+                          onChange={(e) => setSignupConsent(e.target.checked)}
+                          className="mt-0.5 w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500 flex-shrink-0"
+                        />
+                        <span className="text-sm text-gray-700">
+                          <span className="font-semibold text-gray-900">[필수] 개인정보 수집·이용 동의</span>
+                          <br />
+                          <span className="text-xs text-gray-500">수집 항목: 이름, 전화번호 / 수집 목적: 예약 확인 및 안내 문자 발송 / 보유 기간: 회원 탈퇴 후 1년</span>
+                        </span>
+                      </label>
+                    </div>
+                  )}
+
                   {/* 로그인 버튼 */}
                   <button
                     onClick={() => {
                       console.log('🖱️ [BUTTON CLICK v1.0.5] 버튼 클릭 감지됨!')
                       console.log('🖱️ [BUTTON] authMode:', authMode)
                       console.log('🖱️ [BUTTON] 실행할 함수:', authMode === 'login' ? 'handleLogin' : 'handleSignup')
-                      
+
                       if (authMode === 'login') {
                         handleLogin()
                       } else {
                         handleSignup()
                       }
                     }}
-                    className="w-full py-3 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 transition-colors"
+                    disabled={authMode === 'signup' && !signupConsent}
+                    className={`w-full py-3 text-white font-semibold rounded-lg transition-colors ${authMode === 'signup' && !signupConsent ? 'bg-blue-300 cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-600'}`}
                   >
                     {authMode === 'login' ? '로그인' : '가입하기'}
                   </button>

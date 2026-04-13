@@ -13,6 +13,7 @@ export interface CreateBookingInput {
   name: string
   phone: string
   userId?: string            // Phase 6.5: 선불권 사용을 위한 user_id
+  consentGiven?: boolean     // 개인정보 수집·이용 동의 (비회원 필수)
 }
 
 export async function createBooking(input: CreateBookingInput) {
@@ -41,6 +42,11 @@ export async function createBooking(input: CreateBookingInput) {
         success: false,
         error: '과거 날짜는 예약할 수 없습니다.'
       }
+    }
+
+    // 비회원 개인정보 수집 동의 확인
+    if (input.memberType === 'non-member' && !input.consentGiven) {
+      return { success: false, error: '개인정보 수집·이용에 동의해 주세요.' }
     }
     
     // 시간대 파싱
@@ -239,7 +245,9 @@ export async function createBooking(input: CreateBookingInput) {
         payment_status: input.memberType === 'member' ? 'completed' : 'pending',
         prepaid_hours_used: 0,
         regular_hours: input.times.length,
-        payment_method: input.memberType === 'member' ? 'free' : 'regular'  // ⭐ 추가
+        payment_method: input.memberType === 'member' ? 'free' : 'regular',  // ⭐ 추가
+        pii_consent_given: input.memberType === 'non-member' ? true : false,
+        pii_consent_at: input.memberType === 'non-member' ? new Date().toISOString() : null,
       })
       .select()
       .single()
@@ -597,6 +605,25 @@ async function sendBookingNotifications(
       },
       bookingId: booking.id,
     })
+
+    // 5-4: 비세대원 회원 - 재무담당자 알림
+    if (!input.household) {
+      await sendNotification({
+        type: '5-4',
+        phone: process.env.FINANCE_PHONE || '',
+        recipientName: '재무담당자',
+        variables: {
+          name: input.name,
+          phone: input.phone,
+          date: dateStr,
+          time: timeStr,
+          space: spaceStr,
+          amount: booking.amount.toLocaleString(),
+          adminUrl: `${process.env.NEXT_PUBLIC_APP_URL || ''}/admin/bookings`,
+        },
+        bookingId: booking.id,
+      })
+    }
   } else {
     // 2-2: 비회원/일반회원 예약 완료 (입금 안내)
     const deadline = new Date(booking.booking_date)
@@ -639,5 +666,36 @@ async function sendBookingNotifications(
         bookingId: booking.id,
       })
     }
+  }
+
+  // 6-4: 관리자 알림 (모든 예약 케이스)
+  const adminPhone = process.env.ADMIN_PHONE
+  if (adminPhone) {
+    const category =
+      booking.payment_status === 'prepaid'
+        ? '선불권'
+        : booking.payment_method === 'nolter_paid'
+        ? '회원(유료)'
+        : input.memberType === 'member'
+        ? '회원(무료)'
+        : '비회원'
+
+    await sendNotification({
+      type: '6-4',
+      phone: adminPhone,
+      recipientName: '관리자',
+      variables: {
+        name: input.name,
+        household: input.household || '',
+        phone: input.phone,
+        date: dateStr,
+        time: timeStr,
+        space: spaceStr,
+        category,
+        amount: booking.amount > 0 ? booking.amount.toLocaleString() : '',
+        adminUrl: `${process.env.NEXT_PUBLIC_APP_URL || ''}/admin/bookings`,
+      },
+      bookingId: booking.id,
+    })
   }
 }
