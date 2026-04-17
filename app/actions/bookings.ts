@@ -668,9 +668,9 @@ async function sendBookingNotifications(
     }
   }
 
-  // 6-4: 관리자 알림 (모든 예약 케이스)
+  // 6-4: 관리자 알림 (선불권 제외)
   const adminPhone = process.env.ADMIN_PHONE
-  if (adminPhone) {
+  if (adminPhone && booking.payment_status !== 'prepaid') {
     const category =
       booking.payment_status === 'prepaid'
         ? '선불권'
