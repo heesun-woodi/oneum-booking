@@ -559,7 +559,7 @@ async function sendBookingNotifications(
   const spaceStr = booking.space === 'nolter' ? '놀터' : '방음실'
 
   // Phase 6.5: 선불권 사용 예약
-  if (booking.payment_status === 'prepaid') {
+  if (booking.payment_method === 'prepaid' || booking.payment_method === 'mixed') {
     await sendNotification({
       type: '2-1',
       phone: normalizedPhone,
@@ -670,9 +670,9 @@ async function sendBookingNotifications(
 
   // 6-4: 관리자 알림 (선불권 제외)
   const adminPhone = process.env.ADMIN_PHONE
-  if (adminPhone && booking.payment_status !== 'prepaid') {
+  if (adminPhone && booking.payment_method !== 'prepaid' && booking.payment_method !== 'mixed') {
     const category =
-      booking.payment_status === 'prepaid'
+      booking.payment_method === 'prepaid' || booking.payment_method === 'mixed'
         ? '선불권'
         : booking.payment_method === 'nolter_paid'
         ? '회원(유료)'
