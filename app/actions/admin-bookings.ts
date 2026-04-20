@@ -73,35 +73,51 @@ export async function getTodayBookings() {
 export async function cancelBookingAdmin(bookingId: string, reason?: string) {
   try {
     const supabase = await createClient()
-    
+
     const { data: booking, error: checkError } = await supabase
       .from('bookings')
       .select('*')
       .eq('id', bookingId)
       .single()
-    
+
     if (checkError || !booking) {
       return { success: false, error: '예약을 찾을 수 없습니다.' }
     }
-    
+
     if (booking.status === 'cancelled') {
       return { success: false, error: '이미 취소된 예약입니다.' }
     }
-    
-    const { error } = await supabase
-      .from('bookings')
-      .update({ 
-        status: 'cancelled',
-        cancelled_at: new Date().toISOString(),
-        cancellation_reason: reason || '관리자 취소',
-      })
-      .eq('id', bookingId)
-    
-    if (error) {
-      console.error('❌ Supabase error:', error)
-      throw error
+
+    const isPrepaidBooking = (booking.prepaid_hours_used ?? 0) > 0
+
+    if (isPrepaidBooking) {
+      const { data: rpcData, error: rpcError } = await supabase
+        .rpc('cancel_booking_restore_prepaid', { p_booking_id: bookingId })
+
+      if (rpcError) throw rpcError
+      if (!rpcData?.success) {
+        return { success: false, error: rpcData?.error || '선불권 복구 중 오류가 발생했습니다' }
+      }
+
+      if (reason) {
+        await supabase
+          .from('bookings')
+          .update({ cancellation_reason: reason })
+          .eq('id', bookingId)
+      }
+    } else {
+      const { error } = await supabase
+        .from('bookings')
+        .update({
+          status: 'cancelled',
+          cancelled_at: new Date().toISOString(),
+          cancellation_reason: reason || '관리자 취소',
+        })
+        .eq('id', bookingId)
+
+      if (error) throw error
     }
-    
+
     return { success: true }
   } catch (error: any) {
     console.error('❌ Cancel booking admin error:', error)
