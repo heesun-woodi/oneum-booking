@@ -522,7 +522,7 @@ export default function Home() {
       bookingDate,
       times: selectedTimes,
       space: selectedSpace,
-      memberType: userSession.isLoggedIn ? 'member' as const : 'non-member' as const,
+      memberType: (userSession.isLoggedIn && userSession.isResident) ? 'member' as const : 'non-member' as const,
       household: userSession.isLoggedIn ? userSession.household : undefined,
       name: userSession.isLoggedIn ? userSession.name : name,  // ⭐ Phase 6.5: 로그인 사용자는 세션 정보 사용
       phone: userSession.isLoggedIn ? userSession.phone : phone, // ⭐ Phase 6.5: 로그인 사용자는 세션 정보 사용

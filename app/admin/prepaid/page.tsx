@@ -5,7 +5,9 @@ import {
   getAllPrepaidPurchases,
   confirmPrepaidPayment,
   approvePrepaidRefund,
+  getPrepaidUsages,
   type AdminPrepaidPurchase,
+  type PrepaidUsage,
 } from '@/app/actions/admin-prepaid'
 import { maskPhone } from '@/lib/notifications/templates'
 import { PREPAID_STATUS_LABELS } from '@/lib/constants/status-labels'
@@ -18,6 +20,8 @@ export default function AdminPrepaidPage() {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<PrepaidFilter>('pending')
   const [processingId, setProcessingId] = useState<string | null>(null)
+  const [usageModal, setUsageModal] = useState<{ purchase: AdminPrepaidPurchase; usages: PrepaidUsage[] } | null>(null)
+  const [loadingUsageId, setLoadingUsageId] = useState<string | null>(null)
 
   useEffect(() => {
     loadPurchases()
@@ -44,6 +48,17 @@ export default function AdminPrepaidPage() {
       loadPurchases()
     } else {
       alert('오류: ' + result.error)
+    }
+  }
+
+  async function handleShowUsages(purchase: AdminPrepaidPurchase) {
+    setLoadingUsageId(purchase.id)
+    const result = await getPrepaidUsages(purchase.id)
+    setLoadingUsageId(null)
+    if (result.success) {
+      setUsageModal({ purchase, usages: result.usages })
+    } else {
+      alert('사용 내역 조회 실패: ' + result.error)
     }
   }
 
@@ -75,6 +90,7 @@ export default function AdminPrepaidPage() {
   const filtered = filter === 'all' ? purchases : purchases.filter((p) => p.status === filter)
 
   return (
+    <>
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-7xl mx-auto">
         {/* 헤더 */}
@@ -144,7 +160,7 @@ export default function AdminPrepaidPage() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    {['신청일', '이름', '세대', '전화번호', '상품', '금액', '잔여/총시간', '만료일', '상태', '처리'].map((h) => (
+                    {['신청일', '이름', '세대', '전화번호', '상품', '금액', '잔여/총시간', '만료일', '상태', '사용내역', '처리'].map((h) => (
                       <th
                         key={h}
                         className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
@@ -198,6 +214,19 @@ export default function AdminPrepaidPage() {
                           )}
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap">
+                          {(p.status === 'paid' || p.status === 'refunded') ? (
+                            <button
+                              onClick={() => handleShowUsages(p)}
+                              disabled={loadingUsageId === p.id}
+                              className="px-3 py-1.5 bg-purple-50 text-purple-700 text-xs font-medium rounded-lg border border-purple-200 hover:bg-purple-100 disabled:opacity-50 transition-colors"
+                            >
+                              {loadingUsageId === p.id ? '조회중...' : `${p.total_hours - p.remaining_hours}h 사용`}
+                            </button>
+                          ) : (
+                            <span className="text-xs text-gray-400">-</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap">
                           {p.status === 'pending' && (
                             <button
                               onClick={() => handleConfirmPayment(p.id, p.user?.name ?? '', p.product?.name, p.product?.price)}
@@ -235,5 +264,80 @@ export default function AdminPrepaidPage() {
         </div>
       </div>
     </div>
+
+    {/* 사용 내역 모달 */}
+    {usageModal && (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-xl shadow-xl w-full max-w-lg">
+          <div className="flex items-center justify-between p-6 border-b">
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">선불권 사용 내역</h2>
+              <p className="text-sm text-gray-500 mt-0.5">
+                {usageModal.purchase.user?.name} · {usageModal.purchase.product?.name}
+              </p>
+            </div>
+            <button
+              onClick={() => setUsageModal(null)}
+              className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
+            >
+              ×
+            </button>
+          </div>
+
+          <div className="p-6">
+            {/* 요약 */}
+            <div className="flex gap-4 mb-6">
+              <div className="flex-1 bg-purple-50 rounded-lg p-3 text-center">
+                <p className="text-2xl font-bold text-purple-700">{usageModal.purchase.total_hours - usageModal.purchase.remaining_hours}h</p>
+                <p className="text-xs text-purple-600 mt-0.5">사용</p>
+              </div>
+              <div className="flex-1 bg-green-50 rounded-lg p-3 text-center">
+                <p className="text-2xl font-bold text-green-700">{usageModal.purchase.remaining_hours}h</p>
+                <p className="text-xs text-green-600 mt-0.5">잔여</p>
+              </div>
+              <div className="flex-1 bg-gray-50 rounded-lg p-3 text-center">
+                <p className="text-2xl font-bold text-gray-700">{usageModal.purchase.total_hours}h</p>
+                <p className="text-xs text-gray-500 mt-0.5">총</p>
+              </div>
+            </div>
+
+            {/* 사용 내역 목록 */}
+            {usageModal.usages.length === 0 ? (
+              <p className="text-center text-gray-400 py-8">사용 내역이 없습니다.</p>
+            ) : (
+              <div className="space-y-2 max-h-80 overflow-y-auto">
+                {usageModal.usages.map((u, i) => {
+                  const spaceName = u.booking?.space === 'nolter' ? '놀터' : u.booking?.space === 'soundroom' ? '방음실' : u.booking?.space ?? '-'
+                  const date = u.booking?.booking_date
+                    ? new Date(u.booking.booking_date).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })
+                    : '-'
+                  const time = u.booking ? `${u.booking.start_time.slice(0, 5)}~${u.booking.end_time.slice(0, 5)}` : '-'
+                  return (
+                    <div key={u.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg text-sm">
+                      <div>
+                        <span className="font-medium text-gray-900">{date}</span>
+                        <span className="text-gray-500 ml-2">{time}</span>
+                        <span className="ml-2 px-1.5 py-0.5 bg-white border border-gray-200 rounded text-xs text-gray-600">{spaceName}</span>
+                      </div>
+                      <span className="font-semibold text-purple-700">-{u.hours_used}h</span>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className="px-6 pb-6">
+            <button
+              onClick={() => setUsageModal(null)}
+              className="w-full py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition-colors"
+            >
+              닫기
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   )
 }

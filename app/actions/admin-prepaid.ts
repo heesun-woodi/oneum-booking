@@ -122,6 +122,45 @@ export async function confirmPrepaidPayment(purchaseId: string): Promise<{
   return { success: true }
 }
 
+// 선불권 사용 내역 조회
+export interface PrepaidUsage {
+  id: string
+  purchase_id: string
+  booking_id: string
+  hours_used: number
+  created_at: string
+  booking?: {
+    booking_date: string
+    start_time: string
+    end_time: string
+    space: string
+    name: string
+  }
+}
+
+export async function getPrepaidUsages(purchaseId: string): Promise<{
+  success: boolean
+  usages: PrepaidUsage[]
+  error?: string
+}> {
+  const supabase = await createServiceRoleClient()
+
+  const { data, error } = await supabase
+    .from('prepaid_usages')
+    .select(`
+      *,
+      booking:bookings(booking_date, start_time, end_time, space, name)
+    `)
+    .eq('purchase_id', purchaseId)
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    return { success: false, usages: [], error: error.message }
+  }
+
+  return { success: true, usages: (data ?? []) as PrepaidUsage[] }
+}
+
 // 환불 승인: refund_requested → refunded
 export async function approvePrepaidRefund(purchaseId: string): Promise<{
   success: boolean
