@@ -17,6 +17,7 @@ interface Booking {
   status: string
   payment_status: string
   created_at: string
+  user_id?: string | null
 }
 
 export default function AdminBookingsPage() {
@@ -209,7 +210,7 @@ export default function AdminBookingsPage() {
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-900">
                       {booking.name}
-                      {booking.member_type === 'non-member' && (
+                      {!booking.user_id && (
                         <span className="ml-1 text-xs text-gray-500">(비회원)</span>
                       )}
                     </td>

@@ -1261,7 +1261,7 @@ export default function Home() {
                   {(() => {
                     const totalHours = getTotalRemainingHours(prepaidPurchases)
                     if (totalHours > 0 && selectedTimes.length > 0) {
-                      const usage = calculatePrepaidUsage(prepaidPurchases, selectedTimes.length)
+                      const usage = calculatePrepaidUsage(prepaidPurchases, selectedTimes.length / 2)
                       return (
                         <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                           <div className="flex items-center justify-between mb-2">

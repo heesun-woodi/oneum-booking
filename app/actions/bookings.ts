@@ -137,7 +137,7 @@ export async function createBooking(input: CreateBookingInput) {
         if (purchasesError) throw purchasesError
 
         // 2. 차감 계획 계산
-        const requestedHours = input.times.length
+        const requestedHours = input.times.length / 2
         let remainingToFill = requestedHours
         let prepaidHoursUsed = 0
         const deductionPlan: Array<{ purchaseId: string; hoursToDeduct: number }> = []
@@ -155,7 +155,7 @@ export async function createBooking(input: CreateBookingInput) {
           console.log('ℹ️ 사용 가능한 선불권 없음, 일반 예약으로 진행')
         } else {
           const regularHours = remainingToFill
-          const amount = regularHours * 7000
+          const amount = Math.round(regularHours * 14000)
           const paymentMethod = regularHours === 0 ? 'prepaid' : 'mixed'
 
           // 3. RPC 호출 (올바른 JSONB 형식)
@@ -220,7 +220,8 @@ export async function createBooking(input: CreateBookingInput) {
           return { success: true, data }
         }
       } catch (rpcError) {
-        console.warn('⚠️ RPC 실패, 일반 예약으로 폴백:', rpcError)
+        console.error('❌ 선불권 예약 RPC 실패:', rpcError)
+        throw new Error('선불권 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.')
       }
     }
     
