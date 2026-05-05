@@ -528,6 +528,8 @@ export default function Home() {
       phone: userSession.isLoggedIn ? userSession.phone : phone, // ⭐ Phase 6.5: 로그인 사용자는 세션 정보 사용
       userId: userSession.userId, // ⭐ Phase 6.5: 선불권 사용을 위한 userId 전달
       consentGiven: userSession.isLoggedIn ? true : nonMemberConsent,
+      isLoggedIn: userSession.isLoggedIn,
+      isResident: !!userSession.isResident,
     }
 
     console.log('🚀 예약 시작:', bookingInput)

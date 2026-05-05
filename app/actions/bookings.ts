@@ -1,6 +1,7 @@
 'use server'
 
 import { supabase } from '@/lib/supabase'
+import { createServiceRoleClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { sendNotification } from '@/lib/notifications/sender'
 
@@ -14,6 +15,8 @@ export interface CreateBookingInput {
   phone: string
   userId?: string            // Phase 6.5: 선불권 사용을 위한 user_id
   consentGiven?: boolean     // 개인정보 수집·이용 동의 (비회원 필수)
+  isLoggedIn?: boolean       // 예약 사용자 상태 추적용
+  isResident?: boolean       // 세대 입주민 여부
 }
 
 export async function createBooking(input: CreateBookingInput) {
@@ -59,9 +62,21 @@ export async function createBooking(input: CreateBookingInput) {
     
     // 전화번호 정규화 (숫자만 저장)
     const normalizedPhone = input.phone.replace(/[^0-9]/g, '')
+
+    const userType = input.userId
+      ? (input.isResident ? 'resident-member' : 'general-member')
+      : 'guest'
+
+    console.log('👤 예약 사용자 타입 해석', {
+      userId: input.userId,
+      isLoggedIn: input.isLoggedIn,
+      isResident: input.isResident,
+      memberType: input.memberType,
+      resolvedUserType: userType,
+    })
     
     // Phase 7: 온음 세대 회원 + 놀터 전용 정책 (월 3회 무료, 이후 10,000원/건)
-    if (input.memberType === 'member' && input.space === 'nolter') {
+    if (userType === 'resident-member' && input.space === 'nolter') {
       const now = new Date()
       const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
       const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1)
@@ -120,12 +135,19 @@ export async function createBooking(input: CreateBookingInput) {
 
     // Phase 6.5: 선불권 우선 사용 (userId가 있는 경우, 비회원 또는 방음실 회원)
     if (input.userId) {
-      console.log('🎫 선불권 확인 및 사용 시도 (userId:', input.userId, ')')
+      console.log('🎫 선불권 확인 및 사용 시도', {
+        userId: input.userId,
+        memberType: input.memberType,
+        space: input.space,
+        requestedSlots: input.times.length,
+      })
 
       try {
+        const serviceSupabase = await createServiceRoleClient()
+
         // 1. 사용 가능한 선불권 조회 (유효기간 임박 순)
         const now = new Date().toISOString()
-        const { data: purchases, error: purchasesError } = await supabase
+        const { data: purchases, error: purchasesError } = await serviceSupabase
           .from('prepaid_purchases')
           .select('id, remaining_hours, expires_at')
           .eq('user_id', input.userId)
@@ -135,6 +157,12 @@ export async function createBooking(input: CreateBookingInput) {
           .order('expires_at', { ascending: true })
 
         if (purchasesError) throw purchasesError
+
+        console.log('🎫 사용 가능한 선불권 조회 결과', {
+          userId: input.userId,
+          purchaseCount: purchases?.length ?? 0,
+          purchases,
+        })
 
         // 2. 차감 계획 계산
         const requestedHours = input.times.length / 2
@@ -152,14 +180,26 @@ export async function createBooking(input: CreateBookingInput) {
 
         // 선불권 사용 없으면 일반 예약으로
         if (deductionPlan.length === 0) {
-          console.log('ℹ️ 사용 가능한 선불권 없음, 일반 예약으로 진행')
+          console.log('ℹ️ 사용 가능한 선불권 없음, 일반 예약으로 진행', {
+            userId: input.userId,
+            memberType: input.memberType,
+            requestedHours,
+            purchaseCount: purchases?.length ?? 0,
+          })
         } else {
+          console.log('🎫 선불권 차감 계획', {
+            userId: input.userId,
+            requestedHours,
+            prepaidHoursUsed,
+            remainingToFill,
+            deductionPlan,
+          })
           const regularHours = remainingToFill
           const amount = Math.round(regularHours * 14000)
           const paymentMethod = regularHours === 0 ? 'prepaid' : 'mixed'
 
           // 3. RPC 호출 (올바른 JSONB 형식)
-          const { data: rpcData, error: rpcError } = await supabase
+          const { data: rpcData, error: rpcError } = await serviceSupabase
             .rpc('create_booking_with_prepaid', {
               p_booking_data: {
                 bookingDate: input.bookingDate,
