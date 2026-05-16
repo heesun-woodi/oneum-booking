@@ -3,6 +3,7 @@
  */
 
 import { supabase } from '../supabase'
+import { createServiceRoleClient } from '../supabase/server'
 import { sendNotification } from '../notifications/sender'
 import { formatBookingList, formatPrepaidSummaryVars } from '../notifications/templates'
 
@@ -247,10 +248,11 @@ export async function financeAlert(
 export async function autoCancelPrepaid(): Promise<{
   cancelled: number
 }> {
+  const serviceSupabase = await createServiceRoleClient()
   const cutoff = new Date()
   cutoff.setHours(cutoff.getHours() - 48)
 
-  const { data: purchases, error } = await supabase
+  const { data: purchases, error } = await serviceSupabase
     .from('prepaid_purchases')
     .select('id, user_id, total_hours')
     .eq('status', 'pending')
@@ -263,7 +265,7 @@ export async function autoCancelPrepaid(): Promise<{
 
   if (purchases.length === 0) return { cancelled: 0 }
 
-  const { error: updateError } = await supabase
+  const { error: updateError } = await serviceSupabase
     .from('prepaid_purchases')
     .update({
       status: 'cancelled',
@@ -284,9 +286,10 @@ export async function autoCancelPrepaid(): Promise<{
  * 선불권 미입금 리마인더 헬퍼 - 공통 발송 로직
  */
 async function sendPrepaidPaymentReminder(): Promise<{ sent: number }> {
+  const serviceSupabase = await createServiceRoleClient()
   const adminUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://oneum.vercel.app'}/admin/prepaid`
 
-  const { data: purchases, error } = await supabase
+  const { data: purchases, error } = await serviceSupabase
     .from('prepaid_purchases')
     .select(`
       id, created_at,
@@ -338,10 +341,11 @@ export async function prepaidPaymentReminder(): Promise<{ sent: number }> {
  * 44시간 이상 경과한 미입금 건만 대상
  */
 export async function prepaidFinalReminder(): Promise<{ sent: number }> {
+  const serviceSupabase = await createServiceRoleClient()
   const cutoff44h = new Date()
   cutoff44h.setHours(cutoff44h.getHours() - 44)
 
-  const { data: pending, error } = await supabase
+  const { data: pending, error } = await serviceSupabase
     .from('prepaid_purchases')
     .select('id')
     .eq('status', 'pending')
@@ -360,6 +364,7 @@ export async function prepaidFinalReminder(): Promise<{ sent: number }> {
  * 어제 KST 기준으로 신청된 pending 선불권에 개별 발송
  */
 export async function prepaidPaymentGuide(): Promise<{ sent: number }> {
+  const serviceSupabase = await createServiceRoleClient()
   // KST 어제 범위 계산
   const now = new Date()
   const nowKST = new Date(now.getTime() + 9 * 60 * 60 * 1000)
@@ -372,7 +377,7 @@ export async function prepaidPaymentGuide(): Promise<{ sent: number }> {
   const utcStart = new Date(kstYesterdayStart.getTime() - 9 * 60 * 60 * 1000)
   const utcEnd = new Date(kstYesterdayEnd.getTime() - 9 * 60 * 60 * 1000)
 
-  const { data: purchases, error } = await supabase
+  const { data: purchases, error } = await serviceSupabase
     .from('prepaid_purchases')
     .select(`
       id, created_at,
