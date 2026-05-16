@@ -424,13 +424,13 @@ export async function sameDayReminder(): Promise<{
   const now = new Date()
   const todayStr = now.toISOString().split('T')[0]
 
-  // 오늘 유료 확정 예약 조회 (비회원 + 놀터 유료 회원)
+  // 오늘 확정 예약 조회 (세대원 무료 제외)
   const { data: bookings, error } = await supabase
     .from('bookings')
     .select('*')
     .eq('booking_date', todayStr)
     .eq('status', 'confirmed')
-    .gt('amount', 0)
+    .neq('payment_method', 'free')
 
   if (error || !bookings) {
     return { sent: 0 }
