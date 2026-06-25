@@ -8,6 +8,15 @@ import { getMonthlyUsage, UsageCount } from '@/app/actions/usage'
 import { changePassword } from '@/app/actions/auth'
 import { getPrepaidByPhone } from '@/app/actions/prepaid'
 import { PREPAID_STATUS_LABELS, BOOKING_STATUS_LABELS } from '@/lib/constants/status-labels'
+import {
+  isPushSupported,
+  getPermission,
+  isStandalone,
+  isIOS,
+  subscribeToPush,
+  unsubscribeFromPush,
+  hasActiveSubscription,
+} from '@/lib/push/client'
 
 interface UserSession {
   isLoggedIn: boolean
@@ -166,6 +175,11 @@ export default function MyPage() {
             )}
           </div>
         </div>
+
+        {/* 푸시 알림 설정 */}
+        {session.userId && (
+          <PushNotificationCard userId={session.userId} />
+        )}
 
         {/* 비밀번호 변경 */}
         {session.userId && (
@@ -420,6 +434,104 @@ function PasswordChangeCard({ userId }: { userId: string }) {
             {loading ? '변경 중...' : '변경하기'}
           </button>
         </div>
+      )}
+    </div>
+  )
+}
+
+function PushNotificationCard({ userId }: { userId: string }) {
+  const [supported, setSupported] = useState(true)
+  const [standalone, setStandalone] = useState(true)
+  const [ios, setIos] = useState(false)
+  const [permission, setPermission] = useState<string>('default')
+  const [subscribed, setSubscribed] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [ready, setReady] = useState(false)
+
+  useEffect(() => {
+    setSupported(isPushSupported())
+    setStandalone(isStandalone())
+    setIos(isIOS())
+    setPermission(getPermission())
+    hasActiveSubscription().then((s) => {
+      setSubscribed(s)
+      setReady(true)
+    })
+  }, [])
+
+  async function handleToggle() {
+    setLoading(true)
+    if (subscribed) {
+      await unsubscribeFromPush(userId)
+      setSubscribed(false)
+    } else {
+      const result = await subscribeToPush(userId)
+      if (result.success) {
+        setSubscribed(true)
+        setPermission('granted')
+      } else if (result.reason === 'denied') {
+        setPermission('denied')
+        alert('알림 권한이 차단되어 있습니다. 브라우저/기기 설정에서 알림을 허용해 주세요.')
+      } else if (result.reason === 'no-vapid') {
+        alert('푸시 알림이 아직 설정되지 않았습니다. 관리자에게 문의해 주세요.')
+      } else {
+        alert('푸시 알림 설정에 실패했습니다. 잠시 후 다시 시도해 주세요.')
+      }
+    }
+    setLoading(false)
+  }
+
+  // iOS인데 홈 화면에 설치되지 않은 경우: 설치 안내
+  const needsInstall = ios && !standalone
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm p-5 mb-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-semibold text-gray-700">🔔 푸시 알림 받기</p>
+          <p className="text-xs text-gray-400 mt-0.5">
+            예약 확정·리마인더를 문자 대신 앱 푸시로 받아요.
+          </p>
+        </div>
+
+        {supported && !needsInstall && (
+          <button
+            onClick={handleToggle}
+            disabled={loading || !ready || permission === 'denied'}
+            role="switch"
+            aria-checked={subscribed}
+            className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${
+              subscribed ? 'bg-blue-500' : 'bg-gray-300'
+            }`}
+          >
+            <span
+              className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                subscribed ? 'translate-x-6' : 'translate-x-1'
+              }`}
+            />
+          </button>
+        )}
+      </div>
+
+      {/* 안내 메시지 */}
+      {!supported && (
+        <p className="mt-3 text-xs text-gray-500">
+          현재 브라우저는 푸시 알림을 지원하지 않습니다. 알림은 문자로 발송됩니다.
+        </p>
+      )}
+      {supported && needsInstall && (
+        <p className="mt-3 text-xs text-gray-500 leading-relaxed">
+          iPhone·iPad에서는 <b>홈 화면에 추가</b> 후 푸시 알림을 켤 수 있어요.<br />
+          Safari 하단 <b>공유</b> 버튼 → <b>홈 화면에 추가</b> → 홈 화면의 온음 앱으로 다시 들어와 주세요.
+        </p>
+      )}
+      {supported && !needsInstall && permission === 'denied' && (
+        <p className="mt-3 text-xs text-red-500 leading-relaxed">
+          알림 권한이 차단되어 있습니다. 브라우저/기기 설정에서 온음 알림을 허용한 뒤 다시 시도해 주세요.
+        </p>
+      )}
+      {supported && !needsInstall && subscribed && permission !== 'denied' && (
+        <p className="mt-3 text-xs text-blue-500">푸시 알림이 켜져 있어요. 문자 대신 앱 알림으로 받아요.</p>
       )}
     </div>
   )
