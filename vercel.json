@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/cron/auto-cancel",
-      "schedule": "0 0 * * *"
+      "schedule": "0 15 * * *"
     },
     {
       "path": "/api/cron/day-before-reminder",
@@ -25,10 +25,6 @@
       "schedule": "0 5 * * *"
     },
     {
-      "path": "/api/cron/finance-alert-follow",
-      "schedule": "0 4 * * *"
-    },
-    {
       "path": "/api/cron/prepaid-auto-cancel",
       "schedule": "0 2 * * *"
     },
@@ -43,10 +39,6 @@
     {
       "path": "/api/cron/prepaid-final-reminder",
       "schedule": "0 1 * * *"
-    },
-    {
-      "path": "/api/cron/finance-alert-first",
-      "schedule": "0 12 * * *"
     },
     {
       "path": "/api/cron/finance-alert-final",

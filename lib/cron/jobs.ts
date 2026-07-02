@@ -13,16 +13,20 @@ import { formatBookingList, formatPrepaidSummaryVars } from '../notifications/te
 export async function autoCancelUnpaid(): Promise<{
   cancelled: number
 }> {
-  const tomorrow = new Date()
-  tomorrow.setDate(tomorrow.getDate() + 1)
-  const tomorrowStr = tomorrow.toISOString().split('T')[0]
+  // 한국시간(KST=UTC+9) 기준 '오늘' 날짜.
+  // 이 크론은 매일 KST 00:00(vercel.json 기준 "0 15 * * *" = 15:00 UTC)에 실행된다.
+  // 정책: 사용일 '전날 23:59'까지 입금 확인이 안 되면 자동취소 → 사용일 당일 00:00 KST에 오늘(이하) 사용분을 취소.
+  const kstToday = new Date(Date.now() + 9 * 60 * 60 * 1000)
+    .toISOString()
+    .split('T')[0]
 
-  // 내일 예약 중 미입금 예약 조회 (비회원 + 놀터 유료 회원)
+  // 사용일이 '오늘(KST) 이하'인 미입금 예약 조회 (비회원 + 놀터 유료 회원)
+  // .lte로 조회해, 전날 늦게 잡아 검사 창을 놓친 건과 과거 잔여분까지 함께 정리한다.
   const { data: bookings, error } = await supabase
     .from('bookings')
     .select('*')
     .eq('payment_status', 'pending')
-    .eq('booking_date', tomorrowStr)
+    .lte('booking_date', kstToday)
     .eq('status', 'pending')
     .gt('amount', 0)
 
@@ -168,58 +172,26 @@ export async function paymentReminder(daysUntil: number = 7): Promise<{
 }
 
 /**
- * 4. 재무 알림 (16:00 / 21:00 / 23:30)
+ * 4. 재무 알림 (23:30 KST) — 내일 미입금 예약을 재무담당자에게 알림
  */
-export async function financeAlert(
-  type: 'first' | 'follow' | 'final'
-): Promise<{
+export async function financeAlert(): Promise<{
   sent: number
 }> {
-  let targetDate = new Date()
-  let targetBookings: any[] = []
+  // 내일(D+1) 미입금 예약을 재무담당자에게 알림 (자정 자동취소 직전 마지막 heads-up).
+  // 당일 미입금(기존 first/follow)은 사용일 당일 00:00 자동취소로 대상이 사라져 제거함.
+  const targetDate = new Date()
+  targetDate.setDate(targetDate.getDate() + 1)
+  const tomorrowStr = targetDate.toISOString().split('T')[0]
 
-  if (type === 'first') {
-    // 당일 예약 중 미입금 (21시 이전)
-    const todayStr = targetDate.toISOString().split('T')[0]
+  const { data: bookings } = await supabase
+    .from('bookings')
+    .select('*')
+    .eq('payment_status', 'pending')
+    .eq('booking_date', tomorrowStr)
+    .eq('status', 'pending')
+    .gt('amount', 0)
 
-    const { data: bookings } = await supabase
-      .from('bookings')
-      .select('*')
-      .eq('payment_status', 'pending')
-      .eq('booking_date', todayStr)
-      .eq('status', 'pending')
-      .gt('amount', 0)
-      .lt('start_time', '21:00')
-
-    targetBookings = bookings || []
-  } else if (type === 'follow') {
-    // 당일 예약 중 미입금 (전체)
-    const todayStr = targetDate.toISOString().split('T')[0]
-
-    const { data: bookings } = await supabase
-      .from('bookings')
-      .select('*')
-      .eq('payment_status', 'pending')
-      .eq('booking_date', todayStr)
-      .eq('status', 'pending')
-      .gt('amount', 0)
-
-    targetBookings = bookings || []
-  } else if (type === 'final') {
-    // D-1 미입금 예약
-    targetDate.setDate(targetDate.getDate() + 1)
-    const tomorrowStr = targetDate.toISOString().split('T')[0]
-
-    const { data: bookings } = await supabase
-      .from('bookings')
-      .select('*')
-      .eq('payment_status', 'pending')
-      .eq('booking_date', tomorrowStr)
-      .eq('status', 'pending')
-      .gt('amount', 0)
-
-    targetBookings = bookings || []
-  }
+  const targetBookings = bookings || []
 
   if (targetBookings.length === 0) {
     return { sent: 0 }

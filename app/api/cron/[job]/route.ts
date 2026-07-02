@@ -11,9 +11,7 @@
  * - payment-reminder-d7: 입금 리마인더 D-7 (13:00)
  * - payment-reminder-d5: 입금 리마인더 D-5 (13:00)
  * - payment-reminder-d2: 입금 리마인더 D-2 (13:00)
- * - finance-alert-first: 재무 1차 알림 (21:00)
- * - finance-alert-follow: 재무 2차 알림 (16:00)
- * - finance-alert-final: 재무 최종 알림 (23:30)
+ * - finance-alert-final: 재무 알림 — 내일 미입금 (23:30 KST)
  * - same-day-reminder: 1시간 전 리마인더 (매시간)
  */
 
@@ -81,22 +79,8 @@ export async function GET(
         )
         break
 
-      case 'finance-alert-first':
-        result = await withCronLogging('finance-alert-first', () =>
-          financeAlert('first')
-        )
-        break
-
-      case 'finance-alert-follow':
-        result = await withCronLogging('finance-alert-follow', () =>
-          financeAlert('follow')
-        )
-        break
-
       case 'finance-alert-final':
-        result = await withCronLogging('finance-alert-final', () =>
-          financeAlert('final')
-        )
+        result = await withCronLogging('finance-alert-final', financeAlert)
         break
 
       case 'same-day-reminder':
