@@ -77,10 +77,13 @@ export async function createBooking(input: CreateBookingInput) {
     
     // Phase 7: 온음 세대 회원 + 놀터 전용 정책 (월 3회 무료, 이후 10,000원/건)
     if (userType === 'resident-member' && input.space === 'nolter') {
-      const now = new Date()
-      const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
-      const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1)
-      const nextMonthStr = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, '0')}-01`
+      // 무료 3회 기준: 신청 시점이 아니라 '사용일(booking_date)이 속한 달' 기준으로 카운트한다.
+      // (예: 8월 사용분은 언제 신청하든 항상 8월 카운트로 계산)
+      const [byear, bmonth] = input.bookingDate.split('-').map(Number)
+      const monthStart = `${byear}-${String(bmonth).padStart(2, '0')}-01`
+      const nextY = bmonth === 12 ? byear + 1 : byear
+      const nextM = bmonth === 12 ? 1 : bmonth + 1
+      const nextMonthStr = `${nextY}-${String(nextM).padStart(2, '0')}-01`
 
       const { count, error: countError } = await supabase
         .from('bookings')
@@ -563,12 +566,17 @@ export async function getPastBookingsByUserId(userId: string) {
 }
 
 // ===== 세대별 이번 달 놀터 예약 건수 조회 (UI용) =====
-export async function getMemberNolterCount(household: string): Promise<{ success: boolean; count: number; error?: string }> {
+export async function getMemberNolterCount(
+  household: string,
+  targetMonth?: string // 'YYYY-MM'. 예약하려는 사용일이 속한 달을 넘겨 실제 과금 판정과 일치시킨다. 미지정 시 현재 월.
+): Promise<{ success: boolean; count: number; error?: string }> {
   try {
-    const now = new Date()
-    const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
-    const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1)
-    const nextMonthStr = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, '0')}-01`
+    const base = targetMonth ?? new Date().toISOString().substring(0, 7)
+    const [year, mon] = base.split('-').map(Number)
+    const monthStart = `${year}-${String(mon).padStart(2, '0')}-01`
+    const nextY = mon === 12 ? year + 1 : year
+    const nextM = mon === 12 ? 1 : mon + 1
+    const nextMonthStr = `${nextY}-${String(nextM).padStart(2, '0')}-01`
 
     const { count, error } = await supabase
       .from('bookings')

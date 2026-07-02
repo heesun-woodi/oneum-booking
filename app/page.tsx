@@ -155,11 +155,13 @@ export default function Home() {
   useEffect(() => {
     if (isBookingModalOpen && userSession.isLoggedIn && selectedSpace === 'nolter' && userSession.household) {
       setNolterCount(null)
-      getMemberNolterCount(userSession.household).then(result => {
+      // 무료 3회는 '사용일이 속한 달' 기준이므로, 현재 보고 있는(예약하려는) 달로 조회한다.
+      const targetMonth = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}`
+      getMemberNolterCount(userSession.household, targetMonth).then(result => {
         if (result.success) setNolterCount(result.count)
       })
     }
-  }, [isBookingModalOpen, selectedSpace, userSession.isLoggedIn, userSession.household])
+  }, [isBookingModalOpen, selectedSpace, userSession.isLoggedIn, userSession.household, currentMonth])
 
   async function loadBookings() {
     const year = currentMonth.getFullYear()
@@ -1317,7 +1319,7 @@ export default function Home() {
                     ) : nolterCount < 3 ? (
                       <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                         <p className="text-sm font-semibold text-green-800">
-                          🎟 이번 달 무료 예약: {nolterCount}/3회 사용
+                          🎟 {month + 1}월 무료 예약: {nolterCount}/3회 사용
                         </p>
                         <p className="text-xs text-green-600 mt-1">
                           남은 무료 횟수: {3 - nolterCount}회 (시간 제한 없음)
@@ -1326,7 +1328,7 @@ export default function Home() {
                     ) : (
                       <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                         <p className="text-sm font-semibold text-yellow-800">
-                          💰 이번 달 무료 예약 3회 모두 사용
+                          💰 {month + 1}월 무료 예약 3회 모두 사용
                         </p>
                         <p className="text-sm text-yellow-700 mt-1">
                           추가 예약: <strong>10,000원/건</strong> (시간 무관)
