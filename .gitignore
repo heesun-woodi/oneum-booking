@@ -35,3 +35,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .omc/
+
+# manual backup copies (git already tracks history)
+*.bak
+*.bak[0-9]
