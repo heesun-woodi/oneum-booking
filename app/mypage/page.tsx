@@ -3,8 +3,9 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { getBookingsByHousehold, getPastBookingsByHousehold, getBookingsByUserId, getPastBookingsByUserId, cancelBooking } from '@/app/actions/bookings'
+import { getBookingsByHousehold, getPastBookingsByHousehold, getBookingsByUserId, getPastBookingsByUserId, cancelBooking, getHouseholdFreeHours } from '@/app/actions/bookings'
 import { getMonthlyUsage, UsageCount } from '@/app/actions/usage'
+import { formatHours } from '@/lib/booking-policy'
 import { changePassword } from '@/app/actions/auth'
 import { getPrepaidByPhone } from '@/app/actions/prepaid'
 import { PREPAID_STATUS_LABELS, BOOKING_STATUS_LABELS } from '@/lib/constants/status-labels'
@@ -68,6 +69,12 @@ export default function MyPage() {
   const [pastBookings, setPastBookings] = useState<Booking[]>([])
   const [prepaidPurchases, setPrepaidPurchases] = useState<PrepaidPurchase[]>([])
   const [monthlyUsage, setMonthlyUsage] = useState<UsageCount[]>([])
+  // Phase 8: 놀터 세대 무료 시간 현황 (월 20시간)
+  const [freeHours, setFreeHours] = useState<{
+    usedHours: number
+    limitHours: number
+    remainingHours: number
+  } | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -123,8 +130,18 @@ export default function MyPage() {
   }
 
   async function loadUsage(household: string) {
-    const res = await getMonthlyUsage(household)
-    if (res.success) setMonthlyUsage(res.usage)
+    const [usageRes, freeRes] = await Promise.all([
+      getMonthlyUsage(household),
+      getHouseholdFreeHours(household),
+    ])
+    if (usageRes.success) setMonthlyUsage(usageRes.usage)
+    if (freeRes.success) {
+      setFreeHours({
+        usedHours: freeRes.usedHours,
+        limitHours: freeRes.limitHours,
+        remainingHours: freeRes.remainingHours,
+      })
+    }
   }
 
   const activePrepaid = prepaidPurchases.find((p) => p.status === 'paid')
@@ -186,41 +203,42 @@ export default function MyPage() {
           <PasswordChangeCard userId={session.userId} />
         )}
 
-        {/* 이번 달 이용 현황 - 세대원만 표시 */}
-        {session.isResident && (() => {
-          const totalUsed = monthlyUsage.reduce((sum, u) => sum + u.effectiveCount, 0)
-          const FREE_LIMIT = 3
-          const remaining = Math.max(0, FREE_LIMIT - totalUsed)
-          const nolterUsed = monthlyUsage.find(u => u.space === 'nolter')?.effectiveCount ?? 0
-          const soundroomUsed = monthlyUsage.find(u => u.space === 'soundroom')?.effectiveCount ?? 0
+        {/* 이번 달 놀터 무료 이용 현황 - 세대원만 표시 (방음실은 무제한 무료라 한도에 포함하지 않는다) */}
+        {session.isResident && freeHours && (() => {
+          const { usedHours, limitHours, remainingHours } = freeHours
+          const exhausted = remainingHours <= 0
+          const nolterHours = monthlyUsage.find(u => u.space === 'nolter')?.bookedHours ?? 0
+          const soundroomHours = monthlyUsage.find(u => u.space === 'soundroom')?.bookedHours ?? 0
           return (
             <div className="bg-white rounded-2xl shadow-sm p-5 mb-6">
-              <h2 className="text-sm font-semibold text-gray-500 mb-3">이번 달 무료 이용 현황</h2>
+              <h2 className="text-sm font-semibold text-gray-500 mb-3">이번 달 놀터 무료 이용 현황</h2>
               <div className="flex items-center justify-between mb-3">
                 <div className="text-center">
-                  <p className="text-3xl font-bold text-blue-600">{remaining}</p>
-                  <p className="text-xs text-gray-400 mt-1">남은 무료 횟수</p>
+                  <p className="text-3xl font-bold text-blue-600">{remainingHours}</p>
+                  <p className="text-xs text-gray-400 mt-1">남은 무료 시간</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-3xl font-bold text-gray-700">{totalUsed}</p>
-                  <p className="text-xs text-gray-400 mt-1">이번 달 이용</p>
+                  <p className="text-3xl font-bold text-gray-700">{usedHours}</p>
+                  <p className="text-xs text-gray-400 mt-1">이번 달 사용</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-3xl font-bold text-gray-300">{FREE_LIMIT}</p>
-                  <p className="text-xs text-gray-400 mt-1">월 무료 한도</p>
+                  <p className="text-3xl font-bold text-gray-300">{limitHours}</p>
+                  <p className="text-xs text-gray-400 mt-1">월 무료 한도(시간)</p>
                 </div>
               </div>
               <div className="w-full bg-gray-100 rounded-full h-2 mb-3">
                 <div
-                  className={`h-2 rounded-full transition-all ${totalUsed >= FREE_LIMIT ? 'bg-red-400' : 'bg-blue-400'}`}
-                  style={{ width: `${Math.min(100, (totalUsed / FREE_LIMIT) * 100)}%` }}
+                  className={`h-2 rounded-full transition-all ${exhausted ? 'bg-red-400' : 'bg-blue-400'}`}
+                  style={{ width: `${limitHours > 0 ? Math.min(100, (usedHours / limitHours) * 100) : 0}%` }}
                 />
               </div>
-              <div className="flex gap-3 text-xs text-gray-500">
-                <span>놀터 {nolterUsed}회</span>
-                <span>방음실 {soundroomUsed}회</span>
-                {totalUsed >= FREE_LIMIT && (
-                  <span className="text-red-500 font-medium ml-auto">무료 이용 초과 (선불권 또는 현장 결제)</span>
+              <div className="flex flex-wrap gap-3 text-xs text-gray-500">
+                <span>놀터 {formatHours(nolterHours)} 이용</span>
+                <span>방음실 {formatHours(soundroomHours)} 이용 (무제한 무료)</span>
+                {exhausted && (
+                  <span className="text-red-500 font-medium ml-auto">
+                    무료 시간 초과 (선불권 차감 후 14,000원/시간)
+                  </span>
                 )}
               </div>
             </div>

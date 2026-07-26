@@ -9,6 +9,10 @@ export interface UsageCount {
   count: number
   cancelledSameDay: number
   effectiveCount: number
+  /** 예약된 총 시간 (migration 031에서 monthly_usage 뷰에 추가) */
+  bookedHours: number
+  /** 무료 한도에서 차감된 시간 (놀터만 해당) */
+  freeHours: number
 }
 
 /**
@@ -61,6 +65,8 @@ export async function getMonthlyUsage(
         count: u.usage_count,
         cancelledSameDay: 0,
         effectiveCount: u.usage_count,
+        bookedHours: Number(u.booked_hours ?? 0),
+        freeHours: Number(u.free_hours ?? 0),
       })
     })
 
@@ -131,6 +137,8 @@ export async function getAllHouseholdUsage(
         count: u.usage_count,
         cancelledSameDay: 0,
         effectiveCount: u.usage_count,
+        bookedHours: Number(u.booked_hours ?? 0),
+        freeHours: Number(u.free_hours ?? 0),
       })
     })
 

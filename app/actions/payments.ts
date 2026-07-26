@@ -142,11 +142,12 @@ export async function getCompletedPayments(options?: {
 /**
  * 전체 예약 목록 조회 (관리자용)
  *
- * 입금 확인이 필요한 예약을 모두 포함한다:
- *  - 비회원 예약 (regular / prepaid / mixed)
- *  - 놀터 월 3회 무료 한도를 초과한 세대원 유료 예약 (payment_method = 'nolter_paid')
- * 세대원 초과 예약은 member_type='member'이지만 현금 입금이 필요하므로,
- * 자동취소·입금리마인더 크론(lib/cron/jobs.ts)과 동일하게 이 목록에도 포함시킨다.
+ * 입금 확인이 필요한 예약을 모두 포함한다.
+ * 세대원도 무료 시간(놀터 월 20시간)을 초과하면 현금 입금이 필요하고, 그 예약은
+ * member_type='member' + payment_method='regular'|'mixed'이라 결제 방식만으로는
+ * 무료 예약과 구분되지 않는다. 그래서 '받을 돈이 남았는가'(amount > 0)로 판정한다.
+ * 이 조건은 자동취소·입금리마인더 크론(lib/cron/jobs.ts)의 필터와 정확히 일치하며,
+ * 구 정책의 nolter_paid(10,000원/건) 예약도 amount=10000이라 그대로 포함된다.
  */
 export async function getAllBookingsForPayment(options?: {
   startDate?: string
@@ -156,7 +157,7 @@ export async function getAllBookingsForPayment(options?: {
     let query = supabase
       .from('bookings')
       .select('*')
-      .or('member_type.eq.non-member,payment_method.eq.nolter_paid')
+      .or('member_type.eq.non-member,amount.gt.0')
       .neq('status', 'cancelled')
       .order('booking_date', { ascending: true })
 

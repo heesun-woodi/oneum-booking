@@ -37,7 +37,7 @@ const defaultSpacesInfo: Record<string, Omit<SpaceInfo, 'id'>> = {
     rules: ['신발을 벗고 입장해주세요', '음식물 반입 금지', '사용 후 정리정돈', '시설물 파손 시 변상'],
     hours: '09:00 ~ 22:00',
     pricing: {
-      member: '무료 (월 8시간까지)',
+      member: '세대원 무료 (세대당 월 20시간) / 초과 시 14,000원/시간',
       nonMember: '14,000원/시간',
     }
   },
@@ -49,7 +49,7 @@ const defaultSpacesInfo: Record<string, Omit<SpaceInfo, 'id'>> = {
     rules: ['악기는 개인 지참', '음량 조절 협조', '사용 후 정리정돈', '시설물 파손 시 변상'],
     hours: '09:00 ~ 22:00',
     pricing: {
-      member: '무료 (월 8시간까지)',
+      member: '세대원 무료 (무제한)',
       nonMember: '14,000원/시간',
     }
   }
@@ -58,9 +58,9 @@ const defaultSpacesInfo: Record<string, Omit<SpaceInfo, 'id'>> = {
 const defaultGeneralRules: GeneralRules = {
   booking: [
     '예약은 1일 전까지 가능합니다 (당일 예약 불가)',
-    '회원은 월 8시간까지 무료 이용',
-    '초과 시간은 14,000원/시간',
-    '비회원은 모든 이용에 14,000원/시간',
+    '온음 세대는 놀터를 세대당 월 20시간까지 무료 이용 (방음실은 무제한 무료)',
+    '무료 시간 초과분은 보유 선불권에서 먼저 차감되고, 남은 시간만 14,000원/시간으로 청구됩니다',
+    '일반 회원·비회원은 14,000원/시간 (선불권 사용 가능)',
   ],
   cancellation: [
     '이용일 2일 전까지 무료 취소',
