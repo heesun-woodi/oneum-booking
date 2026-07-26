@@ -6,15 +6,19 @@ import { revalidatePath } from 'next/cache'
 import { sendNotification } from '@/lib/notifications/sender'
 import {
   BookingCharge,
+  LEGACY_NOLTER_FREE_COUNT_PER_MONTH,
+  PolicyVersion,
   PrepaidLike,
   RESIDENT_NOLTER_FREE_HOURS_PER_MONTH,
   computeBookingCharge,
   describeCharge,
   freeHoursAllowance,
   monthRangeOf,
+  resolvePolicyVersion,
   resolveUserKind,
   round1,
   slotsToHours,
+  usesPrepaidHours,
 } from '@/lib/booking-policy'
 
 export interface CreateBookingInput {
@@ -103,6 +107,8 @@ export async function createBooking(input: CreateBookingInput) {
     // member_type='member' 는 이 시스템에서 '온음 세대원'을 뜻한다 (로그인 회원 일반이 아니다).
     const memberType: 'member' | 'non-member' = userKind === 'resident' ? 'member' : 'non-member'
     const requestedHours = slotsToHours(input.times.length)
+    // 정책은 신청 시점이 아니라 '사용일' 기준으로 갈린다 (v2 = 2026-08-01 사용분부터).
+    const policyVersion = resolvePolicyVersion(input.bookingDate)
 
     console.log('👤 예약 사용자 타입 해석', {
       userId: input.userId,
@@ -112,30 +118,42 @@ export async function createBooking(input: CreateBookingInput) {
       space: input.space,
       requestedHours,
       resolvedUserKind: userKind,
+      policyVersion,
     })
 
     // ===== 2. 세대 무료 사용량 조회 (놀터 + 세대원일 때만) =====
-    // 무료 한도는 신청 시점이 아니라 '사용일(booking_date)이 속한 달' 기준으로 판정한다.
+    // 한도는 신청 시점이 아니라 '사용일(booking_date)이 속한 달' 기준으로 판정한다.
     let freeHoursUsedThisMonth = 0
-    if (userKind === 'resident' && input.space === 'nolter') {
-      const { monthStart } = monthRangeOf(input.bookingDate)
-      const { data: usedData, error: usedError } = await serviceSupabase.rpc(
-        'get_household_free_hours',
-        { p_household: household, p_month: monthStart }
-      )
-      if (usedError) throw usedError
-      freeHoursUsedThisMonth = round1(Number(usedData ?? 0))
+    let legacyNolterBookingCount = 0
+    if (userKind === 'resident' && input.space === 'nolter' && household) {
+      if (policyVersion === 'v2') {
+        const { monthStart } = monthRangeOf(input.bookingDate)
+        const { data: usedData, error: usedError } = await serviceSupabase.rpc(
+          'get_household_free_hours',
+          { p_household: household, p_month: monthStart }
+        )
+        if (usedError) throw usedError
+        freeHoursUsedThisMonth = round1(Number(usedData ?? 0))
+      } else {
+        legacyNolterBookingCount = await countHouseholdNolterBookings(
+          serviceSupabase,
+          household,
+          input.bookingDate
+        )
+      }
     }
 
     // ===== 3. 선불권 조회 =====
-    // 무료 시간으로 전부 커버되면 조회조차 하지 않는다.
+    // 무료로 전부 커버되면 조회조차 하지 않는다.
     // (세대원이 방음실을 예약할 때 선불권이 소진되던 문제를 막는다)
+    // v1의 세대원 놀터 예약은 무료 아니면 정액 10,000원이라 선불권이 개입하지 않는다.
     const allowance = freeHoursAllowance(userKind, input.space)
     const freeHoursLeft =
       allowance === Infinity ? Infinity : Math.max(0, round1(allowance - freeHoursUsedThisMonth))
+    const canUsePrepaid = usesPrepaidHours(policyVersion, userKind, input.space)
 
     let prepaidPurchases: PrepaidLike[] = []
-    if (input.userId && requestedHours > freeHoursLeft) {
+    if (input.userId && canUsePrepaid && requestedHours > freeHoursLeft) {
       const { data: purchases, error: purchasesError } = await serviceSupabase
         .from('prepaid_purchases')
         .select('id, remaining_hours, expires_at, status')
@@ -158,8 +176,10 @@ export async function createBooking(input: CreateBookingInput) {
     let charge = computeBookingCharge({
       userKind,
       space: input.space,
+      bookingDate: input.bookingDate,
       requestedHours,
       freeHoursUsedThisMonth,
+      legacyNolterBookingCount,
       prepaidPurchases,
     })
 
@@ -184,8 +204,10 @@ export async function createBooking(input: CreateBookingInput) {
       charge = computeBookingCharge({
         userKind,
         space: input.space,
+        bookingDate: input.bookingDate,
         requestedHours,
         freeHoursUsedThisMonth: round1(Number(rpcResult.freeHoursUsed ?? 0)),
+        legacyNolterBookingCount,
         prepaidPurchases,
       })
       rpcResult = await createBookingViaRpc({
@@ -234,6 +256,32 @@ export async function createBooking(input: CreateBookingInput) {
   }
 }
 
+/**
+ * [v1 전용] 세대의 해당 월 놀터 예약 '건수' (취소 제외).
+ *
+ * 종전 규정은 이용 시간이 아니라 예약 건수로 무료 3회를 판정했다.
+ * 2026-08-01 이후 사용분에는 쓰이지 않는다.
+ */
+async function countHouseholdNolterBookings(
+  serviceSupabase: any,
+  household: string,
+  bookingDate: string
+): Promise<number> {
+  const { monthStart, nextMonthStart } = monthRangeOf(bookingDate)
+
+  const { count, error } = await serviceSupabase
+    .from('bookings')
+    .select('*', { count: 'exact', head: true })
+    .eq('household', household)
+    .eq('space', 'nolter')
+    .neq('status', 'cancelled')
+    .gte('booking_date', monthStart)
+    .lt('booking_date', nextMonthStart)
+
+  if (error) throw error
+  return count ?? 0
+}
+
 interface CreateBookingRpcArgs {
   serviceSupabase: any
   input: CreateBookingInput
@@ -272,8 +320,8 @@ async function createBookingViaRpc({
       name: input.name,
       phone: normalizedPhone,
       userId: input.userId || '',
-      // 방음실 세대원 무료는 한도가 없으므로 무료 시간 원장(free_hours_used)에 기록하지 않는다.
-      freeHoursUsed: charge.usesUnlimitedFree ? 0 : charge.freeHours,
+      // 방음실 무제한 무료와 v1(건수제)은 20시간 원장을 소진하지 않으므로 0이 들어간다.
+      freeHoursUsed: charge.freeHoursUsedLedger,
       freeHoursLimit: RESIDENT_NOLTER_FREE_HOURS_PER_MONTH,
       prepaidHoursUsed: charge.prepaidHours,
       regularHours: charge.regularHours,
@@ -545,49 +593,93 @@ export async function getPastBookingsByUserId(userId: string) {
   }
 }
 
-// ===== 세대별 이번 달 놀터 무료 사용 시간 조회 (UI용) =====
-/**
- * 예약 판정과 같은 SQL(get_household_free_hours)을 읽으므로 배지와 실제 과금이 어긋나지 않는다.
- *
- * @param targetMonth 'YYYY-MM'. 예약하려는 사용일이 속한 달을 넘긴다. 미지정 시 현재 월.
- */
-export async function getHouseholdFreeHours(
-  household: string,
-  targetMonth?: string
-): Promise<{
+// ===== 세대별 이번 달 놀터 무료 한도 현황 조회 (UI용) =====
+export interface HouseholdNolterQuota {
   success: boolean
+  /** 이 달에 적용되는 정책 (시행일이 월 경계라 한 달은 통째로 v1이거나 v2다) */
+  policyVersion: PolicyVersion
+  /** [v2] 시간 기준 */
   usedHours: number
   limitHours: number
   remainingHours: number
+  /** [v1] 건수 기준 */
+  usedCount: number
+  limitCount: number
+  remainingCount: number
   error?: string
-}> {
-  const limitHours = RESIDENT_NOLTER_FREE_HOURS_PER_MONTH
+}
+
+/**
+ * 예약 모달·마이페이지 배지용. 해당 월에 맞는 정책 기준으로 사용 현황을 돌려준다.
+ *
+ * v2는 예약 판정과 같은 SQL(get_household_free_hours)을 읽으므로
+ * 배지와 실제 과금이 어긋나지 않는다.
+ *
+ * @param targetMonth 'YYYY-MM'. 예약하려는 사용일이 속한 달을 넘긴다. 미지정 시 현재 월.
+ */
+export async function getHouseholdNolterQuota(
+  household: string,
+  targetMonth?: string
+): Promise<HouseholdNolterQuota> {
+  const base = targetMonth ?? new Date().toISOString().substring(0, 7)
+  const { monthStart, nextMonthStart } = monthRangeOf(base)
+  const policyVersion = resolvePolicyVersion(monthStart)
+
+  const limitHours = policyVersion === 'v2' ? RESIDENT_NOLTER_FREE_HOURS_PER_MONTH : 0
+  const limitCount = policyVersion === 'v1' ? LEGACY_NOLTER_FREE_COUNT_PER_MONTH : 0
+  const empty: HouseholdNolterQuota = {
+    success: true,
+    policyVersion,
+    usedHours: 0,
+    limitHours,
+    remainingHours: limitHours,
+    usedCount: 0,
+    limitCount,
+    remainingCount: limitCount,
+  }
+
   try {
     const normalized = (household ?? '').trim()
     if (!normalized) {
       // 세대 번호가 없으면 무료 한도를 집계할 키가 없다.
-      return { success: true, usedHours: 0, limitHours: 0, remainingHours: 0 }
+      return { ...empty, limitHours: 0, remainingHours: 0, limitCount: 0, remainingCount: 0 }
     }
 
-    const base = targetMonth ?? new Date().toISOString().substring(0, 7)
-    const { monthStart } = monthRangeOf(base)
+    if (policyVersion === 'v2') {
+      const { data, error } = await supabase.rpc('get_household_free_hours', {
+        p_household: normalized,
+        p_month: monthStart,
+      })
+      if (error) throw error
 
-    const { data, error } = await supabase.rpc('get_household_free_hours', {
-      p_household: normalized,
-      p_month: monthStart,
-    })
+      const usedHours = round1(Number(data ?? 0))
+      return {
+        ...empty,
+        usedHours,
+        remainingHours: round1(Math.max(0, limitHours - usedHours)),
+      }
+    }
+
+    // v1: 건수 기준
+    const { count, error } = await supabase
+      .from('bookings')
+      .select('*', { count: 'exact', head: true })
+      .eq('household', normalized)
+      .eq('space', 'nolter')
+      .neq('status', 'cancelled')
+      .gte('booking_date', monthStart)
+      .lt('booking_date', nextMonthStart)
 
     if (error) throw error
 
-    const usedHours = round1(Number(data ?? 0))
+    const usedCount = count ?? 0
     return {
-      success: true,
-      usedHours,
-      limitHours,
-      remainingHours: round1(Math.max(0, limitHours - usedHours)),
+      ...empty,
+      usedCount,
+      remainingCount: Math.max(0, limitCount - usedCount),
     }
   } catch (error: any) {
-    return { success: false, usedHours: 0, limitHours, remainingHours: 0, error: error.message }
+    return { ...empty, success: false, error: error.message }
   }
 }
 

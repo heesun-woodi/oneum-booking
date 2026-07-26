@@ -6,10 +6,21 @@
  * app/page.tsx(클라이언트 컴포넌트)와 app/actions/bookings.ts(서버 액션)가
  * 같은 계산식을 쓰게 하는 것이 목적이다.
  *
- * 정책 요약 (2026-07, Phase 8)
- *  - 온음 세대(세대 번호 보유 + is_resident): 놀터를 세대당 월 20시간 무료, 방음실은 무제한 무료
+ * 정책은 '사용일(booking_date)' 기준으로 두 가지가 공존한다.
+ *
+ * v2 — 2026-08-01 사용분부터 (Phase 8)
+ *  - 온음 세대: 놀터를 세대당 월 20시간 무료, 방음실은 무제한 무료
  *  - 무료 시간은 한 예약 안에서 부분 소진된다 (잔여 2시간 + 3시간 예약 → 2시간 무료 + 1시간 과금)
  *  - 무료 소진 후에는 선불권 우선 차감 → 남은 시간만 14,000원/시간 현금
+ *
+ * v1 — 2026-07-31 사용분까지 (Phase 7, 종전 규정)
+ *  - 온음 세대: 놀터를 세대당 월 3회 무료(시간 무관), 4회차부터 10,000원/건
+ *  - 세대원 놀터 예약에는 선불권을 쓰지 않는다
+ *  - 방음실은 무제한 무료 (v2와 동일)
+ *
+ * 정리 시점: 2026년 9월 이후에는 v1 경로를 타는 신규 예약이 생길 수 없다.
+ * 그때 resolvePolicyVersion / v1 분기 / 전환 안내 문구를 제거하면 된다.
+ * (과거 nolter_paid 행 조회는 계속 필요하므로 CHECK 값과 표시 로직은 유지할 것)
  */
 
 /** 일반 이용 요금 (원/시간) */
@@ -21,8 +32,39 @@ export const SLOT_MINUTES = 30
 /** 슬롯 1개당 시간 */
 export const HOURS_PER_SLOT = SLOT_MINUTES / 60
 
-/** 온음 세대: 놀터 세대당 월 무료 이용 시간 */
+/** 온음 세대: 놀터 세대당 월 무료 이용 시간 (v2) */
 export const RESIDENT_NOLTER_FREE_HOURS_PER_MONTH = 20
+
+/** 새 정책 시행일 — 이 날짜 이후 '사용일'부터 v2가 적용된다 */
+export const POLICY_V2_EFFECTIVE_FROM = '2026-08-01'
+
+/** 종전 규정(v1): 놀터 세대당 월 무료 예약 '건수' */
+export const LEGACY_NOLTER_FREE_COUNT_PER_MONTH = 3
+
+/** 종전 규정(v1): 무료 횟수 초과 시 건당 정액 (이용 시간 무관) */
+export const LEGACY_NOLTER_OVER_QUOTA_FEE = 10000
+
+export type PolicyVersion = 'v1' | 'v2'
+
+/**
+ * 사용일이 어느 정책을 따르는지 판정한다.
+ * 'YYYY-MM-DD' 문자열은 사전순 비교가 날짜순과 일치하므로 그대로 비교한다.
+ */
+export function resolvePolicyVersion(bookingDate: string): PolicyVersion {
+  return bookingDate >= POLICY_V2_EFFECTIVE_FROM ? 'v2' : 'v1'
+}
+
+/**
+ * 이 조합이 선불권을 소진할 수 있는가.
+ * v1의 세대원 놀터 예약은 무료 아니면 정액 10,000원이라 선불권이 개입하지 않았다.
+ */
+export function usesPrepaidHours(
+  version: PolicyVersion,
+  kind: UserKind,
+  space: SpaceType
+): boolean {
+  return !(version === 'v1' && kind === 'resident' && space === 'nolter')
+}
 
 export type SpaceType = 'nolter' | 'soundroom'
 
@@ -33,8 +75,11 @@ export type SpaceType = 'nolter' | 'soundroom'
  */
 export type UserKind = 'resident' | 'member' | 'guest'
 
-/** bookings.payment_method — '금전' 차원만 표현한다. 무료 소진 여부는 freeHours로 판단할 것. */
-export type PaymentMethod = 'free' | 'prepaid' | 'mixed' | 'regular'
+/**
+ * bookings.payment_method — '금전' 차원만 표현한다. 무료 소진 여부는 freeHours로 판단할 것.
+ * 'nolter_paid'는 v1(2026-07-31 이전 사용분)의 놀터 정액 10,000원 예약에만 쓴다.
+ */
+export type PaymentMethod = 'free' | 'prepaid' | 'mixed' | 'regular' | 'nolter_paid'
 
 /** prepaid_purchases 중 계산에 필요한 최소 형태 */
 export interface PrepaidLike {
@@ -52,19 +97,24 @@ export interface DeductionPlanItem {
 export interface ComputeBookingChargeInput {
   userKind: UserKind
   space: SpaceType
+  /** 사용일 'YYYY-MM-DD'. 어느 정책(v1/v2)을 적용할지 결정한다. */
+  bookingDate: string
   /** 예약 요청 시간 (0.5시간 단위) */
   requestedHours: number
-  /** 이번 달 세대 놀터 무료 누적 사용 시간. 그 외 조합에서는 무시된다. */
+  /** [v2] 이번 달 세대 놀터 무료 누적 사용 '시간'. 그 외 조합에서는 무시된다. */
   freeHoursUsedThisMonth: number
+  /** [v1] 이번 달 세대 놀터 예약 '건수'. v2에서는 무시된다. */
+  legacyNolterBookingCount?: number
   /** 보유 선불권 (필터링 전 원본을 넘겨도 된다) */
   prepaidPurchases: PrepaidLike[]
   /** 선불권 유효기간 판정 기준 시각 (기본: 현재) */
   now?: Date
-  /** 무료 한도 오버라이드 (기본 20) */
+  /** [v2] 무료 한도 오버라이드 (기본 20) */
   freeHoursLimit?: number
 }
 
 export interface BookingCharge {
+  policyVersion: PolicyVersion
   totalHours: number
   freeHours: number
   prepaidHours: number
@@ -73,9 +123,14 @@ export interface BookingCharge {
   amount: number
   paymentMethod: PaymentMethod
   deductionPlan: DeductionPlanItem[]
-  /** 이 예약 후 남는 무료 시간. 무제한(방음실 세대원)이면 0을 반환한다. */
+  /**
+   * bookings.free_hours_used 에 기록할 값 (놀터 20시간 원장).
+   * 방음실 무제한 무료와 v1(건수제)은 이 원장을 쓰지 않으므로 0이다.
+   */
+  freeHoursUsedLedger: number
+  /** [v2] 이 예약 후 남는 무료 시간. 무제한(방음실 세대원)이면 0을 반환한다. */
   freeHoursRemainingAfter: number
-  /** 세대원 + 방음실 = 한도 없는 무료. 이 경우 free_hours_used는 0으로 기록한다. */
+  /** 세대원 + 방음실 = 한도 없는 무료 */
   usesUnlimitedFree: boolean
 }
 
@@ -162,6 +217,9 @@ export function selectUsablePrepaid(
  * (세대원이 방음실을 예약할 때 선불권이 소진되던 문제를 막는다)
  */
 export function computeBookingCharge(input: ComputeBookingChargeInput): BookingCharge {
+  const policyVersion = resolvePolicyVersion(input.bookingDate)
+  if (policyVersion === 'v1') return computeLegacyCharge(input)
+
   const limit = input.freeHoursLimit ?? RESIDENT_NOLTER_FREE_HOURS_PER_MONTH
   const totalHours = round1(input.requestedHours)
 
@@ -204,6 +262,7 @@ export function computeBookingCharge(input: ComputeBookingChargeInput): BookingC
       : 'free'
 
   return {
+    policyVersion,
     totalHours,
     freeHours,
     prepaidHours,
@@ -211,13 +270,103 @@ export function computeBookingCharge(input: ComputeBookingChargeInput): BookingC
     amount,
     paymentMethod,
     deductionPlan,
+    // 방음실 무제한 무료는 20시간 원장을 소진하지 않는다
+    freeHoursUsedLedger: usesUnlimitedFree ? 0 : freeHours,
     freeHoursRemainingAfter: usesUnlimitedFree ? 0 : round1(Math.max(0, freeLeft - freeHours)),
     usesUnlimitedFree,
   }
 }
 
+/**
+ * 종전 규정(v1, 2026-07-31 사용분까지) 계산.
+ *
+ * 세대원 놀터는 '건수' 기준이라 시간 원장(free_hours_used)을 쓰지 않는다.
+ * 무료 횟수를 넘기면 이용 시간과 무관하게 정액 10,000원이다.
+ */
+function computeLegacyCharge(input: ComputeBookingChargeInput): BookingCharge {
+  const totalHours = round1(input.requestedHours)
+  const isResident = input.userKind === 'resident'
+
+  const base = {
+    policyVersion: 'v1' as const,
+    totalHours,
+    freeHoursUsedLedger: 0,
+    freeHoursRemainingAfter: 0,
+  }
+
+  // 세대원 놀터: 월 3회까지 무료, 이후 건당 10,000원. 선불권은 개입하지 않는다.
+  if (isResident && input.space === 'nolter') {
+    const usedCount = input.legacyNolterBookingCount ?? 0
+    const isFree = usedCount < LEGACY_NOLTER_FREE_COUNT_PER_MONTH
+
+    return {
+      ...base,
+      freeHours: isFree ? totalHours : 0,
+      prepaidHours: 0,
+      regularHours: isFree ? 0 : totalHours,
+      amount: isFree ? 0 : LEGACY_NOLTER_OVER_QUOTA_FEE,
+      paymentMethod: isFree ? 'free' : 'nolter_paid',
+      deductionPlan: [],
+      usesUnlimitedFree: false,
+    }
+  }
+
+  // 세대원 방음실: 무제한 무료 (선불권 미차감 — v2와 동일)
+  if (isResident && input.space === 'soundroom') {
+    return {
+      ...base,
+      freeHours: totalHours,
+      prepaidHours: 0,
+      regularHours: 0,
+      amount: 0,
+      paymentMethod: 'free',
+      deductionPlan: [],
+      usesUnlimitedFree: true,
+    }
+  }
+
+  // 일반 회원 / 비회원: 선불권 → 14,000원/시간 (이 경로는 정책 변경과 무관하다)
+  let remaining = totalHours
+  const deductionPlan: DeductionPlanItem[] = []
+  let prepaidHours = 0
+
+  for (const purchase of selectUsablePrepaid(input.prepaidPurchases, input.now)) {
+    if (remaining <= 0) break
+    const hoursToDeduct = round1(Math.min(round1(Number(purchase.remaining_hours)), remaining))
+    if (hoursToDeduct <= 0) continue
+    deductionPlan.push({ purchaseId: purchase.id, hoursToDeduct })
+    prepaidHours = round1(prepaidHours + hoursToDeduct)
+    remaining = round1(remaining - hoursToDeduct)
+  }
+
+  const regularHours = round1(remaining)
+
+  return {
+    ...base,
+    freeHours: 0,
+    prepaidHours,
+    regularHours,
+    amount: Math.round(regularHours * HOURLY_RATE),
+    paymentMethod:
+      prepaidHours > 0 && regularHours > 0
+        ? 'mixed'
+        : prepaidHours > 0
+        ? 'prepaid'
+        : regularHours > 0
+        ? 'regular'
+        : 'free',
+    deductionPlan,
+    usesUnlimitedFree: false,
+  }
+}
+
 /** 알림 문자·완료 안내에 쓰는 한 줄 요약 */
 export function describeCharge(charge: BookingCharge): string {
+  // v1 정액 요금은 시간과 무관하므로 별도 문구를 쓴다
+  if (charge.paymentMethod === 'nolter_paid') {
+    return `무료 횟수 초과 (${charge.amount.toLocaleString()}원)`
+  }
+
   const parts: string[] = []
   if (charge.freeHours > 0) parts.push(`무료 ${formatHours(charge.freeHours)}`)
   if (charge.prepaidHours > 0) parts.push(`선불권 ${formatHours(charge.prepaidHours)}`)

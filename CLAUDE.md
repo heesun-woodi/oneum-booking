@@ -86,14 +86,28 @@ Refund formula: `remaining_hours × 14,000₩`.
 
 ### Booking pricing policy
 
-- Slots are **30 minutes**; `times.length / 2` = hours. Hours are stored as hours, never as slot counts.
-- **Residents**: 놀터 **20 free hours per household per month**, keyed on the calendar month of `booking_date` (not the request date). 방음실 is **unlimited free** and does not consume the 20-hour pool.
+Two policy versions coexist, selected by **`booking_date`** (the use date, never the request date).
+`resolvePolicyVersion()` in `lib/booking-policy.ts` is the single decision point.
+
+**v2 — `booking_date >= 2026-08-01`**
+- **Residents**: 놀터 **20 free hours per household per calendar month**. 방음실 is **unlimited free** and does not consume the 20-hour pool.
 - Free hours are consumed **partially** — a 3h booking with 2h left is 2h free + 1h charged in a single row.
 - Beyond free hours: **prepaid hours first, then 14,000₩/hour cash**.
 - Ledger: `bookings.free_hours_used`. Cancelled rows are excluded from the monthly sum, so cancelling a booking automatically returns its free hours to the household.
-- `payment_method` describes the **money dimension only**: `free` / `prepaid` / `mixed` / `regular`. `nolter_paid` is a legacy value from the pre-2026-07 놀터 10,000₩-per-booking policy and is no longer written.
+- Enforcement lives in the RPC (`pg_advisory_xact_lock` on `(household, month)` + re-sum), so concurrent bookings in one household cannot exceed the quota.
+
+**v1 — `booking_date <= 2026-07-31`** (종전 규정, migration `023`)
+- **Residents**: 놀터 **3 free bookings per household per month**, counted by row, duration-independent; 4th onward is a flat **10,000₩ per booking** written as `payment_method = 'nolter_paid'`.
+- Prepaid tickets are **never** consumed on a resident 놀터 booking under v1.
+- 방음실 unlimited free, and the member/guest path (prepaid → cash) is identical to v2.
+- `free_hours_used` stays **0** — v1 is counted by rows, so it must not pollute the hours ledger.
+
+**Common**
+- Slots are **30 minutes**; `times.length / 2` = hours. Hours are stored as hours, never as slot counts.
+- `payment_method` describes the **money dimension only**: `free` / `prepaid` / `mixed` / `regular`, plus `nolter_paid` for v1 flat-fee rows.
 - `status` / `payment_status` derive from **`amount > 0`** (money owed ⇔ `pending`), not from `payment_method`.
-- Enforcement lives in the RPC (`pg_advisory_xact_lock` on `(household, month)` + re-sum), so concurrent bookings in one household cannot exceed the quota. `lib/booking-policy.ts` is the shared pure calculator used by both the client preview and the server action — never recompute prices elsewhere.
+- `lib/booking-policy.ts` is the shared pure calculator used by both the client preview and the server action — never recompute prices elsewhere.
+- **Cleanup**: from 2026-09 no new booking can take the v1 path. At that point `resolvePolicyVersion`, the v1 branch, and the transitional copy can be deleted — but keep `nolter_paid` in the CHECK constraint and in display logic, since historical rows keep it forever.
 
 ### Authentication
 
@@ -113,7 +127,7 @@ Migrations live in `supabase/migrations/` and must be run manually against the S
 - `018` — prepaid payment status
 - `023` — resident policy v1: 놀터 3 free bookings/month (superseded by `031`)
 - `028`/`029` — NUMERIC(10,1) hours + RPC update
-- `031` — **current**: household 20 free hours/month, `free_hours_used` ledger, quota guard in the RPC
+- `031` — **current**: household 20 free hours/month (effective for `booking_date >= 2026-08-01`), `free_hours_used` ledger, quota guard in the RPC
 
 ### Key Conventions
 

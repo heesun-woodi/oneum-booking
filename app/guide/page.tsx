@@ -49,8 +49,8 @@ export default function GuidePage() {
           <div className="mt-4 bg-white border border-gray-200 rounded-2xl p-5">
             <ul className="space-y-2 text-sm text-gray-700">
               <li className="flex items-start gap-2"><span className="text-blue-400 mt-0.5">✓</span><span><strong>놀터 / 방음실</strong> — 14,000원/시간</span></li>
-              <li className="flex items-start gap-2"><span className="text-blue-400 mt-0.5">✓</span><span><strong>온음 세대</strong> — 놀터 세대당 월 20시간 무료, 방음실 무제한 무료</span></li>
-              <li className="flex items-start gap-2"><span className="text-blue-400 mt-0.5">✓</span><span><strong>무료 시간 초과 시</strong> — 보유 선불권에서 먼저 차감하고, 남은 시간만 14,000원/시간</span></li>
+              <li className="flex items-start gap-2"><span className="text-blue-400 mt-0.5">✓</span><span><strong>온음 세대</strong> — 놀터 세대당 월 20시간 무료(2026년 8월 예약부터), 방음실 무제한 무료</span></li>
+              <li className="flex items-start gap-2"><span className="text-blue-400 mt-0.5">✓</span><span><strong>무료 시간 초과 시</strong> — 보유 선불권에서 먼저 차감하고, 남은 시간만 14,000원/시간<br /><span className="text-xs text-gray-400">2026년 7월까지의 예약은 종전 규정(놀터 세대당 월 3회 무료, 초과 시 10,000원/건)이 적용됩니다.</span></span></li>
             </ul>
           </div>
         </section>

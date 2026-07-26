@@ -1,5 +1,6 @@
 import { createServiceRoleClient } from '@/lib/supabase/server'
 import {
+  PaymentMethod,
   PrepaidLike,
   RESIDENT_NOLTER_FREE_HOURS_PER_MONTH,
   computeBookingCharge,
@@ -26,7 +27,7 @@ export interface BookingCost {
   regularHours: number
   totalHours: number
   amount: number
-  paymentMethod: 'free' | 'regular' | 'prepaid' | 'mixed'
+  paymentMethod: PaymentMethod
 }
 
 export interface PrepaidSummary {
@@ -141,6 +142,7 @@ export async function calculateBookingCost(
   const charge = computeBookingCharge({
     userKind: freeHoursLeft > 0 ? 'resident' : userId ? 'member' : 'guest',
     space: 'nolter',
+    bookingDate: bookingDate.toISOString().substring(0, 10),
     requestedHours: hours,
     freeHoursUsedThisMonth: Math.max(0, RESIDENT_NOLTER_FREE_HOURS_PER_MONTH - freeHoursLeft),
     prepaidPurchases: prepaidPurchases as unknown as PrepaidLike[],

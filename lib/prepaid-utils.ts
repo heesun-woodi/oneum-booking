@@ -6,7 +6,13 @@
  */
 
 import { PrepaidPurchase } from '@/app/actions/prepaid'
-import { PrepaidLike, computeBookingCharge, selectUsablePrepaid, round1 } from '@/lib/booking-policy'
+import {
+  POLICY_V2_EFFECTIVE_FROM,
+  PrepaidLike,
+  computeBookingCharge,
+  selectUsablePrepaid,
+  round1,
+} from '@/lib/booking-policy'
 
 /**
  * 유효한 선불권의 총 잔여 시간 계산
@@ -27,7 +33,9 @@ export function getTotalRemainingHours(purchases: PrepaidPurchase[]): number {
  */
 export function calculatePrepaidUsage(
   purchases: PrepaidPurchase[],
-  requestedHours: number
+  requestedHours: number,
+  /** 사용일 'YYYY-MM-DD'. 일반 회원 경로는 정책 버전과 무관하므로 기본값을 둔다. */
+  bookingDate: string = POLICY_V2_EFFECTIVE_FROM
 ): {
   prepaidHours: number
   regularHours: number
@@ -38,6 +46,7 @@ export function calculatePrepaidUsage(
   const charge = computeBookingCharge({
     userKind: 'member',
     space: 'nolter',
+    bookingDate,
     requestedHours,
     freeHoursUsedThisMonth: 0,
     prepaidPurchases: purchases as unknown as PrepaidLike[],

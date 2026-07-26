@@ -5,8 +5,10 @@
 --            한 예약 안에서 무료/선불권/현금 분할 과금 가능
 --   방음실 : 세대원 무제한 무료 (기존 유지, 무료 한도를 소진하지 않는다)
 --
--- 기존 정책(023): 놀터 월 3회 무료, 초과 시 10,000원/건 (payment_method='nolter_paid')
--- → 'nolter_paid'는 신규 발급하지 않지만 기존 데이터 보존을 위해 CHECK 값은 남긴다.
+-- ★ 시행 시점: '사용일(booking_date) 2026-08-01' 부터.
+--   2026-07-31 이전 사용분은 종전 규정(023)을 그대로 따른다.
+--     놀터 월 3회 무료(건수 기준), 초과 시 10,000원/건 (payment_method='nolter_paid')
+--   따라서 'nolter_paid'는 7월 사용분에 한해 계속 발급되며, CHECK 값도 유지한다.
 --
 -- 작성일: 2026-07-26
 
@@ -27,7 +29,8 @@ ALTER TABLE bookings
   ADD COLUMN IF NOT EXISTS free_hours_used NUMERIC(10,1) NOT NULL DEFAULT 0;
 
 COMMENT ON COLUMN bookings.free_hours_used IS
-  '이 예약이 소진한 세대 무료 시간 (놀터 한정, 세대당 월 20시간). 방음실 세대원 무료는 한도가 없어 0으로 둔다.';
+  '이 예약이 소진한 세대 무료 시간 (놀터 한정, 세대당 월 20시간, 사용일 2026-08-01부터). '
+  '방음실 무제한 무료와 종전 규정(건수 기준, 7월 이전 사용분)은 0으로 둔다.';
 
 -- 세대/월 합계 조회 최적화 (RPC 가드 + UI 조회의 핫 패스)
 CREATE INDEX IF NOT EXISTS idx_bookings_free_hours_lookup
@@ -64,29 +67,34 @@ WHERE payment_method = 'regular'
   AND regular_hours = ROUND((EXTRACT(EPOCH FROM (end_time - start_time)) / 1800.0)::numeric, 1);
 
 -- =====================================================
--- 4. free_hours_used 백필 (즉시 시행 — 이번 달 기존 예약도 시간으로 합산)
+-- 4. free_hours_used 백필 (2026-08-01 이후 사용분 한정)
 -- =====================================================
 
--- 4-a. 무료로 처리됐던 예약 → 실제 이용 시간만큼 무료 소진으로 간주
+-- 4-a. 2026-08-01 이후 사용분 중 무료로 처리됐던 예약만 시간 원장에 반영한다.
+--      7월 이전 사용분은 건수 기준(종전 규정)으로 판정되므로 0으로 남겨야 한다.
+--      (새 정책 시행 전에 미리 잡아둔 8월 예약이 무료 한도를 이중으로 받지 않게 하는 것이 목적)
 UPDATE bookings SET
   free_hours_used = ROUND((EXTRACT(EPOCH FROM (end_time - start_time)) / 3600.0)::numeric, 1)
 WHERE payment_method = 'free'
   AND household IS NOT NULL
-  AND status <> 'cancelled';
+  AND status <> 'cancelled'
+  AND booking_date >= DATE '2026-08-01';
 
--- 4-b. 구 'nolter_paid'(10,000원/건)는 이미 현금 결제된 건이므로 새 20시간 풀을 소진하지 않는다
+-- 4-b. 'nolter_paid'(10,000원/건)는 이미 현금 결제된 건이므로 20시간 풀을 소진하지 않는다
 UPDATE bookings SET free_hours_used = 0 WHERE payment_method = 'nolter_paid';
 
--- 4-c. 검증(수동): 이번 달 이미 20시간을 넘긴 세대가 있는지 확인
+-- 4-c. 안전장치: 7월 이전 사용분에 시간 원장이 남아 있으면 안 된다
+UPDATE bookings SET free_hours_used = 0 WHERE booking_date < DATE '2026-08-01' AND free_hours_used <> 0;
+
+-- 4-d. 검증(수동): 8월에 이미 20시간을 넘긴 세대가 있는지 확인
 -- SELECT household, SUM(free_hours_used) AS used FROM bookings
 -- WHERE space='nolter' AND status <> 'cancelled' AND household IS NOT NULL
---   AND booking_date >= date_trunc('month', CURRENT_DATE)::date
---   AND booking_date <  (date_trunc('month', CURRENT_DATE) + interval '1 month')::date
+--   AND booking_date >= DATE '2026-08-01' AND booking_date < DATE '2026-09-01'
 -- GROUP BY 1 HAVING SUM(free_hours_used) > 20;
 
 -- =====================================================
 -- 5. payment_method 의미 정리
---    'nolter_paid'는 과거 데이터 보존용으로만 남긴다.
+--    'nolter_paid'는 2026-07-31 이전 사용분에만 발급된다 (종전 규정).
 -- =====================================================
 ALTER TABLE bookings DROP CONSTRAINT IF EXISTS bookings_payment_method_check;
 ALTER TABLE bookings ADD CONSTRAINT bookings_payment_method_check
@@ -94,7 +102,8 @@ ALTER TABLE bookings ADD CONSTRAINT bookings_payment_method_check
 
 COMMENT ON COLUMN bookings.payment_method IS
   '금전 차원만 표현한다: free(무상) / prepaid(선불권 전액) / mixed(선불권+현금) / regular(현금 전액). '
-  'nolter_paid는 2026-07 이전 놀터 10,000원/건 정책의 레거시 값(신규 발급 없음). '
+  'nolter_paid는 종전 규정(사용일 2026-07-31 이전)의 놀터 10,000원/건 정액 값이며, '
+  '2026-08-01 이후 사용분에는 발급되지 않는다. '
   '무료 시간 소진 여부는 free_hours_used로 판단할 것.';
 
 -- =====================================================
@@ -165,9 +174,12 @@ DECLARE
   v_status      TEXT;
   v_pay_status  TEXT;
 BEGIN
-  -- ---- 0. 놀터 무료 한도 검증 ----
+  -- ---- 0. 놀터 무료 한도 검증 (2026-08-01 사용분부터) ----
   -- 방음실 세대원 무료는 한도가 없어 freeHoursUsed=0으로 들어오므로 이 블록을 타지 않는다.
-  IF v_space = 'nolter' AND v_household IS NOT NULL AND v_free > 0 THEN
+  -- 종전 규정(7월 이전 사용분)도 건수 기준이라 freeHoursUsed=0으로 들어오지만,
+  -- 의도를 분명히 하기 위해 시행일 조건을 함께 둔다.
+  IF v_space = 'nolter' AND v_household IS NOT NULL AND v_free > 0
+     AND v_date >= DATE '2026-08-01' THEN
     v_month_start := date_trunc('month', v_date)::DATE;
 
     -- 같은 세대·같은 달의 동시 예약을 직렬화한다.
@@ -310,7 +322,7 @@ UPDATE site_settings SET
             jsonb_set(
               jsonb_set(
                 jsonb_set(value::jsonb,
-                  '{nolter,pricing,member}',       '"세대원 무료 (세대당 월 20시간) / 초과 시 14,000원/시간"'::jsonb),
+                  '{nolter,pricing,member}',       '"세대원 무료 (세대당 월 20시간, 2026년 8월 예약부터) / 초과 시 14,000원/시간"'::jsonb),
                   '{nolter,pricing,nonMember}',    '"14,000원/시간"'::jsonb),
                   '{soundroom,pricing,member}',    '"세대원 무료 (무제한)"'::jsonb),
                   '{soundroom,pricing,nonMember}', '"14,000원/시간"'::jsonb
@@ -321,8 +333,9 @@ WHERE key = 'spaces_info';
 UPDATE site_settings SET
   value = jsonb_set(value::jsonb, '{booking}', '[
     "예약은 1일 전까지 가능합니다 (당일 예약 불가)",
-    "온음 세대는 놀터를 세대당 월 20시간까지 무료 이용 (방음실은 무제한 무료)",
+    "온음 세대는 놀터를 세대당 월 20시간까지 무료 이용 (2026년 8월 예약부터 적용, 방음실은 무제한 무료)",
     "무료 시간 초과분은 보유 선불권에서 먼저 차감되고, 남은 시간만 14,000원/시간으로 청구됩니다",
+    "2026년 7월까지의 예약은 종전 규정이 적용됩니다 — 놀터 세대당 월 3회 무료, 초과 시 10,000원/건",
     "일반 회원·비회원은 14,000원/시간 (선불권 사용 가능)"
   ]'::jsonb)::text,
   updated_at = NOW()
@@ -333,7 +346,7 @@ UPDATE site_settings SET
   value = REPLACE(
             REPLACE(value,
               '- 회원은 월 8시간까지 무료 이용',
-              '- 온음 세대는 놀터를 세대당 월 20시간까지 무료 이용 (방음실은 무제한 무료)'),
+              '- 온음 세대는 놀터를 세대당 월 20시간까지 무료 이용 (2026년 8월 예약부터, 방음실은 무제한 무료)'),
             '- 초과 시간은 14,000원/시간',
             '- 무료 시간 초과분은 선불권 우선 차감 후 14,000원/시간'),
   updated_at = NOW()

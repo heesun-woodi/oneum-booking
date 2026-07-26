@@ -2,7 +2,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createBooking, getBookings, getBookingsByPhone, getBookingsByHousehold, getBookingsByUserId, cancelBooking, getHouseholdFreeHours, CreateBookingInput } from './actions/bookings'
+import { createBooking, getBookings, getBookingsByPhone, getBookingsByHousehold, getBookingsByUserId, cancelBooking, getHouseholdNolterQuota, CreateBookingInput, HouseholdNolterQuota } from './actions/bookings'
 import { signup, login, resetPassword } from './actions/auth'
 import { getSpacesInfo, getGeneralRulesFromDB, SpacesInfo, GeneralRules } from './actions/structured-settings'
 import { getMyPrepaidPurchases, PrepaidPurchase as PrepaidPurchaseType } from './actions/prepaid'
@@ -80,12 +80,8 @@ export default function Home() {
   const [prepaidPurchases, setPrepaidPurchases] = useState<PrepaidPurchase[]>([])
   const [isLoadingPrepaid, setIsLoadingPrepaid] = useState(false)
 
-  // Phase 8: 세대 이번 달 놀터 무료 사용 시간 (월 20시간 한도)
-  const [freeHoursInfo, setFreeHoursInfo] = useState<{
-    usedHours: number
-    limitHours: number
-    remainingHours: number
-  } | null>(null)
+  // Phase 8: 세대 이번 달 놀터 무료 한도 현황 (8월부터 월 20시간 / 7월까지 월 3회)
+  const [nolterQuota, setNolterQuota] = useState<HouseholdNolterQuota | null>(null)
   
   // 달력 & 예약
   const [currentMonth, setCurrentMonth] = useState(new Date())
@@ -159,17 +155,11 @@ export default function Home() {
   // Phase 8: 세대 놀터 무료 사용 시간 조회 (세대원 + 놀터 모달 오픈 시)
   useEffect(() => {
     if (isBookingModalOpen && userSession.isResident && selectedSpace === 'nolter' && userSession.household) {
-      setFreeHoursInfo(null)
-      // 무료 20시간은 '사용일이 속한 달' 기준이므로, 현재 보고 있는(예약하려는) 달로 조회한다.
+      setNolterQuota(null)
+      // 한도는 '사용일이 속한 달' 기준이므로, 현재 보고 있는(예약하려는) 달로 조회한다.
       const targetMonth = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}`
-      getHouseholdFreeHours(userSession.household, targetMonth).then(result => {
-        if (result.success) {
-          setFreeHoursInfo({
-            usedHours: result.usedHours,
-            limitHours: result.limitHours,
-            remainingHours: result.remainingHours,
-          })
-        }
+      getHouseholdNolterQuota(userSession.household, targetMonth).then(result => {
+        if (result.success) setNolterQuota(result)
       })
     }
   }, [isBookingModalOpen, selectedSpace, userSession.isResident, userSession.household, currentMonth])
@@ -572,7 +562,10 @@ export default function Home() {
       const lines: string[] = []
       if (freeHoursUsed > 0) lines.push(`🎟 세대 무료 ${formatHours(freeHoursUsed)} 사용`)
       if (prepaidHoursUsed > 0) lines.push(`🎫 선불권 ${formatHours(prepaidHoursUsed)} 사용`)
-      if (regularHours > 0) {
+      if (booked?.payment_method === 'nolter_paid') {
+        // 구 정책(7월까지): 무료 횟수 초과 시 이용 시간과 무관한 정액
+        lines.push(`💰 무료 횟수 초과 — ${amount.toLocaleString()}원 (시간 무관)`)
+      } else if (regularHours > 0) {
         lines.push(`💳 현금 결제 ${formatHours(regularHours)} (${amount.toLocaleString()}원)`)
       }
 
@@ -593,17 +586,12 @@ export default function Home() {
         loadPrepaidPurchases()
       }
 
-      // 무료 시간을 소진했으면 잔여 시간 배지를 갱신한다
-      if (freeHoursUsed > 0 && userSession.household) {
+      // 세대원 놀터 예약이면 한도 배지를 갱신한다.
+      // (구 정책은 건수 기준이라 free_hours_used가 0이므로 시간만 보고 판단할 수 없다)
+      if (userSession.isResident && selectedSpace === 'nolter' && userSession.household) {
         const targetMonth = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}`
-        getHouseholdFreeHours(userSession.household, targetMonth).then(res => {
-          if (res.success) {
-            setFreeHoursInfo({
-              usedHours: res.usedHours,
-              limitHours: res.limitHours,
-              remainingHours: res.remainingHours,
-            })
-          }
+        getHouseholdNolterQuota(userSession.household, targetMonth).then(res => {
+          if (res.success) setNolterQuota(res)
         })
       }
     } else {
@@ -849,6 +837,10 @@ export default function Home() {
   const month = currentMonth.getMonth()
   const daysInMonth = new Date(year, month + 1, 0).getDate()
   const firstDayOfWeek = new Date(year, month, 1).getDay() // 0=일(Sun)~6=토(Sat)
+  // 선택한 사용일. 적용 정책(7월까지 구 규정 / 8월부터 신 규정)을 가르는 기준이다.
+  const selectedBookingDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(
+    selectedDate ?? 1
+  ).padStart(2, '0')}`
   // null = 빈 칸, number = 날짜
   const calendarCells: (number | null)[] = [
     ...Array(firstDayOfWeek).fill(null),
@@ -1301,8 +1293,9 @@ export default function Home() {
                       household: userSession.household,
                     })}
                     space={selectedSpace}
+                    bookingDate={selectedBookingDate}
                     selectedSlotCount={selectedTimes.length}
-                    freeHours={freeHoursInfo}
+                    quota={nolterQuota}
                     prepaidPurchases={prepaidPurchases as unknown as PrepaidLike[]}
                     monthLabel={month + 1}
                   />
@@ -1402,8 +1395,9 @@ export default function Home() {
                       <BookingChargeSummary
                         userKind="guest"
                         space={selectedSpace}
+                        bookingDate={selectedBookingDate}
                         selectedSlotCount={selectedTimes.length}
-                        freeHours={null}
+                        quota={null}
                         prepaidPurchases={[]}
                         monthLabel={month + 1}
                       />
