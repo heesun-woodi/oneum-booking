@@ -171,6 +171,23 @@
     border: 1.5px solid #1F8A70; border-radius: 3px;
   }
 
+  /* ---------- 화면 이미지 ---------- */
+  .fig { margin: 9px 0 2px; page-break-inside: avoid; }
+  .fig img {
+    display: block; width: 100%; height: auto;
+    border: 1px solid #dfe5e2; border-radius: 8px;
+    background: #fff;
+  }
+  .fig .cap {
+    font-size: 8.3pt; color: #8d9894;
+    margin-top: 4px; line-height: 1.4;
+  }
+  .fig.narrow { max-width: 78mm; }
+  .fig.mid { max-width: 92mm; }
+  .figrow { display: flex; gap: 11px; align-items: flex-start; page-break-inside: avoid; }
+  .figrow .fig { flex: 1; margin-top: 0; }
+  .step .fig { margin: 8px 0 0; }
+
   ul.plain { margin: 6px 0 8px; padding-left: 18px; }
   ul.plain li { margin-bottom: 4px; font-size: 9.8pt; line-height: 1.55; }
 
@@ -289,6 +306,10 @@
       <div class="body">
         <div class="t">화면 아래 <b>공유 버튼</b>을 누릅니다</div>
         <div class="d">사각형에서 위쪽으로 화살표가 나가는 모양의 아이콘입니다. 화면 하단 가운데(아이패드는 상단 오른쪽)에 있습니다.</div>
+        <div class="fig mid">
+          <img src="images/ios-share-button.png" alt="사파리 하단 공유 버튼 위치">
+          <div class="cap">사파리 하단 바에서 빨간 동그라미 표시된 버튼 (예시 그림)</div>
+        </div>
       </div>
     </div>
     <div class="step">
@@ -296,6 +317,10 @@
       <div class="body">
         <div class="t"><b>홈 화면에 추가</b>를 선택합니다</div>
         <div class="d">메뉴를 아래로 조금 내리면 <span class="ui">홈 화면에 추가</span> 항목이 있습니다. 선택한 뒤 오른쪽 위 <span class="ui">추가</span>를 누르면 홈 화면에 온음 아이콘이 생깁니다.</div>
+        <div class="fig mid">
+          <img src="images/ios-add-home.png" alt="공유 메뉴의 홈 화면에 추가 항목">
+          <div class="cap">공유 메뉴를 내리면 나오는 <b>홈 화면에 추가</b> (예시 그림)</div>
+        </div>
       </div>
     </div>
     <div class="step">
@@ -317,6 +342,10 @@
       <div class="body">
         <div class="t"><b>🔔 푸시 알림 받기</b> 스위치를 켭니다</div>
         <div class="d">오른쪽의 회색 스위치를 눌러 켜면, 알림을 허용할지 묻는 창이 뜹니다. <span class="ui">허용</span>을 선택합니다.</div>
+        <div class="fig narrow">
+          <img src="images/card-toggle-off.png" alt="푸시 알림 받기 카드 - 꺼짐 상태">
+          <div class="cap">누르기 전 (회색 스위치)</div>
+        </div>
       </div>
     </div>
     <div class="step">
@@ -324,6 +353,10 @@
       <div class="body">
         <div class="t">완료되었는지 확인합니다</div>
         <div class="d">스위치가 파란색으로 바뀌고 <b>"푸시 알림이 켜져 있어요. 문자 대신 앱 알림으로 받아요."</b> 문구가 보이면 설정이 끝난 것입니다.</div>
+        <div class="fig narrow">
+          <img src="images/card-toggle-on.png" alt="푸시 알림 받기 카드 - 켜짐 상태">
+          <div class="cap">설정 완료 (파란 스위치 + 안내 문구)</div>
+        </div>
       </div>
     </div>
   </div>
@@ -331,15 +364,19 @@
   <div class="box tip">
     <span class="h">스위치가 보이지 않는다면</span>
     <p>
-      "iPhone·iPad에서는 <b>홈 화면에 추가</b> 후 푸시 알림을 켤 수 있어요"라는 안내만 보인다면,
-      아직 사파리 창에서 보고 계신 것입니다. 홈 화면의 온음 아이콘으로 다시 실행해 주세요.
+      아래처럼 안내 문구만 보이고 스위치가 없다면, 아직 사파리 창에서 보고 계신 것입니다.
+      홈 화면의 온음 아이콘으로 다시 실행해 주세요.
     </p>
+    <div class="fig narrow" style="margin-top:8px;">
+      <img src="images/card-ios-install.png" alt="홈 화면 추가 전 안내 문구">
+      <div class="cap">홈 화면에 추가하기 전에는 이 안내만 보입니다</div>
+    </div>
   </div>
 </section>
 
 <div class="pagebreak"></div>
 
-<section class="avoid">
+<section>
   <h2><span class="num">5</span>안드로이드에서 설정하기</h2>
   <p class="lead">
     크롬(Chrome) 또는 삼성 인터넷에서 바로 켤 수 있습니다. 홈 화면에 추가하지 않아도 됩니다.
@@ -364,7 +401,11 @@
       <div class="n"></div>
       <div class="body">
         <div class="t">마이페이지로 이동합니다</div>
-        <div class="d">화면 오른쪽 위의 <span class="ui">마이페이지</span> 버튼을 누릅니다.</div>
+        <div class="d">화면 오른쪽 위의 <span class="ui">마이페이지</span> 버튼을 누릅니다. 프로필 카드 바로 아래에 푸시 알림 항목이 있습니다.</div>
+        <div class="fig narrow">
+          <img src="images/mypage-android.png" alt="마이페이지 화면에서 푸시 알림 카드 위치">
+          <div class="cap">마이페이지 상단 — 프로필 아래가 푸시 알림 항목입니다</div>
+        </div>
       </div>
     </div>
     <div class="step">
@@ -372,6 +413,10 @@
       <div class="body">
         <div class="t"><b>🔔 푸시 알림 받기</b> 스위치를 켭니다</div>
         <div class="d">화면 위쪽에 <span class="ui">알림을 표시하시겠습니까?</span> 라는 창이 뜨면 <span class="ui">허용</span>을 누릅니다.</div>
+        <div class="fig mid">
+          <img src="images/android-permission.png" alt="안드로이드 알림 권한 요청 팝업">
+          <div class="cap">크롬이 띄우는 알림 권한 요청 — <b>허용</b>을 누르세요 (예시 그림)</div>
+        </div>
       </div>
     </div>
     <div class="step">
@@ -379,6 +424,10 @@
       <div class="body">
         <div class="t">완료되었는지 확인합니다</div>
         <div class="d">스위치가 파란색으로 바뀌고 <b>"푸시 알림이 켜져 있어요"</b> 문구가 나타나면 끝입니다.</div>
+        <div class="fig narrow">
+          <img src="images/card-toggle-on.png" alt="푸시 알림 받기 카드 - 켜짐 상태">
+          <div class="cap">설정 완료 화면</div>
+        </div>
       </div>
     </div>
   </div>
