@@ -1,0 +1,492 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>온음 예약 알림 — 웹푸시 설정 가이드</title>
+<style>
+  @page { size: A4; margin: 14mm 13mm 16mm 13mm; }
+
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Noto Sans KR', sans-serif;
+    color: #1c2321;
+    font-size: 10.5pt;
+    line-height: 1.55;
+    margin: 0;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  h1, h2, h3 { margin: 0; font-weight: 700; letter-spacing: -0.02em; }
+
+  /* ---------- 표지 ---------- */
+  .cover {
+    background: linear-gradient(135deg, #1F8A70 0%, #146854 100%);
+    color: #fff;
+    border-radius: 14px;
+    padding: 21px 26px 19px;
+    margin-bottom: 16px;
+  }
+  .cover .eyebrow {
+    font-size: 9pt; font-weight: 500; letter-spacing: 0.14em;
+    opacity: .8; margin-bottom: 9px;
+  }
+  .cover h1 { font-size: 19.5pt; line-height: 1.28; margin-bottom: 8px; }
+  .cover p { margin: 0; font-size: 10pt; opacity: .92; line-height: 1.6; }
+  .cover .meta {
+    margin-top: 13px; padding-top: 11px;
+    border-top: 1px solid rgba(255,255,255,.28);
+    font-size: 8.8pt; opacity: .82;
+  }
+
+  /* ---------- 섹션 ---------- */
+  section { margin-bottom: 15px; }
+  h2 {
+    font-size: 13pt;
+    padding-bottom: 6px;
+    margin-bottom: 10px;
+    border-bottom: 2px solid #1F8A70;
+    display: flex; align-items: baseline; gap: 8px;
+  }
+  h2 .num {
+    display: inline-block;
+    background: #1F8A70; color: #fff;
+    font-size: 9pt; font-weight: 700;
+    width: 19px; height: 19px; line-height: 19px;
+    text-align: center; border-radius: 5px;
+    flex: none;
+  }
+  h3 { font-size: 11pt; margin: 14px 0 8px; color: #146854; }
+
+  p { margin: 0 0 8px; }
+  .lead { color: #4a5551; margin-bottom: 12px; }
+
+  /* ---------- 단계 카드 ---------- */
+  .steps { counter-reset: step; }
+  .step {
+    display: flex; gap: 12px;
+    padding: 9px 13px;
+    border: 1px solid #e2e8e5;
+    border-left: 3px solid #1F8A70;
+    border-radius: 9px;
+    margin-bottom: 8px;
+    background: #fbfdfc;
+    page-break-inside: avoid;
+  }
+  .step .n {
+    counter-increment: step;
+    flex: none;
+    width: 23px; height: 23px;
+    background: #1F8A70; color: #fff;
+    border-radius: 50%;
+    font-size: 9.5pt; font-weight: 700;
+    text-align: center; line-height: 23px;
+  }
+  .step .n::before { content: counter(step); }
+  .step .body { flex: 1; }
+  .step .t { font-weight: 700; font-size: 10.5pt; margin-bottom: 2px; }
+  .step .d { font-size: 9.5pt; color: #4a5551; line-height: 1.55; }
+
+  /* ---------- 강조 박스 ---------- */
+  .box {
+    border-radius: 9px; padding: 9px 13px;
+    font-size: 9.5pt; line-height: 1.55;
+    margin: 8px 0;
+    page-break-inside: avoid;
+  }
+  .box .h { font-weight: 700; margin-bottom: 3px; display: block; }
+  .box p:last-child { margin-bottom: 0; }
+  .tip  { background: #eefaf6; border: 1px solid #b9e3d6; color: #146854; }
+  .warn { background: #fff6ec; border: 1px solid #f5d5ae; color: #92551a; }
+  .note { background: #f4f6f8; border: 1px solid #dde3e8; color: #3d4a54; }
+
+  /* ---------- UI 요소 표기 ---------- */
+  .ui {
+    display: inline-block;
+    background: #eef2f0; border: 1px solid #d5ded9;
+    border-radius: 4px; padding: 0 5px;
+    font-size: 9pt; font-weight: 500; white-space: nowrap;
+  }
+  .path { font-weight: 500; }
+  .path .arrow { color: #1F8A70; font-weight: 700; margin: 0 1px; }
+
+  /* ---------- 표 ---------- */
+  table {
+    width: 100%; border-collapse: collapse;
+    font-size: 9.3pt; margin: 8px 0;
+    page-break-inside: avoid;
+  }
+  th {
+    background: #1F8A70; color: #fff;
+    text-align: left; font-weight: 500;
+    padding: 7px 10px;
+  }
+  td { padding: 7px 10px; border-bottom: 1px solid #e6ebe9; vertical-align: top; line-height: 1.5; }
+  tr:nth-child(even) td { background: #fafcfb; }
+  th:first-child, td:first-child { width: 34%; }
+
+  /* ---------- 알림 목록 ---------- */
+  .msgs { display: flex; flex-wrap: wrap; gap: 5px; margin: 8px 0 4px; }
+  .msg {
+    background: #eefaf6; border: 1px solid #c5e6da;
+    color: #146854; border-radius: 20px;
+    padding: 3px 11px; font-size: 9pt; font-weight: 500;
+  }
+
+  /* ---------- FAQ ---------- */
+  .faq { page-break-inside: avoid; margin-bottom: 10px; }
+  .faq .q {
+    font-weight: 700; font-size: 10pt; margin-bottom: 3px;
+    padding-left: 17px; position: relative;
+  }
+  .faq .q::before {
+    content: "Q"; position: absolute; left: 0;
+    color: #1F8A70; font-weight: 700;
+  }
+  .faq .a {
+    font-size: 9.5pt; color: #4a5551; line-height: 1.58;
+    padding-left: 17px; position: relative;
+  }
+  .faq .a::before {
+    content: "A"; position: absolute; left: 0;
+    color: #9aa5a1; font-weight: 700;
+  }
+
+  /* ---------- 체크리스트 ---------- */
+  .check {
+    border: 1.5px dashed #1F8A70; border-radius: 11px;
+    padding: 15px 18px; background: #fbfdfc;
+    page-break-inside: avoid;
+  }
+  .check h3 { margin-top: 0; }
+  .check ul { margin: 0; padding: 0; list-style: none; }
+  .check li {
+    padding: 4px 0 4px 24px; position: relative;
+    font-size: 9.8pt; border-bottom: 1px solid #eaf2ef;
+  }
+  .check li:last-child { border-bottom: none; }
+  .check li::before {
+    content: ""; position: absolute; left: 2px; top: 8px;
+    width: 11px; height: 11px;
+    border: 1.5px solid #1F8A70; border-radius: 3px;
+  }
+
+  ul.plain { margin: 6px 0 8px; padding-left: 18px; }
+  ul.plain li { margin-bottom: 4px; font-size: 9.8pt; line-height: 1.55; }
+
+  .footer {
+    margin-top: 24px; padding-top: 11px;
+    border-top: 1px solid #e2e8e5;
+    font-size: 8.5pt; color: #8d9894; text-align: center;
+  }
+
+  .pagebreak { page-break-before: always; }
+  .avoid { page-break-inside: avoid; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="eyebrow">ONEUM · 온음 커뮤니티 공간</div>
+  <h1>예약 알림, 이제 문자 대신<br>휴대폰 푸시 알림으로 받으세요</h1>
+  <p>안드로이드 · 아이폰 웹푸시 설정 가이드</p>
+  <div class="meta">온음 예약 시스템 &nbsp;|&nbsp; oneum.vercel.app &nbsp;|&nbsp; 소요 시간 약 2분</div>
+</div>
+
+<section class="avoid">
+  <h2><span class="num">1</span>웹푸시가 뭔가요?</h2>
+  <p class="lead">
+    지금까지 예약 확정·입금 안내 같은 소식을 <b>문자(SMS)</b>로 보내드렸습니다.
+    웹푸시를 켜면 같은 내용을 <b>카카오톡 알림처럼 휴대폰 화면에 뜨는 알림</b>으로 받게 됩니다.
+    별도 앱을 설치하거나 회원가입을 새로 할 필요 없이, 온음 예약 사이트에서 스위치 하나만 켜면 됩니다.
+  </p>
+
+  <div class="box tip">
+    <span class="h">이런 점이 좋아요</span>
+    <p>
+      • 알림을 누르면 <b>바로 내 예약 화면으로 이동</b>합니다.<br>
+      • 문자보다 길고 자세한 내용을 그대로 볼 수 있습니다.<br>
+      • 데이터 요금이나 별도 비용이 <b>전혀 들지 않습니다</b>.
+    </p>
+  </div>
+
+  <div class="box note">
+    <span class="h">푸시를 켜면 문자는 오지 않나요?</span>
+    <p>
+      네. 푸시 알림이 정상적으로 전달되면 같은 내용의 문자는 발송되지 않습니다.
+      다만 휴대폰이 꺼져 있거나 알림 전달에 실패하면 <b>자동으로 문자가 대신 발송</b>되므로,
+      중요한 안내를 놓칠 걱정은 하지 않으셔도 됩니다.
+    </p>
+  </div>
+</section>
+
+<section class="avoid">
+  <h2><span class="num">2</span>어떤 알림을 받게 되나요?</h2>
+  <p class="lead">예약 과정에서 보내드리던 안내가 그대로 푸시로 전달됩니다.</p>
+  <div class="msgs">
+    <span class="msg">가입 승인 안내</span>
+    <span class="msg">예약 완료</span>
+    <span class="msg">예약 완료 · 입금 안내</span>
+    <span class="msg">입금 확인</span>
+    <span class="msg">예약 취소</span>
+    <span class="msg">이용 하루 전 리마인더</span>
+    <span class="msg">미입금 안내</span>
+    <span class="msg">환불 안내</span>
+    <span class="msg">선불권 신청 · 입금 안내</span>
+    <span class="msg">선불권 활성화 완료</span>
+    <span class="msg">문의 답변 안내</span>
+  </div>
+  <p style="font-size:9.3pt; color:#6b7671; margin-top:8px;">
+    ※ 광고나 홍보성 알림은 보내지 않습니다. 예약·결제와 관련된 안내만 발송됩니다.
+  </p>
+</section>
+
+<section class="avoid">
+  <h2><span class="num">3</span>시작하기 전에</h2>
+  <ul class="plain">
+    <li><b>온음 예약 사이트 계정</b>이 있어야 하고, 관리자 승인이 완료된 상태여야 합니다.</li>
+    <li>설정은 <b>기기마다 따로</b> 해야 합니다. 휴대폰에서 켜도 태블릿·PC에는 자동 적용되지 않습니다.</li>
+    <li>아이폰·아이패드는 <b>iOS 16.4 이상</b>이 필요합니다. (설정 → 일반 → 정보에서 확인)</li>
+  </ul>
+  <div class="box warn">
+    <span class="h">사용하는 기기에 맞는 쪽을 보세요</span>
+    <p>
+      <b>아이폰 · 아이패드</b> → 4번 항목 (홈 화면에 추가하는 과정이 <b>반드시</b> 필요합니다)<br>
+      <b>안드로이드 휴대폰</b> → 5번 항목 (홈 화면 추가 없이 바로 켤 수 있습니다)
+    </p>
+  </div>
+</section>
+
+<div class="pagebreak"></div>
+
+<section>
+  <h2><span class="num">4</span>아이폰 · 아이패드에서 설정하기</h2>
+  <div class="box warn">
+    <span class="h">가장 중요한 두 가지</span>
+    <p>
+      ① 반드시 <b>사파리(Safari)</b>로 접속해야 합니다. 크롬·네이버·다음 앱에서는 설정할 수 없습니다.<br>
+      ② 애플 정책상 <b>홈 화면에 추가한 뒤에만</b> 푸시 알림을 켤 수 있습니다. 3~4단계를 건너뛰면 스위치가 나타나지 않습니다.
+    </p>
+  </div>
+
+  <div class="steps">
+    <div class="step">
+      <div class="n"></div>
+      <div class="body">
+        <div class="t">사파리로 온음 예약 사이트에 접속합니다</div>
+        <div class="d">주소창에 <span class="ui">oneum.vercel.app</span> 을 입력합니다. 홈 화면의 사파리 앱에서 여는 것이 확실합니다.</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="n"></div>
+      <div class="body">
+        <div class="t">로그인합니다</div>
+        <div class="d">가입하신 전화번호와 비밀번호로 로그인합니다. 로그인을 해야 어떤 회원에게 알림을 보낼지 연결됩니다.</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="n"></div>
+      <div class="body">
+        <div class="t">화면 아래 <b>공유 버튼</b>을 누릅니다</div>
+        <div class="d">사각형에서 위쪽으로 화살표가 나가는 모양의 아이콘입니다. 화면 하단 가운데(아이패드는 상단 오른쪽)에 있습니다.</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="n"></div>
+      <div class="body">
+        <div class="t"><b>홈 화면에 추가</b>를 선택합니다</div>
+        <div class="d">메뉴를 아래로 조금 내리면 <span class="ui">홈 화면에 추가</span> 항목이 있습니다. 선택한 뒤 오른쪽 위 <span class="ui">추가</span>를 누르면 홈 화면에 온음 아이콘이 생깁니다.</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="n"></div>
+      <div class="body">
+        <div class="t">홈 화면의 <b>온음 아이콘</b>으로 다시 들어갑니다</div>
+        <div class="d">사파리 창이 아니라, 방금 만들어진 홈 화면 아이콘으로 실행해야 합니다. 이 점이 아이폰에서 가장 많이 놓치는 부분입니다.</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="n"></div>
+      <div class="body">
+        <div class="t">마이페이지로 이동합니다</div>
+        <div class="d">화면 오른쪽 위의 <span class="ui">마이페이지</span> 버튼을 누릅니다.</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="n"></div>
+      <div class="body">
+        <div class="t"><b>🔔 푸시 알림 받기</b> 스위치를 켭니다</div>
+        <div class="d">오른쪽의 회색 스위치를 눌러 켜면, 알림을 허용할지 묻는 창이 뜹니다. <span class="ui">허용</span>을 선택합니다.</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="n"></div>
+      <div class="body">
+        <div class="t">완료되었는지 확인합니다</div>
+        <div class="d">스위치가 파란색으로 바뀌고 <b>"푸시 알림이 켜져 있어요. 문자 대신 앱 알림으로 받아요."</b> 문구가 보이면 설정이 끝난 것입니다.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="box tip">
+    <span class="h">스위치가 보이지 않는다면</span>
+    <p>
+      "iPhone·iPad에서는 <b>홈 화면에 추가</b> 후 푸시 알림을 켤 수 있어요"라는 안내만 보인다면,
+      아직 사파리 창에서 보고 계신 것입니다. 홈 화면의 온음 아이콘으로 다시 실행해 주세요.
+    </p>
+  </div>
+</section>
+
+<div class="pagebreak"></div>
+
+<section class="avoid">
+  <h2><span class="num">5</span>안드로이드에서 설정하기</h2>
+  <p class="lead">
+    크롬(Chrome) 또는 삼성 인터넷에서 바로 켤 수 있습니다. 홈 화면에 추가하지 않아도 됩니다.
+  </p>
+
+  <div class="steps">
+    <div class="step">
+      <div class="n"></div>
+      <div class="body">
+        <div class="t">크롬으로 온음 예약 사이트에 접속합니다</div>
+        <div class="d">주소창에 <span class="ui">oneum.vercel.app</span> 을 입력합니다. 삼성 인터넷을 쓰셔도 동일하게 동작합니다.</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="n"></div>
+      <div class="body">
+        <div class="t">로그인합니다</div>
+        <div class="d">가입하신 전화번호와 비밀번호로 로그인합니다.</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="n"></div>
+      <div class="body">
+        <div class="t">마이페이지로 이동합니다</div>
+        <div class="d">화면 오른쪽 위의 <span class="ui">마이페이지</span> 버튼을 누릅니다.</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="n"></div>
+      <div class="body">
+        <div class="t"><b>🔔 푸시 알림 받기</b> 스위치를 켭니다</div>
+        <div class="d">화면 위쪽에 <span class="ui">알림을 표시하시겠습니까?</span> 라는 창이 뜨면 <span class="ui">허용</span>을 누릅니다.</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="n"></div>
+      <div class="body">
+        <div class="t">완료되었는지 확인합니다</div>
+        <div class="d">스위치가 파란색으로 바뀌고 <b>"푸시 알림이 켜져 있어요"</b> 문구가 나타나면 끝입니다.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="box tip">
+    <span class="h">앱처럼 쓰고 싶다면 (선택 사항)</span>
+    <p>
+      크롬 오른쪽 위 <span class="ui">⋮</span> 메뉴 → <span class="ui">홈 화면에 추가</span> 또는 <span class="ui">앱 설치</span>를 선택하면
+      홈 화면에 온음 아이콘이 생겨 앱처럼 바로 열 수 있습니다. 알림 설정과는 무관하지만 훨씬 편리합니다.
+    </p>
+  </div>
+</section>
+
+<section class="avoid">
+  <h2><span class="num">6</span>잘 안 될 때</h2>
+  <p class="lead" style="margin-bottom:6px;">아래 증상에 해당하는 항목을 확인해 보세요.</p>
+  <table>
+    <thead>
+      <tr><th>이런 증상이라면</th><th>이렇게 해보세요</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>스위치가 아예 보이지 않음<br><span style="color:#8d9894; font-size:8.8pt;">(아이폰)</span></td>
+        <td>홈 화면 추가가 되지 않은 상태입니다. 사파리에서 공유 → 홈 화면에 추가를 먼저 하고, <b>홈 화면 아이콘으로 다시 실행</b>해 주세요.</td>
+      </tr>
+      <tr>
+        <td>"알림 권한이 차단되어 있습니다"</td>
+        <td>이전에 실수로 <b>차단</b>을 누른 경우입니다.<br>
+        <b>아이폰</b>: 설정 → 알림 → 온음 → 알림 허용 켜기<br>
+        <b>안드로이드</b>: 설정 → 앱 → Chrome → 알림 → 온음 사이트 허용<br>
+        (또는 크롬 주소창 왼쪽 자물쇠 → 사이트 설정 → 알림 → 허용)</td>
+      </tr>
+      <tr>
+        <td>"현재 브라우저는 푸시 알림을 지원하지 않습니다"</td>
+        <td>카카오톡·인스타그램 등 앱 안에서 링크를 눌러 열었을 때 나타납니다. 주소를 복사해 <b>사파리나 크롬에서 직접</b> 열어주세요.</td>
+      </tr>
+      <tr>
+        <td>스위치는 켰는데 알림이 오지 않음</td>
+        <td>기기의 <b>방해금지 모드·집중 모드</b>가 켜져 있는지, 절전 모드로 백그라운드 활동이 제한되어 있는지 확인해 주세요. 알림이 실패하면 문자로 자동 발송됩니다.</td>
+      </tr>
+      <tr>
+        <td>휴대폰에서는 오는데 태블릿에는 안 옴</td>
+        <td>알림 설정은 기기·브라우저별로 저장됩니다. 받고 싶은 기기마다 같은 방법으로 한 번씩 켜주세요.</td>
+      </tr>
+      <tr>
+        <td>홈 화면 아이콘을 지웠음<br><span style="color:#8d9894; font-size:8.8pt;">(아이폰)</span></td>
+        <td>알림 설정도 함께 해제됩니다. 처음부터 다시 홈 화면에 추가한 뒤 스위치를 켜주세요.</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <h2><span class="num">7</span>자주 묻는 질문</h2>
+
+  <div class="faq">
+    <div class="q">푸시 알림을 켜면 문자는 완전히 안 오나요?</div>
+    <div class="a">푸시가 정상 전달되면 같은 내용의 문자는 보내지 않습니다. 전달에 실패한 경우에만 문자로 자동 발송되므로 안내를 놓치지 않습니다.</div>
+  </div>
+
+  <div class="faq">
+    <div class="q">앱을 따로 설치해야 하나요?</div>
+    <div class="a">아니요. 앱스토어·플레이스토어에서 내려받을 앱은 없습니다. 웹사이트를 홈 화면에 바로가기로 추가하는 것뿐이라 저장 공간도 거의 쓰지 않습니다.</div>
+  </div>
+
+  <div class="faq">
+    <div class="q">비용이나 데이터 요금이 드나요?</div>
+    <div class="a">전혀 들지 않습니다. 무료로 이용하실 수 있습니다.</div>
+  </div>
+
+  <div class="faq">
+    <div class="q">알림을 다시 끄고 싶어요.</div>
+    <div class="a">마이페이지의 <span class="ui">🔔 푸시 알림 받기</span> 스위치를 다시 눌러 끄면 됩니다. 그 이후에는 예전처럼 문자로 안내를 받게 됩니다.</div>
+  </div>
+
+  <div class="faq">
+    <div class="q">가족이 함께 쓰는데, 한 기기에서 여러 명이 받을 수 있나요?</div>
+    <div class="a">알림은 마지막으로 스위치를 켠 계정 기준으로 전달됩니다. 각자 본인 휴대폰에서 본인 계정으로 로그인해 설정하시는 것을 권합니다.</div>
+  </div>
+
+  <div class="faq">
+    <div class="q">알림을 누르면 어디로 가나요?</div>
+    <div class="a">예약 관련 알림은 마이페이지의 예약 목록으로, 선불권 관련 알림은 선불권 화면으로 바로 이동합니다.</div>
+  </div>
+
+  <div class="faq">
+    <div class="q">기존에 등록한 전화번호를 바꾸면 어떻게 되나요?</div>
+    <div class="a">푸시 알림은 전화번호가 아니라 로그인한 계정과 기기에 연결됩니다. 번호를 변경해도 푸시는 그대로 오지만, 문자 발송을 위해 관리자에게 변경된 번호를 알려주세요.</div>
+  </div>
+</section>
+
+<section>
+  <div class="check">
+    <h3>설정 완료 체크리스트</h3>
+    <ul>
+      <li>온음 예약 사이트에 <b>로그인</b>했다</li>
+      <li>(아이폰만) <b>사파리</b>로 접속해 <b>홈 화면에 추가</b>했다</li>
+      <li>(아이폰만) <b>홈 화면 아이콘</b>으로 다시 실행했다</li>
+      <li><b>마이페이지</b>에 들어갔다</li>
+      <li><b>🔔 푸시 알림 받기</b> 스위치를 켜고 <b>허용</b>을 눌렀다</li>
+      <li>스위치가 <b>파란색</b>으로 바뀌고 안내 문구가 보인다</li>
+    </ul>
+  </div>
+</section>
+
+<div class="footer">
+  설정이 잘 되지 않으면 온음 관리자에게 문의해 주세요. · 온음 커뮤니티 공간 예약 시스템
+</div>
+
+</body>
+</html>
