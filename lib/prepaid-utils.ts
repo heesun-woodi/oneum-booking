@@ -1,29 +1,41 @@
 /**
  * 선불권 관련 유틸리티 함수
  * Phase 6.5: 클라이언트 사이드 헬퍼 함수
+ *
+ * 계산은 lib/booking-policy.ts에 위임한다. 이 파일에서 요금을 다시 계산하지 말 것.
  */
 
 import { PrepaidPurchase } from '@/app/actions/prepaid'
+import {
+  POLICY_V2_EFFECTIVE_FROM,
+  PrepaidLike,
+  computeBookingCharge,
+  selectUsablePrepaid,
+  round1,
+} from '@/lib/booking-policy'
 
 /**
  * 유효한 선불권의 총 잔여 시간 계산
  */
 export function getTotalRemainingHours(purchases: PrepaidPurchase[]): number {
-  const now = new Date()
-  
-  return purchases
-    .filter(p => p.status === 'paid')
-    .filter(p => p.expires_at && new Date(p.expires_at) > now)
-    .filter(p => p.remaining_hours > 0)
-    .reduce((sum, p) => sum + p.remaining_hours, 0)
+  return round1(
+    selectUsablePrepaid(purchases as unknown as PrepaidLike[]).reduce(
+      (sum, p) => sum + Number(p.remaining_hours),
+      0
+    )
+  )
 }
 
 /**
  * 예약에 필요한 선불권 사용 계획 계산
+ *
+ * @deprecated 세대 무료 시간까지 함께 반영하려면 computeBookingCharge를 직접 쓸 것.
  */
 export function calculatePrepaidUsage(
   purchases: PrepaidPurchase[],
-  requestedHours: number
+  requestedHours: number,
+  /** 사용일 'YYYY-MM-DD'. 일반 회원 경로는 정책 버전과 무관하므로 기본값을 둔다. */
+  bookingDate: string = POLICY_V2_EFFECTIVE_FROM
 ): {
   prepaidHours: number
   regularHours: number
@@ -31,42 +43,20 @@ export function calculatePrepaidUsage(
   isFullyPrepaid: boolean
   usedPurchases: Array<{ id: string; hours: number }>
 } {
-  const now = new Date()
-  
-  // 사용 가능한 선불권 (유효기간 임박 순, 잔여 시간 적은 순)
-  const availablePurchases = purchases
-    .filter(p => p.status === 'paid')
-    .filter(p => p.expires_at && new Date(p.expires_at) > now)
-    .filter(p => p.remaining_hours > 0)
-    .sort((a, b) => {
-      const dateA = new Date(a.expires_at!).getTime()
-      const dateB = new Date(b.expires_at!).getTime()
-      if (dateA !== dateB) return dateA - dateB
-      return a.remaining_hours - b.remaining_hours
-    })
-  
-  let remainingHours = requestedHours
-  let prepaidHours = 0
-  const usedPurchases: Array<{ id: string; hours: number }> = []
-  
-  for (const purchase of availablePurchases) {
-    if (remainingHours === 0) break
-    
-    const hoursToUse = Math.min(purchase.remaining_hours, remainingHours)
-    prepaidHours += hoursToUse
-    remainingHours -= hoursToUse
-    usedPurchases.push({ id: purchase.id, hours: hoursToUse })
-  }
-  
-  const regularHours = remainingHours
-  const amount = regularHours * 7000
-  const isFullyPrepaid = regularHours === 0
-  
+  const charge = computeBookingCharge({
+    userKind: 'member',
+    space: 'nolter',
+    bookingDate,
+    requestedHours,
+    freeHoursUsedThisMonth: 0,
+    prepaidPurchases: purchases as unknown as PrepaidLike[],
+  })
+
   return {
-    prepaidHours,
-    regularHours,
-    amount,
-    isFullyPrepaid,
-    usedPurchases
+    prepaidHours: charge.prepaidHours,
+    regularHours: charge.regularHours,
+    amount: charge.amount,
+    isFullyPrepaid: charge.regularHours === 0,
+    usedPurchases: charge.deductionPlan.map(p => ({ id: p.purchaseId, hours: p.hoursToDeduct })),
   }
 }

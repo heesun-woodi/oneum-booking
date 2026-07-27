@@ -3,8 +3,9 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { getBookingsByHousehold, getPastBookingsByHousehold, getBookingsByUserId, getPastBookingsByUserId, cancelBooking } from '@/app/actions/bookings'
+import { getBookingsByHousehold, getPastBookingsByHousehold, getBookingsByUserId, getPastBookingsByUserId, cancelBooking, getHouseholdNolterQuota, HouseholdNolterQuota } from '@/app/actions/bookings'
 import { getMonthlyUsage, UsageCount } from '@/app/actions/usage'
+import { formatHours } from '@/lib/booking-policy'
 import { changePassword } from '@/app/actions/auth'
 import { getPrepaidByPhone } from '@/app/actions/prepaid'
 import { PREPAID_STATUS_LABELS, BOOKING_STATUS_LABELS } from '@/lib/constants/status-labels'
@@ -68,6 +69,11 @@ export default function MyPage() {
   const [pastBookings, setPastBookings] = useState<Booking[]>([])
   const [prepaidPurchases, setPrepaidPurchases] = useState<PrepaidPurchase[]>([])
   const [monthlyUsage, setMonthlyUsage] = useState<UsageCount[]>([])
+  // Phase 8: 놀터 세대 무료 한도 현황. 월별로 조회할 수 있다.
+  // (2026-07까지는 월 3회 건수 기준, 2026-08부터는 월 20시간 기준)
+  const [nolterQuota, setNolterQuota] = useState<HouseholdNolterQuota | null>(null)
+  const [usageMonth, setUsageMonth] = useState(() => new Date().toISOString().substring(0, 7))
+  const [usageLoading, setUsageLoading] = useState(false)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -99,7 +105,7 @@ export default function MyPage() {
     await Promise.all([
       loadBookings(s),
       prepaidPromise,
-      s.household?.trim() ? loadUsage(s.household) : Promise.resolve(),
+      s.household?.trim() ? loadUsage(s.household, usageMonth) : Promise.resolve(),
     ])
     setLoading(false)
   }
@@ -122,9 +128,27 @@ export default function MyPage() {
     }
   }
 
-  async function loadUsage(household: string) {
-    const res = await getMonthlyUsage(household)
-    if (res.success) setMonthlyUsage(res.usage)
+  async function loadUsage(household: string, month: string) {
+    setUsageLoading(true)
+    try {
+      const [usageRes, quotaRes] = await Promise.all([
+        getMonthlyUsage(household, month),
+        getHouseholdNolterQuota(household, month),
+      ])
+      setMonthlyUsage(usageRes.success ? usageRes.usage : [])
+      setNolterQuota(quotaRes.success ? quotaRes : null)
+    } finally {
+      setUsageLoading(false)
+    }
+  }
+
+  /** 이용 현황 월 이동 (delta: -1 이전달 / +1 다음달) */
+  function shiftUsageMonth(delta: number) {
+    const [y, m] = usageMonth.split('-').map(Number)
+    const d = new Date(y, m - 1 + delta, 1)
+    const next = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+    setUsageMonth(next)
+    if (session?.household?.trim()) loadUsage(session.household, next)
   }
 
   const activePrepaid = prepaidPurchases.find((p) => p.status === 'paid')
@@ -186,43 +210,98 @@ export default function MyPage() {
           <PasswordChangeCard userId={session.userId} />
         )}
 
-        {/* 이번 달 이용 현황 - 세대원만 표시 */}
-        {session.isResident && (() => {
-          const totalUsed = monthlyUsage.reduce((sum, u) => sum + u.effectiveCount, 0)
-          const FREE_LIMIT = 3
-          const remaining = Math.max(0, FREE_LIMIT - totalUsed)
-          const nolterUsed = monthlyUsage.find(u => u.space === 'nolter')?.effectiveCount ?? 0
-          const soundroomUsed = monthlyUsage.find(u => u.space === 'soundroom')?.effectiveCount ?? 0
+        {/* 놀터 무료 이용 현황 - 세대원만 표시 (방음실은 무제한 무료라 한도에 포함하지 않는다) */}
+        {session.isResident && session.household?.trim() && (() => {
+          const [uy, um] = usageMonth.split('-').map(Number)
+          const isLegacy = nolterQuota?.policyVersion === 'v1'
+          const nolterHours = monthlyUsage.find(u => u.space === 'nolter')?.bookedHours ?? 0
+          const nolterCount = monthlyUsage.find(u => u.space === 'nolter')?.count ?? 0
+          const soundroomHours = monthlyUsage.find(u => u.space === 'soundroom')?.bookedHours ?? 0
+
+          const used = isLegacy ? nolterQuota!.usedCount : nolterQuota?.usedHours ?? 0
+          const limit = isLegacy ? nolterQuota!.limitCount : nolterQuota?.limitHours ?? 0
+          const remaining = isLegacy
+            ? nolterQuota!.remainingCount
+            : nolterQuota?.remainingHours ?? 0
+          const exhausted = limit > 0 && remaining <= 0
+
           return (
             <div className="bg-white rounded-2xl shadow-sm p-5 mb-6">
-              <h2 className="text-sm font-semibold text-gray-500 mb-3">이번 달 무료 이용 현황</h2>
-              <div className="flex items-center justify-between mb-3">
-                <div className="text-center">
-                  <p className="text-3xl font-bold text-blue-600">{remaining}</p>
-                  <p className="text-xs text-gray-400 mt-1">남은 무료 횟수</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-3xl font-bold text-gray-700">{totalUsed}</p>
-                  <p className="text-xs text-gray-400 mt-1">이번 달 이용</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-3xl font-bold text-gray-300">{FREE_LIMIT}</p>
-                  <p className="text-xs text-gray-400 mt-1">월 무료 한도</p>
+              {/* 월 이동 */}
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-sm font-semibold text-gray-500">놀터 무료 이용 현황</h2>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => shiftUsageMonth(-1)}
+                    disabled={usageLoading}
+                    aria-label="이전 달"
+                    className="w-7 h-7 rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-40"
+                  >
+                    ‹
+                  </button>
+                  <span className="text-sm font-medium text-gray-800 min-w-[86px] text-center">
+                    {uy}년 {um}월
+                  </span>
+                  <button
+                    onClick={() => shiftUsageMonth(1)}
+                    disabled={usageLoading}
+                    aria-label="다음 달"
+                    className="w-7 h-7 rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-40"
+                  >
+                    ›
+                  </button>
                 </div>
               </div>
-              <div className="w-full bg-gray-100 rounded-full h-2 mb-3">
-                <div
-                  className={`h-2 rounded-full transition-all ${totalUsed >= FREE_LIMIT ? 'bg-red-400' : 'bg-blue-400'}`}
-                  style={{ width: `${Math.min(100, (totalUsed / FREE_LIMIT) * 100)}%` }}
-                />
-              </div>
-              <div className="flex gap-3 text-xs text-gray-500">
-                <span>놀터 {nolterUsed}회</span>
-                <span>방음실 {soundroomUsed}회</span>
-                {totalUsed >= FREE_LIMIT && (
-                  <span className="text-red-500 font-medium ml-auto">무료 이용 초과 (선불권 또는 현장 결제)</span>
-                )}
-              </div>
+
+              {usageLoading || !nolterQuota ? (
+                <p className="text-sm text-gray-400 py-6 text-center">조회 중...</p>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="text-center">
+                      <p className="text-3xl font-bold text-blue-600">{remaining}</p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        {isLegacy ? '남은 무료 횟수' : '남은 무료 시간'}
+                      </p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-3xl font-bold text-gray-700">{used}</p>
+                      <p className="text-xs text-gray-400 mt-1">이 달 사용</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-3xl font-bold text-gray-300">{limit}</p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        {isLegacy ? '월 무료 한도(회)' : '월 무료 한도(시간)'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="w-full bg-gray-100 rounded-full h-2 mb-3">
+                    <div
+                      className={`h-2 rounded-full transition-all ${exhausted ? 'bg-red-400' : 'bg-blue-400'}`}
+                      style={{ width: `${limit > 0 ? Math.min(100, (used / limit) * 100) : 0}%` }}
+                    />
+                  </div>
+
+                  <div className="flex flex-wrap gap-3 text-xs text-gray-500">
+                    <span>놀터 {nolterCount}회 · {formatHours(nolterHours)} 이용</span>
+                    <span>방음실 {formatHours(soundroomHours)} 이용 (무제한 무료)</span>
+                    {exhausted && (
+                      <span className="text-red-500 font-medium ml-auto">
+                        {isLegacy
+                          ? '무료 횟수 초과 (추가 예약 10,000원/건)'
+                          : '무료 시간 초과 (선불권 차감 후 14,000원/시간)'}
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="text-xs text-gray-400 mt-3 pt-3 border-t border-gray-100">
+                    {isLegacy
+                      ? '이 달은 종전 규정이 적용됩니다 — 놀터 세대당 월 3회 무료, 초과 시 10,000원/건. 2026년 8월 예약부터 세대당 월 20시간 무료로 바뀝니다.'
+                      : '놀터는 세대당 월 20시간 무료이며, 초과분은 선불권 차감 후 14,000원/시간입니다. 방음실은 무제한 무료로 한도에 포함되지 않습니다.'}
+                  </p>
+                </>
+              )}
             </div>
           )
         })()}

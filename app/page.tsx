@@ -2,11 +2,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createBooking, getBookings, getBookingsByPhone, getBookingsByHousehold, getBookingsByUserId, cancelBooking, getMemberNolterCount, CreateBookingInput } from './actions/bookings'
+import { createBooking, getBookings, getBookingsByPhone, getBookingsByHousehold, getBookingsByUserId, cancelBooking, getHouseholdNolterQuota, CreateBookingInput, HouseholdNolterQuota } from './actions/bookings'
 import { signup, login, resetPassword } from './actions/auth'
 import { getSpacesInfo, getGeneralRulesFromDB, SpacesInfo, GeneralRules } from './actions/structured-settings'
 import { getMyPrepaidPurchases, PrepaidPurchase as PrepaidPurchaseType } from './actions/prepaid'
-import { getTotalRemainingHours, calculatePrepaidUsage } from '@/lib/prepaid-utils'
+import { PrepaidLike, formatHours, resolveUserKind } from '@/lib/booking-policy'
+import { BookingChargeSummary } from './components/BookingChargeSummary'
 import { SpaceGallery } from './components/space-gallery/SpaceGallery'
 import { PrepaidPurchaseModal } from './components/PrepaidPurchaseModal'
 import { PrepaidCard } from './components/PrepaidCard'
@@ -79,8 +80,8 @@ export default function Home() {
   const [prepaidPurchases, setPrepaidPurchases] = useState<PrepaidPurchase[]>([])
   const [isLoadingPrepaid, setIsLoadingPrepaid] = useState(false)
 
-  // Phase 7: 놀터 회원 이번 달 예약 횟수
-  const [nolterCount, setNolterCount] = useState<number | null>(null)
+  // Phase 8: 세대 이번 달 놀터 무료 한도 현황 (8월부터 월 20시간 / 7월까지 월 3회)
+  const [nolterQuota, setNolterQuota] = useState<HouseholdNolterQuota | null>(null)
   
   // 달력 & 예약
   const [currentMonth, setCurrentMonth] = useState(new Date())
@@ -151,17 +152,17 @@ export default function Home() {
     }
   }, [userSession.isLoggedIn, userSession.userId])
 
-  // Phase 7: 놀터 예약 횟수 조회 (회원 + 놀터 모달 오픈 시)
+  // Phase 8: 세대 놀터 무료 사용 시간 조회 (세대원 + 놀터 모달 오픈 시)
   useEffect(() => {
-    if (isBookingModalOpen && userSession.isLoggedIn && selectedSpace === 'nolter' && userSession.household) {
-      setNolterCount(null)
-      // 무료 3회는 '사용일이 속한 달' 기준이므로, 현재 보고 있는(예약하려는) 달로 조회한다.
+    if (isBookingModalOpen && userSession.isResident && selectedSpace === 'nolter' && userSession.household) {
+      setNolterQuota(null)
+      // 한도는 '사용일이 속한 달' 기준이므로, 현재 보고 있는(예약하려는) 달로 조회한다.
       const targetMonth = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}`
-      getMemberNolterCount(userSession.household, targetMonth).then(result => {
-        if (result.success) setNolterCount(result.count)
+      getHouseholdNolterQuota(userSession.household, targetMonth).then(result => {
+        if (result.success) setNolterQuota(result)
       })
     }
-  }, [isBookingModalOpen, selectedSpace, userSession.isLoggedIn, userSession.household, currentMonth])
+  }, [isBookingModalOpen, selectedSpace, userSession.isResident, userSession.household, currentMonth])
 
   async function loadBookings() {
     const year = currentMonth.getFullYear()
@@ -551,28 +552,47 @@ export default function Home() {
       console.log('예약자:', userSession.isLoggedIn ? `${userSession.household}호 ${name}` : name)
       console.log('연락처:', phone)
 
-      // Phase 6.5: 선불권 사용 정보 표시
-      let paymentInfo = ''
-      if (result.data?.payment_status === 'prepaid') {
-        paymentInfo = `\n\n🎫 선불권 ${result.data.prepaid_hours_used}시간 사용\n잔여: (조회 필요)`
-      } else if (result.data?.prepaid_hours_used > 0) {
-        paymentInfo = `\n\n🎫 선불권 ${result.data.prepaid_hours_used}시간 사용\n💰 일반 결제 ${result.data.regular_hours}시간 (${result.data.amount}원)\n계좌: 카카오뱅크 7979-72-56275 (정상은)`
-      } else if (result.data?.payment_method === 'nolter_paid') {
-        paymentInfo = `\n\n💰 결제 안내 (이번 달 무료 횟수 초과)\n금액: 10,000원\n계좌: 카카오뱅크 7979-72-56275 (정상은)\n예약자명으로 입금해주세요.`
-      } else if (result.data?.amount > 0) {
-        paymentInfo = `\n\n💰 결제 안내\n금액: ${result.data.amount.toLocaleString()}원\n계좌: 카카오뱅크 7979-72-56275 (정상은)\n예약자명으로 입금해주세요.`
+      // Phase 8: 무료 / 선불권 / 현금 내역 안내 (서버가 확정한 값 기준)
+      const booked = result.data
+      const freeHoursUsed = Number(booked?.free_hours_used ?? 0)
+      const prepaidHoursUsed = Number(booked?.prepaid_hours_used ?? 0)
+      const regularHours = Number(booked?.regular_hours ?? 0)
+      const amount = Number(booked?.amount ?? 0)
+
+      const lines: string[] = []
+      if (freeHoursUsed > 0) lines.push(`🎟 세대 무료 ${formatHours(freeHoursUsed)} 사용`)
+      if (prepaidHoursUsed > 0) lines.push(`🎫 선불권 ${formatHours(prepaidHoursUsed)} 사용`)
+      if (booked?.payment_method === 'nolter_paid') {
+        // 구 정책(7월까지): 무료 횟수 초과 시 이용 시간과 무관한 정액
+        lines.push(`💰 무료 횟수 초과 — ${amount.toLocaleString()}원 (시간 무관)`)
+      } else if (regularHours > 0) {
+        lines.push(`💳 현금 결제 ${formatHours(regularHours)} (${amount.toLocaleString()}원)`)
       }
-      
+
+      let paymentInfo = lines.length > 0 ? `\n\n${lines.join('\n')}` : ''
+      if (amount > 0) {
+        paymentInfo += `\n계좌: 카카오뱅크 7979-72-56275 (정상은)\n예약자명으로 입금해주세요.`
+      }
+
       alert(`예약이 완료되었습니다!\n\n날짜: ${month}월 ${selectedDate}일\n시간: ${selectedTimes.join(', ')} (총 ${selectedTimes.length * 0.5}시간)\n공간: ${selectedSpace === 'nolter' ? '놀터' : '방음실'}${paymentInfo}`)
       setIsBookingModalOpen(false)
       setNonMemberConsent(false)
-      
+
       // 예약 목록 새로고침
       loadBookings()
-      
+
       // 선불권 사용한 경우 선불권 목록도 새로고침
-      if (result.data?.prepaid_hours_used > 0) {
+      if (prepaidHoursUsed > 0) {
         loadPrepaidPurchases()
+      }
+
+      // 세대원 놀터 예약이면 한도 배지를 갱신한다.
+      // (구 정책은 건수 기준이라 free_hours_used가 0이므로 시간만 보고 판단할 수 없다)
+      if (userSession.isResident && selectedSpace === 'nolter' && userSession.household) {
+        const targetMonth = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}`
+        getHouseholdNolterQuota(userSession.household, targetMonth).then(res => {
+          if (res.success) setNolterQuota(res)
+        })
       }
     } else {
       console.error('❌ 예약 실패:', result.error)
@@ -817,6 +837,10 @@ export default function Home() {
   const month = currentMonth.getMonth()
   const daysInMonth = new Date(year, month + 1, 0).getDate()
   const firstDayOfWeek = new Date(year, month, 1).getDay() // 0=일(Sun)~6=토(Sat)
+  // 선택한 사용일. 적용 정책(7월까지 구 규정 / 8월부터 신 규정)을 가르는 기준이다.
+  const selectedBookingDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(
+    selectedDate ?? 1
+  ).padStart(2, '0')}`
   // null = 빈 칸, number = 날짜
   const calendarCells: (number | null)[] = [
     ...Array(firstDayOfWeek).fill(null),
@@ -1261,84 +1285,21 @@ export default function Home() {
               {/* 예약 폼 (조회 모드에서는 숨김) */}
               {!isViewOnlyMode && (userSession.isLoggedIn ? (
                 <div className="space-y-4">
-                  {/* Phase 6.5: 선불권 정보 표시 */}
-                  {(() => {
-                    const totalHours = getTotalRemainingHours(prepaidPurchases)
-                    if (totalHours > 0 && selectedTimes.length > 0) {
-                      const usage = calculatePrepaidUsage(prepaidPurchases, selectedTimes.length / 2)
-                      return (
-                        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                          <div className="flex items-center justify-between mb-2">
-                            <p className="text-sm font-semibold text-green-800">
-                              🎫 보유 선불권: {totalHours}시간
-                            </p>
-                          </div>
-                          <div className="text-sm text-green-700 space-y-1">
-                            {usage.isFullyPrepaid ? (
-                              <>
-                                <p>✅ 선불권 사용: {usage.prepaidHours}시간</p>
-                                <p>💰 결제 금액: 0원</p>
-                                <p className="text-xs text-green-600 mt-2">
-                                  잔여 선불권: {totalHours - usage.prepaidHours}시간
-                                </p>
-                              </>
-                            ) : (
-                              <>
-                                <p>🎫 선불권 사용: {usage.prepaidHours}시간</p>
-                                <p>💳 일반 결제: {usage.regularHours}시간</p>
-                                <p>💰 결제 금액: {usage.amount.toLocaleString()}원</p>
-                                <p className="text-xs text-orange-600 mt-2">
-                                  ⚠️ 선불권 {usage.prepaidHours}시간 소진 후 나머지는 일반 예약으로 처리됩니다.
-                                </p>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      )
-                    } else if (totalHours > 0) {
-                      return (
-                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                          <p className="text-sm font-semibold text-blue-800">
-                            🎫 보유 선불권: {totalHours}시간
-                          </p>
-                          <p className="text-xs text-blue-600 mt-1">
-                            시간을 선택하면 선불권 사용 내역이 표시됩니다.
-                          </p>
-                        </div>
-                      )
-                    }
-                    return null
-                  })()}
-                  
-                  {/* Phase 7: 놀터 회원 예약 횟수 배지 - 세대원만 */}
-                  {selectedSpace === 'nolter' && userSession.isResident && (
-                    nolterCount === null ? (
-                      <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                        <p className="text-sm text-gray-500">이번 달 예약 현황 조회 중...</p>
-                      </div>
-                    ) : nolterCount < 3 ? (
-                      <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                        <p className="text-sm font-semibold text-green-800">
-                          🎟 {month + 1}월 무료 예약: {nolterCount}/3회 사용
-                        </p>
-                        <p className="text-xs text-green-600 mt-1">
-                          남은 무료 횟수: {3 - nolterCount}회 (시간 제한 없음)
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                        <p className="text-sm font-semibold text-yellow-800">
-                          💰 {month + 1}월 무료 예약 3회 모두 사용
-                        </p>
-                        <p className="text-sm text-yellow-700 mt-1">
-                          추가 예약: <strong>10,000원/건</strong> (시간 무관)
-                        </p>
-                        <p className="text-xs text-yellow-600 mt-1">
-                          입금계좌: 카카오뱅크 7979-72-56275 (정상은)
-                        </p>
-                      </div>
-                    )
-                  )}
+                  {/* Phase 8: 세대 무료 시간 + 선불권 + 현금 통합 안내 */}
+                  <BookingChargeSummary
+                    userKind={resolveUserKind({
+                      userId: userSession.userId,
+                      isResident: userSession.isResident,
+                      household: userSession.household,
+                    })}
+                    space={selectedSpace}
+                    bookingDate={selectedBookingDate}
+                    selectedSlotCount={selectedTimes.length}
+                    quota={nolterQuota}
+                    prepaidPurchases={prepaidPurchases as unknown as PrepaidLike[]}
+                    monthLabel={month + 1}
+                  />
+
 
                   {userSession.isResident && userSession.household?.trim() && (
                     <div>
@@ -1429,17 +1390,17 @@ export default function Home() {
                     </label>
                   </div>
                   {/* ⭐ 비회원 결제 안내 */}
-                  {!userSession.isLoggedIn && selectedTimes.length > 0 && (
-                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mt-4">
-                      <p className="text-sm font-semibold text-yellow-800">
-                        💰 예상 결제 금액: {selectedTimes.length * 7000}원
-                      </p>
-                      <p className="text-xs text-yellow-700 mt-1">
-                        입금계좌: 카카오뱅크 7979-72-56275 (정상은)
-                      </p>
-                      <p className="text-xs text-yellow-600 mt-1">
-                        예약자명으로 입금해주세요.
-                      </p>
+                  {!userSession.isLoggedIn && (
+                    <div className="mt-4">
+                      <BookingChargeSummary
+                        userKind="guest"
+                        space={selectedSpace}
+                        bookingDate={selectedBookingDate}
+                        selectedSlotCount={selectedTimes.length}
+                        quota={null}
+                        prepaidPurchases={[]}
+                        monthLabel={month + 1}
+                      />
                     </div>
                   )}
                 </div>

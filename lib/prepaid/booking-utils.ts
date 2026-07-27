@@ -1,4 +1,10 @@
 import { createServiceRoleClient } from '@/lib/supabase/server'
+import {
+  PaymentMethod,
+  PrepaidLike,
+  RESIDENT_NOLTER_FREE_HOURS_PER_MONTH,
+  computeBookingCharge,
+} from '@/lib/booking-policy'
 
 // ===== 타입 정의 =====
 
@@ -21,7 +27,7 @@ export interface BookingCost {
   regularHours: number
   totalHours: number
   amount: number
-  paymentMethod: 'free' | 'regular' | 'prepaid' | 'mixed'
+  paymentMethod: PaymentMethod
 }
 
 export interface PrepaidSummary {
@@ -114,7 +120,10 @@ export function createDeductionPlan(
 }
 
 /**
- * 예약 비용 계산
+ * 예약 비용 계산 (미리보기용)
+ *
+ * 요금 계산은 lib/booking-policy.ts의 computeBookingCharge에 위임한다.
+ * 여기서 다시 계산하면 실제 예약(app/actions/bookings.ts)과 어긋난다.
  */
 export async function calculateBookingCost(
   userId: string | undefined,
@@ -123,48 +132,28 @@ export async function calculateBookingCost(
   isMember: boolean,
   monthlyFreeHoursLeft?: number  // 세대 회원 잔여 무료 시간
 ): Promise<BookingCost> {
-  // 세대 회원이고 무료 시간 남음
-  if (isMember && monthlyFreeHoursLeft !== undefined && monthlyFreeHoursLeft >= hours) {
-    return {
-      prepaidHours: 0,
-      regularHours: 0,
-      totalHours: hours,
-      amount: 0,
-      paymentMethod: 'free'
-    }
-  }
-  
-  // 로그인 안 했으면 일반 결제
-  if (!userId) {
-    return {
-      prepaidHours: 0,
-      regularHours: hours,
-      totalHours: hours,
-      amount: hours * 14000,
-      paymentMethod: 'regular'
-    }
-  }
-  
-  // 선불권 조회
-  const prepaidPurchases = await getAvailablePrepaidPurchases(userId, bookingDate)
-  const { prepaidHours, regularHours } = createDeductionPlan(prepaidPurchases, hours)
-  
-  // 결제 방식 결정
-  let paymentMethod: BookingCost['paymentMethod']
-  if (prepaidHours === hours) {
-    paymentMethod = 'prepaid'
-  } else if (prepaidHours > 0) {
-    paymentMethod = 'mixed'
-  } else {
-    paymentMethod = 'regular'
-  }
-  
+  const prepaidPurchases = userId
+    ? await getAvailablePrepaidPurchases(userId, bookingDate)
+    : []
+
+  // 무료 잔여 시간을 한도로 넘겨, 무료 → 선불권 → 현금 순서로 분할 계산한다.
+  // (기존에는 무료 시간이 요청 시간보다 적으면 전액 유료로 떨어졌다)
+  const freeHoursLeft = isMember ? monthlyFreeHoursLeft ?? 0 : 0
+  const charge = computeBookingCharge({
+    userKind: freeHoursLeft > 0 ? 'resident' : userId ? 'member' : 'guest',
+    space: 'nolter',
+    bookingDate: bookingDate.toISOString().substring(0, 10),
+    requestedHours: hours,
+    freeHoursUsedThisMonth: Math.max(0, RESIDENT_NOLTER_FREE_HOURS_PER_MONTH - freeHoursLeft),
+    prepaidPurchases: prepaidPurchases as unknown as PrepaidLike[],
+  })
+
   return {
-    prepaidHours,
-    regularHours,
-    totalHours: hours,
-    amount: regularHours * 14000,
-    paymentMethod
+    prepaidHours: charge.prepaidHours,
+    regularHours: charge.regularHours,
+    totalHours: charge.totalHours,
+    amount: charge.amount,
+    paymentMethod: charge.paymentMethod,
   }
 }
 

@@ -4,6 +4,22 @@ import { supabase } from '@/lib/supabase'
 import { createServiceRoleClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { sendNotification } from '@/lib/notifications/sender'
+import {
+  BookingCharge,
+  LEGACY_NOLTER_FREE_COUNT_PER_MONTH,
+  PolicyVersion,
+  PrepaidLike,
+  RESIDENT_NOLTER_FREE_HOURS_PER_MONTH,
+  computeBookingCharge,
+  describeCharge,
+  freeHoursAllowance,
+  monthRangeOf,
+  resolvePolicyVersion,
+  resolveUserKind,
+  round1,
+  slotsToHours,
+  usesPrepaidHours,
+} from '@/lib/booking-policy'
 
 export interface CreateBookingInput {
   bookingDate: string        // YYYY-MM-DD
@@ -63,255 +79,267 @@ export async function createBooking(input: CreateBookingInput) {
     // 전화번호 정규화 (숫자만 저장)
     const normalizedPhone = input.phone.replace(/[^0-9]/g, '')
 
-    const userType = input.userId
-      ? (input.isResident ? 'resident-member' : 'general-member')
-      : 'guest'
+    // ===== 1. 사용자 종류 확정 =====
+    // input.isResident / input.household 는 localStorage 세션에서 오는 값이다.
+    // 무료 시간이 걸린 판정이므로 DB에 저장된 값으로 다시 확인한다.
+    const serviceSupabase = await createServiceRoleClient()
+
+    let isResident = false
+    let household: string | null = null
+
+    if (input.userId) {
+      const { data: user, error: userError } = await serviceSupabase
+        .from('users')
+        .select('id, is_resident, household')
+        .eq('id', input.userId)
+        .maybeSingle()
+
+      if (userError) throw userError
+      if (!user) {
+        return { success: false, error: '사용자 정보를 확인할 수 없습니다. 다시 로그인해주세요.' }
+      }
+
+      isResident = !!user.is_resident
+      household = (user.household ?? '').trim() || null
+    }
+
+    const userKind = resolveUserKind({ userId: input.userId, isResident, household })
+    // member_type='member' 는 이 시스템에서 '온음 세대원'을 뜻한다 (로그인 회원 일반이 아니다).
+    const memberType: 'member' | 'non-member' = userKind === 'resident' ? 'member' : 'non-member'
+    const requestedHours = slotsToHours(input.times.length)
+    // 정책은 신청 시점이 아니라 '사용일' 기준으로 갈린다 (v2 = 2026-08-01 사용분부터).
+    const policyVersion = resolvePolicyVersion(input.bookingDate)
 
     console.log('👤 예약 사용자 타입 해석', {
       userId: input.userId,
       isLoggedIn: input.isLoggedIn,
-      isResident: input.isResident,
-      memberType: input.memberType,
-      resolvedUserType: userType,
+      isResident,
+      household,
+      space: input.space,
+      requestedHours,
+      resolvedUserKind: userKind,
+      policyVersion,
     })
-    
-    // Phase 7: 온음 세대 회원 + 놀터 전용 정책 (월 3회 무료, 이후 10,000원/건)
-    if (userType === 'resident-member' && input.space === 'nolter') {
-      // 무료 3회 기준: 신청 시점이 아니라 '사용일(booking_date)이 속한 달' 기준으로 카운트한다.
-      // (예: 8월 사용분은 언제 신청하든 항상 8월 카운트로 계산)
-      const [byear, bmonth] = input.bookingDate.split('-').map(Number)
-      const monthStart = `${byear}-${String(bmonth).padStart(2, '0')}-01`
-      const nextY = bmonth === 12 ? byear + 1 : byear
-      const nextM = bmonth === 12 ? 1 : bmonth + 1
-      const nextMonthStr = `${nextY}-${String(nextM).padStart(2, '0')}-01`
 
-      const { count, error: countError } = await supabase
-        .from('bookings')
-        .select('*', { count: 'exact', head: true })
-        .eq('household', input.household || '')
-        .eq('space', 'nolter')
-        .neq('status', 'cancelled')
-        .gte('booking_date', monthStart)
-        .lt('booking_date', nextMonthStr)
-
-      if (countError) throw countError
-
-      const currentCount = count ?? 0
-      const isFree = currentCount < 3
-      const amount = isFree ? 0 : 10000
-      const paymentMethod = isFree ? 'free' : 'nolter_paid'
-      const status = isFree ? 'confirmed' : 'pending'
-      const paymentStatus = isFree ? 'completed' : 'pending'
-
-      const { data, error } = await supabase
-        .from('bookings')
-        .insert({
-          booking_date: input.bookingDate,
-          start_time: startTime,
-          end_time: endTime,
-          space: input.space,
-          member_type: input.memberType,
-          household: input.household,
-          name: input.name,
-          phone: normalizedPhone,
-          user_id: input.userId || null,
-          amount,
-          status,
-          payment_status: paymentStatus,
-          prepaid_hours_used: 0,
-          regular_hours: input.times.length,
-          payment_method: paymentMethod,
-        })
-        .select()
-        .single()
-
-      if (error) {
-        console.error('❌ Supabase error (nolter):', error)
-        throw error
+    // ===== 2. 세대 무료 사용량 조회 (놀터 + 세대원일 때만) =====
+    // 한도는 신청 시점이 아니라 '사용일(booking_date)이 속한 달' 기준으로 판정한다.
+    let freeHoursUsedThisMonth = 0
+    let legacyNolterBookingCount = 0
+    if (userKind === 'resident' && input.space === 'nolter' && household) {
+      if (policyVersion === 'v2') {
+        const { monthStart } = monthRangeOf(input.bookingDate)
+        const { data: usedData, error: usedError } = await serviceSupabase.rpc(
+          'get_household_free_hours',
+          { p_household: household, p_month: monthStart }
+        )
+        if (usedError) throw usedError
+        freeHoursUsedThisMonth = round1(Number(usedData ?? 0))
+      } else {
+        legacyNolterBookingCount = await countHouseholdNolterBookings(
+          serviceSupabase,
+          household,
+          input.bookingDate
+        )
       }
-
-      console.log(`✅ 놀터 회원 예약: ${isFree ? `무료 (${currentCount + 1}/3회)` : `유료 10,000원 (${currentCount + 1}회차)`}`)
-      await sendBookingNotifications(data, input, normalizedPhone)
-      revalidatePath('/')
-      return { success: true, data }
     }
 
-    // Phase 6.5: 선불권 우선 사용 (userId가 있는 경우, 비회원 또는 방음실 회원)
-    if (input.userId) {
-      console.log('🎫 선불권 확인 및 사용 시도', {
+    // ===== 3. 선불권 조회 =====
+    // 무료로 전부 커버되면 조회조차 하지 않는다.
+    // (세대원이 방음실을 예약할 때 선불권이 소진되던 문제를 막는다)
+    // v1의 세대원 놀터 예약은 무료 아니면 정액 10,000원이라 선불권이 개입하지 않는다.
+    const allowance = freeHoursAllowance(userKind, input.space)
+    const freeHoursLeft =
+      allowance === Infinity ? Infinity : Math.max(0, round1(allowance - freeHoursUsedThisMonth))
+    const canUsePrepaid = usesPrepaidHours(policyVersion, userKind, input.space)
+
+    let prepaidPurchases: PrepaidLike[] = []
+    if (input.userId && canUsePrepaid && requestedHours > freeHoursLeft) {
+      const { data: purchases, error: purchasesError } = await serviceSupabase
+        .from('prepaid_purchases')
+        .select('id, remaining_hours, expires_at, status')
+        .eq('user_id', input.userId)
+        .eq('status', 'paid')
+        .gt('remaining_hours', 0)
+        .gt('expires_at', new Date().toISOString())
+        .order('expires_at', { ascending: true })
+
+      if (purchasesError) throw purchasesError
+      prepaidPurchases = (purchases ?? []) as PrepaidLike[]
+
+      console.log('🎫 사용 가능한 선불권', {
         userId: input.userId,
-        memberType: input.memberType,
-        space: input.space,
-        requestedSlots: input.times.length,
+        purchaseCount: prepaidPurchases.length,
       })
+    }
 
-      try {
-        const serviceSupabase = await createServiceRoleClient()
+    // ===== 4. 과금 계산 (무료 → 선불권 → 현금) =====
+    let charge = computeBookingCharge({
+      userKind,
+      space: input.space,
+      bookingDate: input.bookingDate,
+      requestedHours,
+      freeHoursUsedThisMonth,
+      legacyNolterBookingCount,
+      prepaidPurchases,
+    })
 
-        // 1. 사용 가능한 선불권 조회 (유효기간 임박 순)
-        const now = new Date().toISOString()
-        const { data: purchases, error: purchasesError } = await serviceSupabase
-          .from('prepaid_purchases')
-          .select('id, remaining_hours, expires_at')
-          .eq('user_id', input.userId)
-          .eq('status', 'paid')
-          .gt('remaining_hours', 0)
-          .gt('expires_at', now)
-          .order('expires_at', { ascending: true })
+    console.log('💰 과금 계산 결과', { ...charge, breakdown: describeCharge(charge) })
 
-        if (purchasesError) throw purchasesError
+    // ===== 5. 예약 생성 (RPC 단일 경로) =====
+    let rpcResult = await createBookingViaRpc({
+      serviceSupabase,
+      input,
+      charge,
+      memberType,
+      household,
+      startTime,
+      endTime,
+      normalizedPhone,
+    })
 
-        console.log('🎫 사용 가능한 선불권 조회 결과', {
-          userId: input.userId,
-          purchaseCount: purchases?.length ?? 0,
-          purchases,
-        })
+    if (!rpcResult?.success && rpcResult?.code === 'FREE_HOURS_EXCEEDED') {
+      // 같은 세대의 동시 예약으로 무료 시간이 방금 줄었다.
+      // 서버가 알려준 실측값으로 재계산해 딱 한 번만 재시도한다.
+      console.warn('⚠️ 무료 시간 경합 감지, 재계산 후 1회 재시도', rpcResult)
+      charge = computeBookingCharge({
+        userKind,
+        space: input.space,
+        bookingDate: input.bookingDate,
+        requestedHours,
+        freeHoursUsedThisMonth: round1(Number(rpcResult.freeHoursUsed ?? 0)),
+        legacyNolterBookingCount,
+        prepaidPurchases,
+      })
+      rpcResult = await createBookingViaRpc({
+        serviceSupabase,
+        input,
+        charge,
+        memberType,
+        household,
+        startTime,
+        endTime,
+        normalizedPhone,
+      })
+    }
 
-        // 2. 차감 계획 계산
-        const requestedHours = input.times.length / 2
-        let remainingToFill = requestedHours
-        let prepaidHoursUsed = 0
-        const deductionPlan: Array<{ purchaseId: string; hoursToDeduct: number }> = []
-
-        for (const purchase of (purchases || [])) {
-          if (remainingToFill === 0) break
-          const hoursToUse = Math.min(purchase.remaining_hours, remainingToFill)
-          prepaidHoursUsed += hoursToUse
-          remainingToFill -= hoursToUse
-          deductionPlan.push({ purchaseId: purchase.id, hoursToDeduct: hoursToUse })
-        }
-
-        // 선불권 사용 없으면 일반 예약으로
-        if (deductionPlan.length === 0) {
-          console.log('ℹ️ 사용 가능한 선불권 없음, 일반 예약으로 진행', {
-            userId: input.userId,
-            memberType: input.memberType,
-            requestedHours,
-            purchaseCount: purchases?.length ?? 0,
-          })
-        } else {
-          console.log('🎫 선불권 차감 계획', {
-            userId: input.userId,
-            requestedHours,
-            prepaidHoursUsed,
-            remainingToFill,
-            deductionPlan,
-          })
-          const regularHours = remainingToFill
-          const amount = Math.round(regularHours * 14000)
-          const paymentMethod = regularHours === 0 ? 'prepaid' : 'mixed'
-
-          // 3. RPC 호출 (올바른 JSONB 형식)
-          const { data: rpcData, error: rpcError } = await serviceSupabase
-            .rpc('create_booking_with_prepaid', {
-              p_booking_data: {
-                bookingDate: input.bookingDate,
-                startTime: startTime,
-                endTime: endTime,
-                space: input.space,
-                memberType: input.memberType,
-                household: input.household || '',
-                name: input.name,
-                phone: normalizedPhone,
-                userId: input.userId,
-                prepaidHoursUsed: prepaidHoursUsed,
-                regularHours: regularHours,
-                paymentMethod: paymentMethod,
-                amount: amount,
-              },
-              p_deduction_plan: deductionPlan,
-            })
-
-          if (rpcError) {
-            console.error('❌ RPC error:', rpcError)
-            throw rpcError
-          }
-
-          if (!rpcData?.success) {
-            throw new Error(rpcData?.error || 'RPC returned failure')
-          }
-
-          console.log('✅ 선불권 예약 완료:', rpcData)
-
-          const data = {
-            id: rpcData.bookingId,
-            booking_date: input.bookingDate,
-            start_time: startTime,
-            end_time: endTime,
-            space: input.space,
-            member_type: input.memberType,
-            household: input.household,
-            name: input.name,
-            phone: normalizedPhone,
-            amount: amount,
-            status: paymentMethod === 'prepaid' ? 'confirmed' : 'pending',
-            payment_status: paymentMethod === 'prepaid' ? 'completed' : 'pending',
-            prepaid_hours_used: prepaidHoursUsed,
-            regular_hours: regularHours,
-          }
-
-          console.log('🎫 선불권 사용 결과:', {
-            prepaid_hours: prepaidHoursUsed,
-            regular_hours: regularHours,
-            amount,
-            payment_method: paymentMethod,
-          })
-
-          await sendBookingNotifications(data, input, normalizedPhone)
-          revalidatePath('/')
-
-          return { success: true, data }
-        }
-      } catch (rpcError) {
-        console.error('❌ 선불권 예약 RPC 실패:', rpcError)
-        throw new Error('선불권 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.')
+    if (!rpcResult?.success) {
+      console.error('❌ 예약 생성 실패:', rpcResult)
+      return {
+        success: false,
+        error:
+          rpcResult?.code === 'FREE_HOURS_EXCEEDED'
+            ? '세대 무료 시간이 방금 소진되었습니다. 새로고침 후 다시 시도해주세요.'
+            : rpcResult?.error || '예약 처리 중 오류가 발생했습니다.',
       }
     }
-    
-    // 기존 로직: 일반 예약 (회원 무료 또는 비회원 유료)
-    const amount = input.memberType === 'member' ? 0 : input.times.length * 7000
-    
-    // 예약 생성
-    const { data, error } = await supabase
+
+    // ===== 6. 생성된 예약 조회 + 알림 =====
+    const { data, error: fetchError } = await serviceSupabase
       .from('bookings')
-      .insert({
-        booking_date: input.bookingDate,
-        start_time: startTime,
-        end_time: endTime,
-        space: input.space,
-        member_type: input.memberType,
-        household: input.household,
-        name: input.name,
-        phone: normalizedPhone,
-        user_id: input.userId || null,  // ⭐ 추가
-        amount,
-        status: input.memberType === 'member' ? 'confirmed' : 'pending',
-        payment_status: input.memberType === 'member' ? 'completed' : 'pending',
-        prepaid_hours_used: 0,
-        regular_hours: input.times.length,
-        payment_method: input.memberType === 'member' ? 'free' : 'regular',  // ⭐ 추가
-        pii_consent_given: input.memberType === 'non-member' ? true : false,
-        pii_consent_at: input.memberType === 'non-member' ? new Date().toISOString() : null,
-      })
-      .select()
+      .select('*')
+      .eq('id', rpcResult.bookingId)
       .single()
-    
-    if (error) {
-      console.error('❌ Supabase error:', error)
-      throw error
-    }
-    
+
+    if (fetchError) throw fetchError
+
     console.log('✅ Booking created:', data)
-    // SMS 발송
-    await sendBookingNotifications(data, input, normalizedPhone)
-    
+
+    await sendBookingNotifications(data, input, normalizedPhone, charge)
+
     // 캘린더 갱신
     revalidatePath('/')
-    
+
     return { success: true, data }
   } catch (error: any) {
     console.error('❌ Create booking error:', error)
     return { success: false, error: error.message }
+  }
+}
+
+/**
+ * [v1 전용] 세대의 해당 월 놀터 예약 '건수' (취소 제외).
+ *
+ * 종전 규정은 이용 시간이 아니라 예약 건수로 무료 3회를 판정했다.
+ * 2026-08-01 이후 사용분에는 쓰이지 않는다.
+ */
+async function countHouseholdNolterBookings(
+  serviceSupabase: any,
+  household: string,
+  bookingDate: string
+): Promise<number> {
+  const { monthStart, nextMonthStart } = monthRangeOf(bookingDate)
+
+  const { count, error } = await serviceSupabase
+    .from('bookings')
+    .select('*', { count: 'exact', head: true })
+    .eq('household', household)
+    .eq('space', 'nolter')
+    .neq('status', 'cancelled')
+    .gte('booking_date', monthStart)
+    .lt('booking_date', nextMonthStart)
+
+  if (error) throw error
+  return count ?? 0
+}
+
+interface CreateBookingRpcArgs {
+  serviceSupabase: any
+  input: CreateBookingInput
+  charge: BookingCharge
+  memberType: 'member' | 'non-member'
+  household: string | null
+  startTime: string
+  endTime: string
+  normalizedPhone: string
+}
+
+/**
+ * 모든 예약이 지나가는 단일 생성 경로.
+ *
+ * RPC 안에서 무료 한도 검증 → 예약 INSERT → 선불권 차감이 한 트랜잭션으로 처리된다.
+ * status / payment_status 는 RPC가 amount > 0 으로 판정한다.
+ */
+async function createBookingViaRpc({
+  serviceSupabase,
+  input,
+  charge,
+  memberType,
+  household,
+  startTime,
+  endTime,
+  normalizedPhone,
+}: CreateBookingRpcArgs) {
+  const { data, error } = await serviceSupabase.rpc('create_booking_with_prepaid', {
+    p_booking_data: {
+      bookingDate: input.bookingDate,
+      startTime,
+      endTime,
+      space: input.space,
+      memberType,
+      household: household ?? '',
+      name: input.name,
+      phone: normalizedPhone,
+      userId: input.userId || '',
+      // 방음실 무제한 무료와 v1(건수제)은 20시간 원장을 소진하지 않으므로 0이 들어간다.
+      freeHoursUsed: charge.freeHoursUsedLedger,
+      freeHoursLimit: RESIDENT_NOLTER_FREE_HOURS_PER_MONTH,
+      prepaidHoursUsed: charge.prepaidHours,
+      regularHours: charge.regularHours,
+      paymentMethod: charge.paymentMethod,
+      amount: charge.amount,
+      piiConsentGiven: memberType === 'non-member',
+    },
+    p_deduction_plan: charge.deductionPlan,
+  })
+
+  if (error) throw error
+  return data as {
+    success: boolean
+    bookingId?: string
+    code?: string
+    error?: string
+    freeHoursUsed?: number
+    freeHoursLimit?: number
   }
 }
 
@@ -565,40 +593,106 @@ export async function getPastBookingsByUserId(userId: string) {
   }
 }
 
-// ===== 세대별 이번 달 놀터 예약 건수 조회 (UI용) =====
-export async function getMemberNolterCount(
-  household: string,
-  targetMonth?: string // 'YYYY-MM'. 예약하려는 사용일이 속한 달을 넘겨 실제 과금 판정과 일치시킨다. 미지정 시 현재 월.
-): Promise<{ success: boolean; count: number; error?: string }> {
-  try {
-    const base = targetMonth ?? new Date().toISOString().substring(0, 7)
-    const [year, mon] = base.split('-').map(Number)
-    const monthStart = `${year}-${String(mon).padStart(2, '0')}-01`
-    const nextY = mon === 12 ? year + 1 : year
-    const nextM = mon === 12 ? 1 : mon + 1
-    const nextMonthStr = `${nextY}-${String(nextM).padStart(2, '0')}-01`
+// ===== 세대별 이번 달 놀터 무료 한도 현황 조회 (UI용) =====
+export interface HouseholdNolterQuota {
+  success: boolean
+  /** 이 달에 적용되는 정책 (시행일이 월 경계라 한 달은 통째로 v1이거나 v2다) */
+  policyVersion: PolicyVersion
+  /** [v2] 시간 기준 */
+  usedHours: number
+  limitHours: number
+  remainingHours: number
+  /** [v1] 건수 기준 */
+  usedCount: number
+  limitCount: number
+  remainingCount: number
+  error?: string
+}
 
+/**
+ * 예약 모달·마이페이지 배지용. 해당 월에 맞는 정책 기준으로 사용 현황을 돌려준다.
+ *
+ * v2는 예약 판정과 같은 SQL(get_household_free_hours)을 읽으므로
+ * 배지와 실제 과금이 어긋나지 않는다.
+ *
+ * @param targetMonth 'YYYY-MM'. 예약하려는 사용일이 속한 달을 넘긴다. 미지정 시 현재 월.
+ */
+export async function getHouseholdNolterQuota(
+  household: string,
+  targetMonth?: string
+): Promise<HouseholdNolterQuota> {
+  const base = targetMonth ?? new Date().toISOString().substring(0, 7)
+  const { monthStart, nextMonthStart } = monthRangeOf(base)
+  const policyVersion = resolvePolicyVersion(monthStart)
+
+  const limitHours = policyVersion === 'v2' ? RESIDENT_NOLTER_FREE_HOURS_PER_MONTH : 0
+  const limitCount = policyVersion === 'v1' ? LEGACY_NOLTER_FREE_COUNT_PER_MONTH : 0
+  const empty: HouseholdNolterQuota = {
+    success: true,
+    policyVersion,
+    usedHours: 0,
+    limitHours,
+    remainingHours: limitHours,
+    usedCount: 0,
+    limitCount,
+    remainingCount: limitCount,
+  }
+
+  try {
+    const normalized = (household ?? '').trim()
+    if (!normalized) {
+      // 세대 번호가 없으면 무료 한도를 집계할 키가 없다.
+      return { ...empty, limitHours: 0, remainingHours: 0, limitCount: 0, remainingCount: 0 }
+    }
+
+    if (policyVersion === 'v2') {
+      const { data, error } = await supabase.rpc('get_household_free_hours', {
+        p_household: normalized,
+        p_month: monthStart,
+      })
+      if (error) throw error
+
+      const usedHours = round1(Number(data ?? 0))
+      return {
+        ...empty,
+        usedHours,
+        remainingHours: round1(Math.max(0, limitHours - usedHours)),
+      }
+    }
+
+    // v1: 건수 기준
     const { count, error } = await supabase
       .from('bookings')
       .select('*', { count: 'exact', head: true })
-      .eq('household', household)
+      .eq('household', normalized)
       .eq('space', 'nolter')
       .neq('status', 'cancelled')
       .gte('booking_date', monthStart)
-      .lt('booking_date', nextMonthStr)
+      .lt('booking_date', nextMonthStart)
 
     if (error) throw error
-    return { success: true, count: count ?? 0 }
+
+    const usedCount = count ?? 0
+    return {
+      ...empty,
+      usedCount,
+      remainingCount: Math.max(0, limitCount - usedCount),
+    }
   } catch (error: any) {
-    return { success: false, count: 0, error: error.message }
+    return { ...empty, success: false, error: error.message }
   }
 }
 
 // ===== SMS 발송 헬퍼 함수 =====
+/**
+ * 분기 기준은 '누구인가'가 아니라 '받을 돈이 남았는가'(booking.amount > 0)이다.
+ * 세대원도 무료 시간을 초과하면 입금 안내를 받아야 하므로 회원/비회원으로 나눌 수 없다.
+ */
 async function sendBookingNotifications(
   booking: any,
   input: CreateBookingInput,
-  normalizedPhone: string
+  normalizedPhone: string,
+  charge: BookingCharge
 ) {
   const dateStr = new Date(booking.booking_date).toLocaleDateString('ko-KR', {
     month: 'long',
@@ -606,81 +700,15 @@ async function sendBookingNotifications(
   })
   const timeStr = `${booking.start_time} ~ ${booking.end_time}`
   const spaceStr = booking.space === 'nolter' ? '놀터' : '방음실'
+  const owesCash = (booking.amount ?? 0) > 0
+  // 예: '무료 2시간 + 현금 1시간(14,000원)'. 템플릿에 {breakdown}을 넣으면 표시된다.
+  const breakdown = describeCharge(charge)
 
-  // Phase 6.5: 선불권 사용 예약
-  if (booking.payment_method === 'prepaid' || booking.payment_method === 'mixed') {
-    await sendNotification({
-      type: '2-1',
-      phone: normalizedPhone,
-      variables: {
-        name: input.name,
-        household: input.household || '',
-        date: dateStr,
-        time: timeStr,
-        space: spaceStr,
-      },
-      bookingId: booking.id,
-    })
-  } else if (booking.payment_method === 'nolter_paid') {
-    // Phase 7: 놀터 회원 유료 예약 (4회차~) - 입금 안내
+  if (owesCash) {
+    // 2-2: 입금 안내 (세대원·일반회원·비회원 공통)
     const deadline = new Date(booking.booking_date)
     deadline.setDate(deadline.getDate() - 1)
     const deadlineStr = deadline.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })
-    await sendNotification({
-      type: '2-2',
-      phone: normalizedPhone,
-      variables: {
-        name: input.name,
-        date: dateStr,
-        time: timeStr,
-        space: spaceStr,
-        amount: '10,000',
-        account: process.env.BANK_ACCOUNT || '카카오뱅크 7979-72-56275 (정상은)',
-        deadline: deadlineStr,
-      },
-      bookingId: booking.id,
-    })
-  } else if (input.memberType === 'member') {
-    // 2-1: 회원 예약 완료
-    await sendNotification({
-      type: '2-1',
-      phone: normalizedPhone,
-      variables: {
-        name: input.name,
-        household: input.household || '',
-        date: dateStr,
-        time: timeStr,
-        space: spaceStr,
-      },
-      bookingId: booking.id,
-    })
-
-    // 5-4: 비세대원 회원 - 재무담당자 알림
-    if (!input.household) {
-      await sendNotification({
-        type: '5-4',
-        phone: process.env.FINANCE_PHONE || '',
-        recipientName: '재무담당자',
-        variables: {
-          name: input.name,
-          phone: input.phone,
-          date: dateStr,
-          time: timeStr,
-          space: spaceStr,
-          amount: booking.amount.toLocaleString(),
-          adminUrl: `${process.env.NEXT_PUBLIC_APP_URL || ''}/admin/bookings`,
-        },
-        bookingId: booking.id,
-      })
-    }
-  } else {
-    // 2-2: 비회원/일반회원 예약 완료 (입금 안내)
-    const deadline = new Date(booking.booking_date)
-    deadline.setDate(deadline.getDate() - 1)
-    const deadlineStr = deadline.toLocaleDateString('ko-KR', {
-      month: 'long',
-      day: 'numeric',
-    })
 
     await sendNotification({
       type: '2-2',
@@ -693,40 +721,60 @@ async function sendBookingNotifications(
         amount: booking.amount.toLocaleString(),
         account: process.env.BANK_ACCOUNT || '카카오뱅크 7979-72-56275 (정상은)',
         deadline: deadlineStr,
+        breakdown,
       },
       bookingId: booking.id,
     })
 
     // 5-4: 재무담당자 즉시 알림
-    if (booking.amount > 0) {
-      await sendNotification({
-        type: '5-4',
-        phone: process.env.FINANCE_PHONE || '',
-        recipientName: '재무담당자',
-        variables: {
-          name: input.name,
-          phone: input.phone,
-          date: dateStr,
-          time: timeStr,
-          space: spaceStr,
-          amount: booking.amount.toLocaleString(),
-          adminUrl: `${process.env.NEXT_PUBLIC_APP_URL || ''}/admin/bookings`,
-        },
-        bookingId: booking.id,
-      })
-    }
+    await sendNotification({
+      type: '5-4',
+      phone: process.env.FINANCE_PHONE || '',
+      recipientName: '재무담당자',
+      variables: {
+        name: input.name,
+        phone: input.phone,
+        date: dateStr,
+        time: timeStr,
+        space: spaceStr,
+        amount: booking.amount.toLocaleString(),
+        breakdown,
+        adminUrl: `${process.env.NEXT_PUBLIC_APP_URL || ''}/admin/bookings`,
+      },
+      bookingId: booking.id,
+    })
+  } else {
+    // 2-1: 예약 완료 (전액 무료 또는 전액 선불권)
+    await sendNotification({
+      type: '2-1',
+      phone: normalizedPhone,
+      variables: {
+        name: input.name,
+        household: booking.household || '',
+        date: dateStr,
+        time: timeStr,
+        space: spaceStr,
+        breakdown,
+      },
+      bookingId: booking.id,
+    })
   }
 
-  // 6-4: 관리자 알림 (선불권 제외)
+  // 6-4: 관리자 알림
+  // 'mixed'는 이제 '선불권 + 미입금 현금'을 뜻하므로 더 이상 제외하지 않는다.
   const adminPhone = process.env.ADMIN_PHONE
-  if (adminPhone && booking.payment_method !== 'prepaid' && booking.payment_method !== 'mixed') {
+  if (adminPhone) {
+    const freeHoursUsed = Number(booking.free_hours_used ?? 0)
+    const prepaidHoursUsed = Number(booking.prepaid_hours_used ?? 0)
     const category =
-      booking.payment_method === 'prepaid' || booking.payment_method === 'mixed'
+      freeHoursUsed > 0 && owesCash
+        ? '세대무료+추가결제'
+        : freeHoursUsed > 0
+        ? '세대무료'
+        : prepaidHoursUsed > 0 && !owesCash
         ? '선불권'
-        : booking.payment_method === 'nolter_paid'
+        : booking.member_type === 'member'
         ? '회원(유료)'
-        : input.memberType === 'member'
-        ? '회원(무료)'
         : '비회원'
 
     await sendNotification({
@@ -735,13 +783,14 @@ async function sendBookingNotifications(
       recipientName: '관리자',
       variables: {
         name: input.name,
-        household: input.household || '',
+        household: booking.household || '',
         phone: input.phone,
         date: dateStr,
         time: timeStr,
         space: spaceStr,
         category,
-        amount: booking.amount > 0 ? booking.amount.toLocaleString() : '',
+        breakdown,
+        amount: owesCash ? booking.amount.toLocaleString() : '',
         adminUrl: `${process.env.NEXT_PUBLIC_APP_URL || ''}/admin/bookings`,
       },
       bookingId: booking.id,
