@@ -7,6 +7,7 @@ import { signup, login, resetPassword } from './actions/auth'
 import { getSpacesInfo, getGeneralRulesFromDB, SpacesInfo, GeneralRules } from './actions/structured-settings'
 import { getMyPrepaidPurchases, PrepaidPurchase as PrepaidPurchaseType } from './actions/prepaid'
 import { PrepaidLike, formatHours, resolveUserKind } from '@/lib/booking-policy'
+import { KstNow, getKstNow, timeToMinutes, toDateString } from '@/lib/date-kst'
 import { BookingChargeSummary } from './components/BookingChargeSummary'
 import { SpaceGallery } from './components/space-gallery/SpaceGallery'
 import { PrepaidPurchaseModal } from './components/PrepaidPurchaseModal'
@@ -26,6 +27,12 @@ interface UserSession {
 }
 
 type SpaceType = 'nolter' | 'soundroom'
+
+// 이용 안내 목록에서 세대원에게만 바꿔 끼우는 문구.
+// 관리자가 어드민 설정에서 해당 줄을 '당일 예약' 이라는 표현 없이 다시 쓰면
+// 세대원 화면에 두 줄이 함께 보이므로, 그때는 MARKER 를 맞춰 조정할 것.
+const SAME_DAY_RULE_MARKER = '당일 예약'
+const RESIDENT_SAME_DAY_RULE = '온음 세대원은 당일 예약이 가능합니다 (이미 시작된 시간대는 제외)'
 
 interface Booking {
   id: string
@@ -65,7 +72,6 @@ export default function Home() {
   
   // 모달 상태
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false)
-  const [isViewOnlyMode, setIsViewOnlyMode] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
   const [authMode, setAuthMode] = useState<'login' | 'signup' | 'forgot'>('login')
@@ -83,6 +89,10 @@ export default function Home() {
   // Phase 8: 세대 이번 달 놀터 무료 한도 현황 (8월부터 월 20시간 / 7월까지 월 3회)
   const [nolterQuota, setNolterQuota] = useState<HouseholdNolterQuota | null>(null)
   
+  // KST 기준 현재 시각. 30초마다 갱신해서 '지난 시간대' 판정이 낡지 않게 한다.
+  // (실제 강제는 서버가 한다 — 여기서는 UX 를 맞출 뿐이다)
+  const [kstNow, setKstNow] = useState<KstNow>(() => getKstNow())
+
   // 달력 & 예약
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [selectedSpace, setSelectedSpace] = useState<SpaceType>('nolter')
@@ -119,8 +129,27 @@ export default function Home() {
     }
   }, [])
 
+  // ===== KST 시계 =====
+  // 슬롯 경계가 :00 / :30 이라 30초 주기면 최대 오차가 30초다.
+  useEffect(() => {
+    const timer = setInterval(() => setKstNow(getKstNow()), 30_000)
+    return () => clearInterval(timer)
+  }, [])
+
+  // 모달을 열어둔 채 시간이 흘러 슬롯이 시작돼 버린 경우, 선택에서 자동으로 뺀다.
+  // (변화가 없으면 같은 배열을 그대로 돌려줘야 30초마다 하위 컴포넌트가 재계산되지 않는다)
+  useEffect(() => {
+    if (!isBookingModalOpen || selectedDate === null) return
+    if (dateStrOf(selectedDate) !== kstNow.dateStr) return
+    setSelectedTimes(prev => {
+      const kept = prev.filter(t => timeToMinutes(t) > kstNow.minutes)
+      return kept.length === prev.length ? prev : kept
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kstNow, isBookingModalOpen, selectedDate, currentMonth])
+
   // ===== 예약 데이터 로드 (DB에서) =====
-  
+
   useEffect(() => {
     loadBookings()
   }, [currentMonth, selectedSpace])
@@ -280,6 +309,27 @@ export default function Home() {
   
   const households = ['201', '202', '301', '302', '401', '402', '501']
 
+  // 달력에 그려진 '일(1~31)' → 'YYYY-MM-DD'
+  const dateStrOf = (date: number): string =>
+    toDateString(currentMonth.getFullYear(), currentMonth.getMonth() + 1, date)
+
+  // 온음 세대원만 당일 예약이 가능하다. 실제 강제는 서버(app/actions/bookings.ts)가 한다.
+  const userKind = resolveUserKind({
+    userId: userSession.userId,
+    isResident: userSession.isResident,
+    household: userSession.household,
+  })
+  const isResidentUser = userKind === 'resident'
+
+  /** 아직 시작하지 않은 시간대인가 (당일이면 현재 KST 시각 기준) */
+  const isSlotBookableNow = (time: string, dateStr: string): boolean =>
+    dateStr > kstNow.dateStr ||
+    (dateStr === kstNow.dateStr && timeToMinutes(time) > kstNow.minutes)
+
+  /** 오늘 아직 예약할 수 있는 시간대가 남아있는가 */
+  const hasBookableSlotToday = (booked: Record<string, string>): boolean =>
+    timeSlots.some(t => timeToMinutes(t) > kstNow.minutes && !(t in booked))
+
   // ===== 월 네비게이션 함수 =====
   
   const goToPrevMonth = () => {
@@ -306,10 +356,8 @@ export default function Home() {
   // ===== 예약 상태 확인 (실제 DB 데이터) =====
   
   const getBookingStatus = (date: number) => {
-    const year = currentMonth.getFullYear()
-    const month = currentMonth.getMonth() + 1
-    const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(date).padStart(2, '0')}`
-    
+    const dateStr = dateStrOf(date)
+
     const dayBookings = bookingsData.filter(b => b.booking_date === dateStr && b.space === selectedSpace)
     
     if (dayBookings.length === 0) return { status: 'available', count: 0 }
@@ -325,10 +373,8 @@ export default function Home() {
   // ===== 해당 날짜에 예약된 시간대 조회 =====
   
   const getBookedTimesForDate = (date: number): Record<string, string> => {
-    const year = currentMonth.getFullYear()
-    const month = currentMonth.getMonth() + 1
-    const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(date).padStart(2, '0')}`
-    
+    const dateStr = dateStrOf(date)
+
     console.log(`🔍 DEBUG getBookedTimesForDate: targetDate = ${dateStr}, selectedSpace = ${selectedSpace}`)
     console.log(`🔍 DEBUG: bookingsData 전체 = ${bookingsData.length}건`, bookingsData)
     const dayBookings = bookingsData.filter(b => b.booking_date === dateStr && b.space === selectedSpace)
@@ -367,42 +413,19 @@ export default function Home() {
   }
 
 
-  // ===== 과거 날짜 확인 =====
-  
-  const isPastDate = (date: number): boolean => {
-    const year = currentMonth.getFullYear()
-    const month = currentMonth.getMonth()
-    
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    
-    const compareDate = new Date(year, month, date)
-    compareDate.setHours(0, 0, 0, 0)
-    
-    return compareDate < today
-  }
+  // ===== 과거 / 오늘 날짜 확인 (KST 기준) =====
+  // 'YYYY-MM-DD' 는 사전순 = 시간순이라 문자열 비교로 충분하다.
+  // 브라우저 로컬 시간을 쓰면 해외/여행 중인 사용자의 '오늘'이 서버와 어긋난다.
 
+  const isPastDate = (date: number): boolean => dateStrOf(date) < kstNow.dateStr
 
-  // ⭐ 오늘 날짜 확인 (당일 예약 차단)
-  const isToday = (date: number): boolean => {
-    const year = currentMonth.getFullYear()
-    const month = currentMonth.getMonth()
-    
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    
-    const compareDate = new Date(year, month, date)
-    compareDate.setHours(0, 0, 0, 0)
-    
-    return compareDate.getTime() === today.getTime()
-  }
+  const isToday = (date: number): boolean => dateStrOf(date) === kstNow.dateStr
+
   // ===== 해당 날짜의 총 예약 시간 계산 =====
-  
+
   const getTotalHoursForDate = (date: number): number => {
-    const year = currentMonth.getFullYear()
-    const month = currentMonth.getMonth() + 1
-    const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(date).padStart(2, '0')}`
-    
+    const dateStr = dateStrOf(date)
+
     const dayBookings = bookingsData.filter(b => b.booking_date === dateStr && b.space === selectedSpace)
     
     // 각 예약의 시간 합계 (30분 단위)
@@ -429,18 +452,17 @@ export default function Home() {
   // ===== 날짜 클릭 핸들러 =====
   
   const handleDateClick = (date: number) => {
-    const viewOnly = isToday(date) || isPastDate(date)
+    const dateStr = dateStrOf(date)
 
-    // 마감된 날짜는 미래여도 예약 불가 (조회는 가능)
-    const bookingStatus = getBookingStatus(date)
-    if (!viewOnly && bookingStatus.status === 'full') {
+    // 마감된 날짜는 미래여도 예약 불가 (조회는 가능).
+    // 과거/당일은 여기서 막지 않는다 — 조회는 항상 열어두고, 예약 가능 여부는 viewOnlyReason 이 판단한다.
+    if (dateStr > kstNow.dateStr && getBookingStatus(date).status === 'full') {
       console.log(`⛔ 마감된 날짜 클릭 차단: ${date}일`)
       return
     }
 
     setSelectedDate(date)
     setSelectedTimes([])
-    setIsViewOnlyMode(viewOnly)
 
     // ⭐ 예약된 시간 조회
     const times = getBookedTimesForDate(date)
@@ -448,8 +470,8 @@ export default function Home() {
 
     console.log(`🔍 DEBUG: ${date}일 예약 시간:`, times)
 
-    if (!viewOnly) {
-      // 로그인 상태면 사용자 정보 자동 입력 + 선불권 조회
+    if (dateStr >= kstNow.dateStr) {
+      // 로그인 상태면 사용자 정보 자동 입력 + 선불권 조회 (세대원은 당일도 예약할 수 있다)
       if (userSession.isLoggedIn) {
         setName(userSession.name)
         setPhone(userSession.phone)
@@ -461,7 +483,7 @@ export default function Home() {
     }
 
     setIsBookingModalOpen(true)
-    console.log(`📌 날짜 선택: ${currentMonth.getFullYear()}년 ${currentMonth.getMonth() + 1}월 ${date}일 (${viewOnly ? '조회모드' : '예약모드'})`)
+    console.log(`📌 날짜 선택: ${dateStr}`)
   }
 
   // ===== 시간 선택 핸들러 (다중 선택) =====
@@ -516,9 +538,7 @@ export default function Home() {
       }
     }
 
-    const year = currentMonth.getFullYear()
-    const month = currentMonth.getMonth() + 1
-    const bookingDate = `${year}-${String(month).padStart(2, '0')}-${String(selectedDate).padStart(2, '0')}`
+    const bookingDate = dateStrOf(selectedDate as number)
 
     // 예약 데이터 생성
     const bookingInput: CreateBookingInput = {
@@ -838,14 +858,40 @@ export default function Home() {
   const daysInMonth = new Date(year, month + 1, 0).getDate()
   const firstDayOfWeek = new Date(year, month, 1).getDay() // 0=일(Sun)~6=토(Sat)
   // 선택한 사용일. 적용 정책(7월까지 구 규정 / 8월부터 신 규정)을 가르는 기준이다.
-  const selectedBookingDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(
-    selectedDate ?? 1
-  ).padStart(2, '0')}`
+  const selectedBookingDate = toDateString(year, month + 1, selectedDate ?? 1)
   // null = 빈 칸, number = 날짜
   const calendarCells: (number | null)[] = [
     ...Array(firstDayOfWeek).fill(null),
     ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
   ]
+
+  // ===== 조회 전용 모드 판정 =====
+  // state 로 들고 있으면 30초 틱 뒤에 낡는다 (20:58에 연 세대원 모달이 21:00에 조회 전용이 되어야 한다).
+  // 그래서 매 렌더마다 다시 계산한다.
+  const viewOnlyReason: null | 'past' | 'non-resident-today' | 'today-slots-gone' =
+    !selectedDate
+      ? null
+      : selectedBookingDate < kstNow.dateStr
+      ? 'past'
+      : selectedBookingDate > kstNow.dateStr
+      ? null
+      : !isResidentUser
+      ? 'non-resident-today'
+      : !hasBookableSlotToday(bookedTimes)
+      ? 'today-slots-gone'
+      : null
+  const isViewOnlyMode = viewOnlyReason !== null
+
+  // 세대원에게만 '당일 예약 가능' 문구를 보여준다.
+  // DB(site_settings)는 사용자 구분 없이 한 벌만 저장하므로 렌더 시점에 갈아끼운다.
+  const bookingRules = generalRules
+    ? isResidentUser
+      ? [
+          RESIDENT_SAME_DAY_RULE,
+          ...generalRules.booking.filter(rule => !rule.includes(SAME_DAY_RULE_MARKER)),
+        ]
+      : generalRules.booking
+    : []
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 sm:p-8">
@@ -955,13 +1001,15 @@ export default function Home() {
             <SpaceGallery space={selectedSpace} />
           </div>
 
-          {/* ⚠️ 예약 안내 문구 */}
+          {/* 예약 안내 문구 — 세대원에게만 당일 예약 안내를 보여준다 */}
           <div className="mb-6 p-4 bg-blue-50 border-l-4 border-blue-500 rounded-lg">
             <p className="text-sm font-semibold text-blue-800">
-              ⚠️ 예약은 최소 1일 전까지 가능합니다
+              {isResidentUser ? 'ℹ️ 온음 세대원은 당일 예약이 가능합니다' : '⚠️ 예약은 최소 1일 전까지 가능합니다'}
             </p>
             <p className="text-xs text-blue-600 mt-1">
-              당일 예약은 불가능하며, 내일부터 선택 가능합니다.
+              {isResidentUser
+                ? '오늘 날짜는 아직 시작하지 않은 시간대만 선택할 수 있습니다.'
+                : '당일 예약은 불가능하며, 내일부터 선택 가능합니다.'}
             </p>
           </div>
 
@@ -1002,18 +1050,21 @@ export default function Home() {
               const isPast = isPastDate(date)
               const bookingStatus = getBookingStatus(date)
               const totalHours = getTotalHoursForDate(date)
-              const isTodayHighlight = new Date().getDate() === date && new Date().getMonth() === month && new Date().getFullYear() === year
               const isTodayDate = isToday(date)
-              
+              // 세대원은 오늘도 아직 시작하지 않은 시간대가 남아있으면 예약할 수 있다
+              const todayIsBookable =
+                isTodayDate && isResidentUser && timeSlots.some(t => timeToMinutes(t) > kstNow.minutes)
+              const looksUnbookable = isPast || (isTodayDate && !todayIsBookable)
+
               return (
                 <div key={date} className="flex flex-col items-center gap-1">
                   {/* 날짜 박스 */}
                   <button
                     onClick={() => handleDateClick(date)}
                     className={`w-full aspect-square rounded-xl p-2 transition-all ${
-                      isPast || isTodayDate
+                      looksUnbookable
                         ? 'opacity-60 cursor-pointer bg-gray-100 border-2 border-gray-300 hover:border-gray-400'
-                        : 
+                        :
                       bookingStatus.status === 'full'
                         ? 'bg-gray-100 border-2 border-gray-400 cursor-not-allowed'
                         : totalHours > 0
@@ -1026,7 +1077,7 @@ export default function Home() {
                     <div className="flex flex-col items-center justify-center h-full">
                       {/* 날짜 */}
                       <div className={`text-sm font-semibold ${
-                        isTodayHighlight ? 'text-blue-600' : 'text-gray-700'
+                        isTodayDate ? 'text-blue-600' : 'text-gray-700'
                       }`}>
                         {date}
                       </div>
@@ -1142,7 +1193,7 @@ export default function Home() {
               <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
                 <h4 className="text-base font-semibold text-gray-900 mb-3">📅 예약 규정</h4>
                 <ul className="space-y-1">
-                  {generalRules.booking.map((rule, index) => (
+                  {bookingRules.map((rule, index) => (
                     <li key={index} className="text-sm text-gray-700 flex items-start">
                       <span className="mr-2 text-gray-400">•</span>
                       <span>{rule}</span>
@@ -1209,7 +1260,7 @@ export default function Home() {
       {isBookingModalOpen && selectedDate !== null && (
         <div
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
-          onClick={() => { setIsBookingModalOpen(false); setIsViewOnlyMode(false); setNonMemberConsent(false) }}
+          onClick={() => { setIsBookingModalOpen(false); setNonMemberConsent(false) }}
         >
           <div
             className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
@@ -1223,7 +1274,7 @@ export default function Home() {
                   : `${selectedSpace === 'nolter' ? '🏠 놀터' : '🎵 방음실'} 예약하기 — ${month + 1}월 ${selectedDate}일`}
               </h2>
               <button
-                onClick={() => { setIsBookingModalOpen(false); setIsViewOnlyMode(false); setNonMemberConsent(false) }}
+                onClick={() => { setIsBookingModalOpen(false); setNonMemberConsent(false) }}
                 className="text-gray-400 hover:text-gray-600 text-3xl leading-none"
               >
                 ×
@@ -1233,9 +1284,15 @@ export default function Home() {
             {/* 모달 본문 */}
             <div className="p-6 space-y-6">
               {/* 조회 모드 안내 */}
-              {isViewOnlyMode && (
+              {viewOnlyReason && (
                 <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                  <p className="text-sm text-gray-500">과거/당일 날짜는 조회만 가능합니다.</p>
+                  <p className="text-sm text-gray-500">
+                    {viewOnlyReason === 'past'
+                      ? '지난 날짜는 조회만 가능합니다.'
+                      : viewOnlyReason === 'today-slots-gone'
+                      ? '오늘 예약 가능한 시간대가 모두 지났습니다. 조회만 가능합니다.'
+                      : '과거/당일 날짜는 조회만 가능합니다.'}
+                  </p>
                 </div>
               )}
               {/* 시간 선택 (다중) */}
@@ -1249,32 +1306,41 @@ export default function Home() {
                     const isSelected = selectedTimes.includes(time)
                     const bookerName = bookedTimes[time] || '예약됨'
                     const isMember = userSession.isLoggedIn && (!!userSession.isResident || !!userSession.household)
-
-                    console.log(`🔍 ${time}: isBooked=${isBooked}, isSelected=${isSelected}`)
+                    // 당일 예약(세대원)에서 이미 시작된 시간대
+                    const isPastSlot = !isSlotBookableNow(time, selectedBookingDate)
 
                     return (
                       <button
                         key={time}
-                        onClick={() => !isViewOnlyMode && !isBooked && handleTimeToggle(time)}
-                        disabled={isBooked || isViewOnlyMode}
+                        onClick={() => !isViewOnlyMode && !isBooked && !isPastSlot && handleTimeToggle(time)}
+                        disabled={isBooked || isViewOnlyMode || isPastSlot}
                         className={`py-3 px-4 rounded-lg border font-medium transition-colors ${
                           isBooked
                             ? 'bg-gray-200 text-gray-400 border-gray-300 cursor-not-allowed'
+                            : isPastSlot
+                            ? 'bg-gray-50 text-gray-300 border-gray-200 line-through cursor-not-allowed'
                             : isSelected
                             ? 'bg-blue-500 text-white border-blue-500'
                             : 'bg-white text-gray-700 border-gray-300 hover:border-blue-300 hover:bg-blue-50'
                         }`}
                       >
                         <div>{time}</div>
-                        {isBooked && (
+                        {isBooked ? (
                           <div className="text-xs mt-1">
                             {isMember ? bookerName : '예약됨'}
                           </div>
-                        )}
+                        ) : isPastSlot && !isViewOnlyMode ? (
+                          <div className="text-xs mt-1">지난 시간</div>
+                        ) : null}
                       </button>
                     )
                   })}
                 </div>
+                {!isViewOnlyMode && selectedBookingDate === kstNow.dateStr && (
+                  <p className="mt-3 text-xs text-gray-500">
+                    현재 {kstNow.hhmm} (KST) — 이미 시작된 시간대는 선택할 수 없습니다.
+                  </p>
+                )}
                 {selectedTimes.length > 0 && (
                   <p className="mt-3 text-sm text-blue-600 font-medium">
                     총 {selectedTimes.length * 0.5}시간 선택됨: {selectedTimes.join(', ')}
@@ -1287,11 +1353,7 @@ export default function Home() {
                 <div className="space-y-4">
                   {/* Phase 8: 세대 무료 시간 + 선불권 + 현금 통합 안내 */}
                   <BookingChargeSummary
-                    userKind={resolveUserKind({
-                      userId: userSession.userId,
-                      isResident: userSession.isResident,
-                      household: userSession.household,
-                    })}
+                    userKind={userKind}
                     space={selectedSpace}
                     bookingDate={selectedBookingDate}
                     selectedSlotCount={selectedTimes.length}
@@ -1411,7 +1473,7 @@ export default function Home() {
             <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 p-6">
               {isViewOnlyMode ? (
                 <button
-                  onClick={() => { setIsBookingModalOpen(false); setIsViewOnlyMode(false); setNonMemberConsent(false) }}
+                  onClick={() => { setIsBookingModalOpen(false); setNonMemberConsent(false) }}
                   className="w-full py-4 text-white font-semibold rounded-lg transition-colors bg-gray-500 hover:bg-gray-600"
                 >
                   확인
