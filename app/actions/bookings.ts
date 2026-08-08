@@ -20,6 +20,7 @@ import {
   slotsToHours,
   usesPrepaidHours,
 } from '@/lib/booking-policy'
+import { getKstNow, timeToMinutes } from '@/lib/date-kst'
 
 export interface CreateBookingInput {
   bookingDate: string        // YYYY-MM-DD
@@ -39,24 +40,23 @@ export async function createBooking(input: CreateBookingInput) {
   try {
     console.log('🚀 Creating booking:', input)
     
-    // ⭐ 당일 예약 차단 검증 (서버 사이드)
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    
-    const bookingDate = new Date(input.bookingDate)
-    bookingDate.setHours(0, 0, 0, 0)
-    
-    if (bookingDate.getTime() === today.getTime()) {
-      console.log(`⛔ 당일 예약 차단: ${input.bookingDate}`)
-      return {
-        success: false,
-        error: '당일 예약은 불가능합니다. 최소 1일 전에 예약해주세요.'
-      }
+    // ⭐ 날짜 검증 (서버 사이드)
+    // 기준 시각은 반드시 KST 다. 예전에는 new Date() 를 썼는데 Vercel 이 UTC 라
+    // KST 00:00~09:00 사이에는 서버가 보는 '오늘'이 아직 어제여서 당일 차단이 새고 있었다.
+    // 당일 예약 가능 여부는 사용자 종류에 따라 갈리므로 아래 resolveUserKind 뒤에서 판정한다.
+    const kstNow = getKstNow()
+
+    if (!Array.isArray(input.times) || input.times.length === 0) {
+      return { success: false, error: '시간을 선택해주세요.' }
     }
-    
-    // 과거 날짜 예약 차단
-    if (bookingDate.getTime() < today.getTime()) {
-      console.log(`⛔ 과거 날짜 예약 차단: ${input.bookingDate}`)
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(input.bookingDate)) {
+      return { success: false, error: '예약 날짜가 올바르지 않습니다.' }
+    }
+
+    // 과거 날짜 예약 차단 (모든 사용자 공통)
+    if (input.bookingDate < kstNow.dateStr) {
+      console.log(`⛔ 과거 날짜 예약 차단: ${input.bookingDate} (KST 오늘: ${kstNow.dateStr})`)
       return {
         success: false,
         error: '과거 날짜는 예약할 수 없습니다.'
@@ -69,13 +69,21 @@ export async function createBooking(input: CreateBookingInput) {
     }
     
     // 시간대 파싱
-    const startTime = input.times[0]
+    // input.times 는 신뢰할 수 없는 클라이언트 입력이라 정렬이 보장되지 않는다.
+    // 정렬하지 않으면 ['15:00','14:00'] 같은 입력이 end_time < start_time 인 행을 만들고,
+    // 그런 행은 달력의 슬롯 전개 루프에 걸리지 않아 예약이 통째로 안 보이게 된다.
+    // ('HH:MM' 는 제로패딩이라 문자열 정렬 = 시간순)
+    const times = [...input.times].sort()
+    const requestedMinutes = times.map(timeToMinutes)
+    if (requestedMinutes.some(m => !Number.isFinite(m))) {
+      return { success: false, error: '시간 형식이 올바르지 않습니다.' }
+    }
+
+    const startTime = times[0]
     // endTime = 마지막 슬롯의 종료 시간 (마지막 슬롯 + 30분)
-    const lastTime = input.times[input.times.length - 1]
-    const [lastH, lastM] = lastTime.split(':').map(Number)
-    const endMinutes = lastH * 60 + lastM + 30
+    const endMinutes = requestedMinutes[requestedMinutes.length - 1] + 30
     const endTime = `${String(Math.floor(endMinutes / 60)).padStart(2, '0')}:${String(endMinutes % 60).padStart(2, '0')}`
-    
+
     // 전화번호 정규화 (숫자만 저장)
     const normalizedPhone = input.phone.replace(/[^0-9]/g, '')
 
@@ -106,7 +114,7 @@ export async function createBooking(input: CreateBookingInput) {
     const userKind = resolveUserKind({ userId: input.userId, isResident, household })
     // member_type='member' 는 이 시스템에서 '온음 세대원'을 뜻한다 (로그인 회원 일반이 아니다).
     const memberType: 'member' | 'non-member' = userKind === 'resident' ? 'member' : 'non-member'
-    const requestedHours = slotsToHours(input.times.length)
+    const requestedHours = slotsToHours(times.length)
     // 정책은 신청 시점이 아니라 '사용일' 기준으로 갈린다 (v2 = 2026-08-01 사용분부터).
     const policyVersion = resolvePolicyVersion(input.bookingDate)
 
@@ -120,6 +128,45 @@ export async function createBooking(input: CreateBookingInput) {
       resolvedUserKind: userKind,
       policyVersion,
     })
+
+    // ===== 1-2. 당일 예약 검증 =====
+    // 온음 세대원만 당일 예약이 가능하고, 그것도 아직 시작하지 않은 시간대에 한한다.
+    // 세션(localStorage)의 isResident 는 위조될 수 있으므로 DB에서 다시 읽은 userKind 로 판정한다.
+    const isSameDayBooking = input.bookingDate === kstNow.dateStr
+    if (isSameDayBooking) {
+      if (userKind !== 'resident') {
+        // 문구는 종전과 동일하게 유지한다 — 비세대원에게 세대원 혜택을 노출하지 않는다.
+        console.log(`⛔ 당일 예약 차단(비세대원): ${input.bookingDate} / ${userKind}`)
+        return {
+          success: false,
+          error: '당일 예약은 불가능합니다. 최소 1일 전에 예약해주세요.'
+        }
+      }
+
+      // times 는 위에서 정렬해 뒀으므로 첫 원소가 가장 이른 슬롯이다.
+      if (requestedMinutes[0] <= kstNow.minutes) {
+        console.log(`⛔ 당일 예약 차단(지난 시간대): ${times.join(',')} / 현재 ${kstNow.hhmm}`)
+        return {
+          success: false,
+          error: `이미 시작된 시간대는 예약할 수 없습니다. 현재 시각 ${kstNow.hhmm} 이후 시간대를 선택해주세요.`
+        }
+      }
+    }
+
+    // 당일 예약은 결제가 필요한 순간 라이프사이클이 깨진다.
+    // autoCancelUnpaid(lib/cron/jobs.ts)가 booking_date <= 오늘 인 미입금 건을 매일 00:00 KST 에
+    // 취소하는데, 당일 예약은 그 시점이 '사용 후'다. 결과적으로 이미 쓴 세션이 조용히 취소되고
+    // 무료 시간은 세대 한도로 반환되며(migrations/031: status <> 'cancelled') 매출 기록도 사라진다.
+    // 그래서 당일은 무료/선불권으로 전액 커버되는 예약만 받는다.
+    // charge 는 아래에서 두 번 계산될 수 있으므로(무료시간 경합 재시도) 두 지점 모두에서 검사한다.
+    const rejectIfSameDayPaid = (c: BookingCharge) => {
+      if (!isSameDayBooking || c.amount <= 0) return null
+      console.log(`⛔ 당일 예약 차단(유료): ${input.bookingDate} / ${c.amount}원`)
+      return {
+        success: false as const,
+        error: '당일 예약은 무료 시간 또는 선불권으로 이용 가능한 범위에서만 가능합니다. 결제가 필요한 예약은 하루 전까지 신청해주세요.',
+      }
+    }
 
     // ===== 2. 세대 무료 사용량 조회 (놀터 + 세대원일 때만) =====
     // 한도는 신청 시점이 아니라 '사용일(booking_date)이 속한 달' 기준으로 판정한다.
@@ -185,6 +232,9 @@ export async function createBooking(input: CreateBookingInput) {
 
     console.log('💰 과금 계산 결과', { ...charge, breakdown: describeCharge(charge) })
 
+    const sameDayPaidRejection = rejectIfSameDayPaid(charge)
+    if (sameDayPaidRejection) return sameDayPaidRejection
+
     // ===== 5. 예약 생성 (RPC 단일 경로) =====
     let rpcResult = await createBookingViaRpc({
       serviceSupabase,
@@ -210,6 +260,11 @@ export async function createBooking(input: CreateBookingInput) {
         legacyNolterBookingCount,
         prepaidPurchases,
       })
+      // 같은 세대의 동시 예약으로 무료 시간이 줄면서 방금 유료로 바뀌었을 수 있다.
+      // 첫 RPC 는 이미 실패해 행이 생기지 않았으므로 여기서 반환해도 안전하다.
+      const retryRejection = rejectIfSameDayPaid(charge)
+      if (retryRejection) return retryRejection
+
       rpcResult = await createBookingViaRpc({
         serviceSupabase,
         input,
