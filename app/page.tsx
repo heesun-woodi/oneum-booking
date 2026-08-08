@@ -94,7 +94,14 @@ export default function Home() {
   const [kstNow, setKstNow] = useState<KstNow>(() => getKstNow())
 
   // 달력 & 예약
-  const [currentMonth, setCurrentMonth] = useState(new Date())
+  // 항상 '그 달 1일'로 정규화해서 들고 있는다. 오늘의 일(day)을 들고 다니면
+  // setMonth 로 달을 옮길 때 짧은 달에서 오버플로우가 난다 (8/31 → 다음 달 → 9/31 → 10월).
+  // 기준 달도 KST 여야 한다. 브라우저 로컬로 잡으면 로컬 월말/KST 월초가 갈릴 때
+  // 달력이 지난 달로 열리고 모든 날짜가 과거로 판정된다.
+  const [currentMonth, setCurrentMonth] = useState(() => {
+    const [y, m] = getKstNow().dateStr.split('-').map(Number)
+    return new Date(y, m - 1, 1)
+  })
   const [selectedSpace, setSelectedSpace] = useState<SpaceType>('nolter')
   const [selectedDate, setSelectedDate] = useState<number | null>(null)
   const [selectedTimes, setSelectedTimes] = useState<string[]>([]) // 연속 시간 다중 선택
@@ -332,16 +339,17 @@ export default function Home() {
 
   // ===== 월 네비게이션 함수 =====
   
+  // 일자를 항상 1로 고정해 생성한다. setMonth 로 옮기면 currentMonth 가 들고 있던 일자가
+  // 짧은 달에서 넘쳐 달이 통째로 건너뛴다 (3/31 에서 이전 달 → 2/31 → 3/3).
+  // Date 생성자는 month 가 -1 이거나 12 여도 연도 넘김을 알아서 처리한다.
   const goToPrevMonth = () => {
-    const newMonth = new Date(currentMonth)
-    newMonth.setMonth(newMonth.getMonth() - 1)
+    const newMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1)
     setCurrentMonth(newMonth)
     console.log('📅 이전 달:', newMonth.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long' }))
   }
 
   const goToNextMonth = () => {
-    const newMonth = new Date(currentMonth)
-    newMonth.setMonth(newMonth.getMonth() + 1)
+    const newMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1)
     setCurrentMonth(newMonth)
     console.log('📅 다음 달:', newMonth.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long' }))
   }
@@ -372,43 +380,36 @@ export default function Home() {
 
   // ===== 해당 날짜에 예약된 시간대 조회 =====
   
+  // 달력 렌더 중에도 호출되므로(오늘 셀 판정) 로그를 남기지 않는다.
   const getBookedTimesForDate = (date: number): Record<string, string> => {
     const dateStr = dateStrOf(date)
 
-    console.log(`🔍 DEBUG getBookedTimesForDate: targetDate = ${dateStr}, selectedSpace = ${selectedSpace}`)
-    console.log(`🔍 DEBUG: bookingsData 전체 = ${bookingsData.length}건`, bookingsData)
     const dayBookings = bookingsData.filter(b => b.booking_date === dateStr && b.space === selectedSpace)
-    
-    console.log(`🔍 DEBUG: ${dateStr} ${selectedSpace} 예약 = ${dayBookings.length}건`, dayBookings)
+
     // 각 예약의 start_time부터 end_time까지 모든 30분 슬롯 추출 (시간 → 예약자 이름)
     const bookedTimes: Record<string, string> = {}
     dayBookings.forEach(booking => {
       const start = booking.start_time.substring(0, 5) // "14:00:00" → "14:00"
       const end = booking.end_time.substring(0, 5)
 
-      console.log(`🔍 DEBUG: 예약 ${booking.id}: start=${start}, end=${end}`)
       const [startH, startM] = start.split(':').map(Number)
       const [endH, endM] = end.split(':').map(Number)
       let startMinutes = startH * 60 + startM
       let endMinutes = endH * 60 + endM
 
-      console.log(`🔍 DEBUG: startMinutes=${startMinutes}, endMinutes=${endMinutes}`)
       // ⭐ FIX: start_time == end_time일 때 30분으로 처리
       if (endMinutes === startMinutes) {
         endMinutes = startMinutes + 30
-        console.log(`🔧 ${dateStr} ${start}~${end} → 30분으로 처리`)
       }
 
       for (let m = startMinutes; m < endMinutes; m += 30) {
         const timeSlot = `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
         if (!(timeSlot in bookedTimes)) {
           bookedTimes[timeSlot] = booking.name || '예약됨'
-          console.log(`➕ Added time slot: ${timeSlot} (${booking.name})`)
         }
       }
     })
 
-    console.log(`📋 ${dateStr} ${selectedSpace} 최종 예약된 시간:`, bookedTimes)
     return bookedTimes
   }
 
@@ -1051,9 +1052,10 @@ export default function Home() {
               const bookingStatus = getBookingStatus(date)
               const totalHours = getTotalHoursForDate(date)
               const isTodayDate = isToday(date)
-              // 세대원은 오늘도 아직 시작하지 않은 시간대가 남아있으면 예약할 수 있다
+              // 세대원은 오늘도 아직 시작하지 않은 '빈' 시간대가 남아있으면 예약할 수 있다.
+              // 모달의 today-slots-gone 판정과 같은 함수를 써야 셀과 모달이 어긋나지 않는다.
               const todayIsBookable =
-                isTodayDate && isResidentUser && timeSlots.some(t => timeToMinutes(t) > kstNow.minutes)
+                isTodayDate && isResidentUser && hasBookableSlotToday(getBookedTimesForDate(date))
               const looksUnbookable = isPast || (isTodayDate && !todayIsBookable)
 
               return (
@@ -1339,6 +1341,8 @@ export default function Home() {
                 {!isViewOnlyMode && selectedBookingDate === kstNow.dateStr && (
                   <p className="mt-3 text-xs text-gray-500">
                     현재 {kstNow.hhmm} (KST) — 이미 시작된 시간대는 선택할 수 없습니다.
+                    <br />
+                    당일 예약은 무료 시간·선불권 범위 내에서만 가능합니다.
                   </p>
                 )}
                 {selectedTimes.length > 0 && (
