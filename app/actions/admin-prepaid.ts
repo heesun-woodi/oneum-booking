@@ -128,13 +128,14 @@ export interface PrepaidUsage {
   purchase_id: string
   booking_id: string
   hours_used: number
-  created_at: string
+  used_at: string
   booking?: {
     booking_date: string
     start_time: string
     end_time: string
     space: string
     name: string
+    status: string
   }
 }
 
@@ -149,10 +150,10 @@ export async function getPrepaidUsages(purchaseId: string): Promise<{
     .from('prepaid_usages')
     .select(`
       *,
-      booking:bookings(booking_date, start_time, end_time, space, name)
+      booking:bookings(booking_date, start_time, end_time, space, name, status)
     `)
     .eq('purchase_id', purchaseId)
-    .order('created_at', { ascending: false })
+    .order('used_at', { ascending: false })
 
   if (error) {
     return { success: false, usages: [], error: error.message }

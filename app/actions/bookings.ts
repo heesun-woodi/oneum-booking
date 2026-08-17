@@ -487,7 +487,11 @@ export async function cancelBooking(bookingId: string) {
 
     if (isPrepaidBooking) {
       // 선불권 사용 예약: RPC로 원자적 취소 + 선불권 복구
-      const { data: rpcData, error: rpcError } = await supabase
+      // ⚠️ 반드시 service role 로 호출할 것. anon 키로 호출하면 prepaid_purchases/prepaid_usages
+      //    RLS(auth.uid() 기반 — 이 앱은 커스텀 인증이라 항상 NULL)에 걸려 복구 UPDATE/DELETE 가
+      //    에러 없이 0건 처리되고, 예약만 취소된 채 선불권 시간이 영구 유실된다.
+      const serviceSupabase = await createServiceRoleClient()
+      const { data: rpcData, error: rpcError } = await serviceSupabase
         .rpc('cancel_booking_restore_prepaid', { p_booking_id: bookingId })
 
       if (rpcError) {
@@ -496,6 +500,13 @@ export async function cancelBooking(bookingId: string) {
       }
       if (!rpcData?.success) {
         return { success: false, error: rpcData?.error || '선불권 복구 중 오류가 발생했습니다' }
+      }
+      // 복구량이 기대치와 다르면 복구가 조용히 실패한 것이다. 반드시 드러낸다.
+      if (Number(rpcData.restoredHours) !== Number(rpcData.expectedHours ?? rpcData.restoredHours)) {
+        console.error(
+          '🚨 선불권 복구 불일치',
+          { bookingId, restored: rpcData.restoredHours, expected: rpcData.expectedHours }
+        )
       }
       console.log('✅ Booking cancelled + prepaid restored:', rpcData.restoredHours, 'hours')
     } else {

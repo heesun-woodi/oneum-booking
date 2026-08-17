@@ -312,14 +312,19 @@ export default function AdminPrepaidPage() {
                     ? new Date(u.booking.booking_date).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })
                     : '-'
                   const time = u.booking ? `${u.booking.start_time.slice(0, 5)}~${u.booking.end_time.slice(0, 5)}` : '-'
+                  // 취소된 예약인데 차감이 남아있으면 복구 누락 건이다 (정상 취소는 사용내역 행이 삭제됨)
+                  const isOrphaned = u.booking?.status === 'cancelled'
                   return (
-                    <div key={u.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg text-sm">
+                    <div key={u.id} className={`flex items-center justify-between p-3 rounded-lg text-sm ${isOrphaned ? 'bg-red-50 border border-red-200' : 'bg-gray-50'}`}>
                       <div>
                         <span className="font-medium text-gray-900">{date}</span>
                         <span className="text-gray-500 ml-2">{time}</span>
                         <span className="ml-2 px-1.5 py-0.5 bg-white border border-gray-200 rounded text-xs text-gray-600">{spaceName}</span>
+                        {isOrphaned && (
+                          <span className="ml-2 px-1.5 py-0.5 bg-red-100 border border-red-200 rounded text-xs text-red-700">취소됨 · 복구 누락</span>
+                        )}
                       </div>
-                      <span className="font-semibold text-purple-700">-{u.hours_used}h</span>
+                      <span className={`font-semibold ${isOrphaned ? 'text-red-700' : 'text-purple-700'}`}>-{u.hours_used}h</span>
                     </div>
                   )
                 })}

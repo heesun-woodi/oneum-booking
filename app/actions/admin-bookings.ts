@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceRoleClient } from '@/lib/supabase/server'
 
 export async function getAdminBookings(options: {
   status?: string
@@ -91,7 +91,9 @@ export async function cancelBookingAdmin(bookingId: string, reason?: string) {
     const isPrepaidBooking = (booking.prepaid_hours_used ?? 0) > 0
 
     if (isPrepaidBooking) {
-      const { data: rpcData, error: rpcError } = await supabase
+      // ⚠️ 선불권 복구는 반드시 service role 로. RLS 하에서는 복구가 조용히 0건 처리된다.
+      const serviceSupabase = await createServiceRoleClient()
+      const { data: rpcData, error: rpcError } = await serviceSupabase
         .rpc('cancel_booking_restore_prepaid', { p_booking_id: bookingId })
 
       if (rpcError) throw rpcError

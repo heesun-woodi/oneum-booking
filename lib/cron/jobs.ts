@@ -35,8 +35,35 @@ export async function autoCancelUnpaid(): Promise<{
     return { cancelled: 0 }
   }
 
+  const serviceSupabase = await createServiceRoleClient()
+
   // 일괄 취소
   for (const booking of bookings) {
+    // 선불권이 일부라도 차감된 예약(mixed 결제)은 반드시 RPC로 취소해야
+    // prepaid_purchases.remaining_hours 가 함께 복구된다.
+    if ((booking.prepaid_hours_used ?? 0) > 0) {
+      const { data: rpcData, error: rpcError } = await serviceSupabase
+        .rpc('cancel_booking_restore_prepaid', { p_booking_id: booking.id })
+
+      if (rpcError || !rpcData?.success) {
+        console.error(
+          `자동 취소 실패(선불권 복구): ${booking.id}`,
+          rpcError ?? rpcData?.error
+        )
+        continue
+      }
+
+      await serviceSupabase
+        .from('bookings')
+        .update({ cancellation_reason: '입금 미확인 자동 취소' })
+        .eq('id', booking.id)
+
+      console.log(
+        `자동 취소(선불권 ${rpcData.restoredHours}h 복구): ${booking.id} - ${booking.name}`
+      )
+      continue
+    }
+
     await supabase
       .from('bookings')
       .update({
