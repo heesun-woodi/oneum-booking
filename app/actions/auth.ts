@@ -1,6 +1,8 @@
 'use server'
 
-import { supabase } from '@/lib/supabase'
+// users 테이블은 service_role 로만 접근한다.
+// anon 키는 NEXT_PUBLIC_ 이라 브라우저 번들에 실리는 공개값이므로,
+// users(password_hash 포함)에 anon 경로가 하나라도 남으면 RLS 를 켤 수 없다.
 import { createServiceRoleClient } from '@/lib/supabase/server'
 import bcrypt from 'bcryptjs'
 import { sendNotification } from '@/lib/notifications/sender'
@@ -17,6 +19,8 @@ export async function signup(data: {
   if (!data.consentGiven) {
     return { success: false, error: '개인정보 수집·이용에 동의해 주세요.' }
   }
+
+  const supabase = await createServiceRoleClient()
 
   // 전화번호 중복 체크 (세대원/비세대원 무관)
   const normalizedPhone = data.phone.replace(/[^0-9]/g, '')
@@ -93,6 +97,61 @@ export async function signup(data: {
   }
 }
 
+/**
+ * 관리자 로그인 (이름 + 비밀번호)
+ *
+ * 원래 app/admin/login/page.tsx 가 브라우저에서 anon 키로 users 를 select('*') 한 뒤
+ * bcrypt 비교까지 클라이언트에서 했다. 그 구조는 (a) 비밀번호 해시를 브라우저로 내려보내고
+ * (b) users 에 anon 접근 경로를 남겨 RLS 를 켤 수 없게 만들었다.
+ * 검증을 서버로 옮기고, 응답에는 세션에 필요한 필드만 담는다.
+ */
+export async function adminLogin(data: {
+  name: string
+  password: string
+}): Promise<{
+  success: boolean
+  error?: string
+  session?: { id: string; household: string | null; name: string; phone: string; isAdmin: true }
+}> {
+  try {
+    const supabase = await createServiceRoleClient()
+
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('id, household, name, phone, password_hash, is_admin')
+      .eq('name', data.name)
+      .eq('status', 'approved')
+      .single()
+
+    if (error || !user) {
+      return { success: false, error: '사용자를 찾을 수 없습니다.' }
+    }
+
+    if (!user.is_admin) {
+      return { success: false, error: '관리자 권한이 없습니다.' }
+    }
+
+    const isValid = await bcrypt.compare(data.password, user.password_hash)
+    if (!isValid) {
+      return { success: false, error: '비밀번호가 올바르지 않습니다.' }
+    }
+
+    return {
+      success: true,
+      session: {
+        id: user.id,
+        household: user.household,
+        name: user.name,
+        phone: user.phone,
+        isAdmin: true,
+      },
+    }
+  } catch (err) {
+    console.error('Admin login error:', err)
+    return { success: false, error: '로그인 중 오류가 발생했습니다.' }
+  }
+}
+
 export async function login(data: {
   phone: string
   password: string
@@ -151,6 +210,8 @@ export async function login(data: {
 }
 
 export async function changePassword(userId: string, currentPassword: string, newPassword: string) {
+  const supabase = await createServiceRoleClient()
+
   // 1. fetch user by id
   const { data: user, error } = await supabase
     .from('users')
@@ -185,6 +246,8 @@ export async function changePassword(userId: string, currentPassword: string, ne
 }
 
 export async function resetPassword(name: string, phone: string) {
+  const supabase = await createServiceRoleClient()
+
   // 1. normalize phone (digits only)
   const normalizedPhone = phone.replace(/\D/g, '')
 

@@ -1,11 +1,14 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+// users 테이블은 service_role 로만 접근한다.
+// anon 키는 NEXT_PUBLIC_ 이라 브라우저에 공개되므로, users(password_hash 포함)에
+// anon 접근 경로를 남겨두면 RLS 를 켤 수 없다.
+import { createServiceRoleClient } from '@/lib/supabase/server'
 import { sendNotification } from '@/lib/notifications/sender'
 
 export async function getSignupRequests(status: 'pending' | 'approved' | 'rejected' = 'pending') {
   try {
-    const supabase = await createClient()
+    const supabase = await createServiceRoleClient()
     
     const { data, error } = await supabase
       .from('users')
@@ -27,7 +30,7 @@ export async function getSignupRequests(status: 'pending' | 'approved' | 'reject
 
 export async function approveSignup(userId: string, adminId: string) {
   try {
-    const supabase = await createClient()
+    const supabase = await createServiceRoleClient()
     
     // 사용자 정보 조회
     const { data: user, error: fetchError } = await supabase
@@ -94,7 +97,7 @@ export async function approveSignup(userId: string, adminId: string) {
 
 export async function rejectSignup(userId: string, adminId: string, reason: string) {
   try {
-    const supabase = await createClient()
+    const supabase = await createServiceRoleClient()
     
     // 사용자 정보 조회
     const { data: user, error: fetchError } = await supabase
@@ -148,7 +151,7 @@ export async function rejectSignup(userId: string, adminId: string, reason: stri
  */
 export async function setAdminRole(userId: string, isAdmin: boolean) {
   try {
-    const supabase = await createClient()
+    const supabase = await createServiceRoleClient()
     
     // 사용자가 승인된 상태인지 확인
     const { data: user, error: fetchError } = await supabase
@@ -195,7 +198,7 @@ export async function setAdminRole(userId: string, isAdmin: boolean) {
  */
 export async function updateUser(userId: string, data: { name?: string; phone?: string }) {
   try {
-    const supabase = await createClient()
+    const supabase = await createServiceRoleClient()
     
     // 입력 검증
     if (data.phone) {
@@ -267,7 +270,7 @@ export async function updateUser(userId: string, data: { name?: string; phone?: 
  */
 export async function deleteUser(userId: string, currentUserId: string) {
   try {
-    const supabase = await createClient()
+    const supabase = await createServiceRoleClient()
     
     // 자기 자신 삭제 방지
     if (userId === currentUserId) {
@@ -344,7 +347,7 @@ export async function deleteUser(userId: string, currentUserId: string) {
  */
 export async function resetPassword(userId: string, newPassword: string) {
   try {
-    const supabase = await createClient()
+    const supabase = await createServiceRoleClient()
     const bcrypt = require('bcryptjs')
     
     // 비밀번호 검증

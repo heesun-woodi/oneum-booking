@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase/server'
+// users 테이블은 service_role 로만 접근한다 (anon 키는 브라우저 공개값).
+import { createServiceRoleClient } from '@/lib/supabase/server'
 
 /**
  * 사용자의 관리자 권한 확인
@@ -7,7 +8,7 @@ import { createClient } from '@/lib/supabase/server'
  */
 export async function checkAdmin(phone: string): Promise<boolean> {
   try {
-    const supabase = await createClient()
+    const supabase = await createServiceRoleClient()
     
     const { data, error } = await supabase
       .from('users')
@@ -34,7 +35,7 @@ export async function checkAdmin(phone: string): Promise<boolean> {
  */
 export async function checkAdminById(userId: string): Promise<boolean> {
   try {
-    const supabase = await createClient()
+    const supabase = await createServiceRoleClient()
     
     const { data, error } = await supabase
       .from('users')
@@ -61,7 +62,7 @@ export async function checkAdminById(userId: string): Promise<boolean> {
  */
 export async function checkAdminByHousehold(household: string): Promise<boolean> {
   try {
-    const supabase = await createClient()
+    const supabase = await createServiceRoleClient()
     
     const { data, error } = await supabase
       .from('users')

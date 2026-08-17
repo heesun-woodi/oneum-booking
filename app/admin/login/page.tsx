@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { adminLogin } from '@/app/actions/auth'
 
 export default function AdminLoginPage() {
   const router = useRouter()
@@ -17,52 +17,20 @@ export default function AdminLoginPage() {
     setLoading(true)
     
     try {
-      const supabase = createClient()
-      
-      // 1. users 테이블에서 이름으로 사용자 조회
-      const { data: user, error: fetchError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('name', name)
-        .eq('status', 'approved')
-        .single()
-      
-      if (fetchError || !user) {
-        setError('사용자를 찾을 수 없습니다.')
+      // 조회·권한확인·bcrypt 비교는 전부 서버에서 한다.
+      // 예전에는 브라우저가 anon 키로 users 를 select('*') 해서 비밀번호 해시까지
+      // 받아왔다. 응답에는 세션에 필요한 필드만 담긴다.
+      const result = await adminLogin({ name, password })
+
+      if (!result.success || !result.session) {
+        setError(result.error || '로그인에 실패했습니다.')
         setLoading(false)
         return
       }
-      
-      // 2. 관리자 권한 확인
-      if (!user.is_admin) {
-        setError('관리자 권한이 없습니다.')
-        setLoading(false)
-        return
-      }
-      
-      // 3. 비밀번호 확인 (bcrypt 사용하지 않고 직접 비교 - 기존 users 테이블 구조)
-      // 실제 환경에서는 bcrypt 사용 권장
-      const bcrypt = await import('bcryptjs')
-      const isValid = await bcrypt.compare(password, user.password_hash)
-      
-      if (!isValid) {
-        setError('비밀번호가 올바르지 않습니다.')
-        setLoading(false)
-        return
-      }
-      
-      // 4. 세션 저장
-      const session = {
-        id: user.id,
-        household: user.household,
-        name: user.name,
-        phone: user.phone,
-        isAdmin: true
-      }
-      
-      localStorage.setItem('adminSession', JSON.stringify(session))
-      console.log('✅ 관리자 로그인:', session)
-      
+
+      localStorage.setItem('adminSession', JSON.stringify(result.session))
+      console.log('✅ 관리자 로그인:', result.session)
+
       router.push('/admin')
     } catch (err) {
       console.error('Admin login error:', err)
