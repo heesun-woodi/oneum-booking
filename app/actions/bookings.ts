@@ -586,7 +586,7 @@ export async function getBookingsByHousehold(household: string) {
       .from('bookings')
       .select('*')
       .eq('household', household)
-      .eq('status', 'confirmed')
+      .in('status', ['confirmed', 'pending'])
       .gte('booking_date', today)
       .order('booking_date', { ascending: true })
     
