@@ -188,6 +188,16 @@ export default function Home() {
     }
   }, [userSession.isLoggedIn, userSession.userId])
 
+  // 예약 모달을 열 때 달력 데이터를 다시 읽는다.
+  // 지금까지 목록은 currentMonth / selectedSpace 가 바뀔 때만 갱신됐다. 탭을 열어둔 채
+  // 다른 사람이 예약하면 그 슬롯이 계속 비어 보였고, 서버에도 중복 검사가 없어 그대로 통과했다.
+  // (2026-09-04 놀터 19시 더블부킹의 경로)
+  // 이것으로 경합 자체가 사라지지는 않는다 — 최종 보증은 DB 의 bookings_no_overlap 제약이 한다.
+  useEffect(() => {
+    if (isBookingModalOpen) loadBookings()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isBookingModalOpen])
+
   // Phase 8: 세대 놀터 무료 사용 시간 조회 (세대원 + 놀터 모달 오픈 시)
   useEffect(() => {
     if (isBookingModalOpen && userSession.isResident && selectedSpace === 'nolter' && userSession.household) {
@@ -200,7 +210,9 @@ export default function Home() {
     }
   }, [isBookingModalOpen, selectedSpace, userSession.isResident, userSession.household, currentMonth])
 
-  async function loadBookings() {
+  // setBookingsData 는 비동기라 호출 직후엔 state 가 아직 옛 값이다.
+  // 갱신하자마자 결과를 봐야 하는 곳(SLOT_TAKEN 복구)을 위해 읽어온 배열을 그대로 반환한다.
+  async function loadBookings(): Promise<any[]> {
     const year = currentMonth.getFullYear()
     const month = currentMonth.getMonth() + 1
     console.log('📥 예약 데이터 로드 중...')
@@ -208,9 +220,10 @@ export default function Home() {
     if (result.success) {
       setBookingsData(result.data)
       console.log('✅ 예약 데이터 로드 완료:', result.data.length, '건')
-    } else {
-      console.error('❌ 예약 데이터 로드 실패:', result.error)
+      return result.data
     }
+    console.error('❌ 예약 데이터 로드 실패:', result.error)
+    return bookingsData
   }
 
   // Phase 6.4: 선불권 구매 내역 조회
@@ -381,10 +394,15 @@ export default function Home() {
   // ===== 해당 날짜에 예약된 시간대 조회 =====
   
   // 달력 렌더 중에도 호출되므로(오늘 셀 판정) 로그를 남기지 않는다.
-  const getBookedTimesForDate = (date: number): Record<string, string> => {
+  // source 를 주입할 수 있게 열어 둔다. 기본값은 화면이 보고 있는 state 지만,
+  // 방금 서버에서 받아온 배열로 즉시 계산해야 하는 경우가 있다(SLOT_TAKEN 복구).
+  const getBookedTimesForDate = (
+    date: number,
+    source: any[] = bookingsData
+  ): Record<string, string> => {
     const dateStr = dateStrOf(date)
 
-    const dayBookings = bookingsData.filter(b => b.booking_date === dateStr && b.space === selectedSpace)
+    const dayBookings = source.filter(b => b.booking_date === dateStr && b.space === selectedSpace)
 
     // 각 예약의 start_time부터 end_time까지 모든 30분 슬롯 추출 (시간 → 예약자 이름)
     const bookedTimes: Record<string, string> = {}
@@ -617,6 +635,24 @@ export default function Home() {
       }
     } else {
       console.error('❌ 예약 실패:', result.error)
+
+      if (result.code === 'SLOT_TAKEN') {
+        // 내 화면이 낡아서 생긴 실패다. 달력을 다시 읽고, 그 사이 남이 가져간 슬롯만 선택에서 뺀다.
+        // 전부 지우지 않는 이유: 19~21시를 고른 뒤 19~20시만 뺏긴 경우 20~21시는 아직 유효하고,
+        // 그것까지 지우면 사용자가 처음부터 다시 골라야 한다.
+        const fresh = await loadBookings()
+        const taken = getBookedTimesForDate(selectedDate as number, fresh)
+        const survivors = selectedTimes.filter(t => !(t in taken))
+        setSelectedTimes(survivors)
+
+        alert(
+          survivors.length > 0
+            ? `${result.error}\n\n남은 시간(${survivors.join(', ')})은 그대로 선택해 두었습니다. 확인 후 다시 예약해주세요.`
+            : `${result.error}\n\n달력을 갱신했습니다. 다른 시간을 선택해주세요.`
+        )
+        return
+      }
+
       alert(`예약 실패: ${result.error}`)
     }
   }
