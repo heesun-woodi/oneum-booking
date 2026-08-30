@@ -279,13 +279,18 @@ export async function createBooking(input: CreateBookingInput) {
 
     if (!rpcResult?.success) {
       console.error('❌ 예약 생성 실패:', rpcResult)
-      return {
-        success: false,
-        error:
-          rpcResult?.code === 'FREE_HOURS_EXCEEDED'
+
+      // SLOT_TAKEN 은 '내 화면이 낡았다'는 뜻이다. 달력을 다시 읽지 않으면 사용자는
+      // 여전히 빈 슬롯을 보며 같은 시도를 반복하게 되므로, code 를 그대로 올려보내
+      // 클라이언트가 목록을 갱신하고 선택을 비울 수 있게 한다.
+      const message =
+        rpcResult?.code === 'SLOT_TAKEN'
+          ? rpcResult.error || '이미 예약된 시간대입니다.'
+          : rpcResult?.code === 'FREE_HOURS_EXCEEDED'
             ? '세대 무료 시간이 방금 소진되었습니다. 새로고침 후 다시 시도해주세요.'
-            : rpcResult?.error || '예약 처리 중 오류가 발생했습니다.',
-      }
+            : rpcResult?.error || '예약 처리 중 오류가 발생했습니다.'
+
+      return { success: false, error: message, code: rpcResult?.code }
     }
 
     // ===== 6. 생성된 예약 조회 + 알림 =====
@@ -395,6 +400,7 @@ async function createBookingViaRpc({
     error?: string
     freeHoursUsed?: number
     freeHoursLimit?: number
+    takenSlots?: string
   }
 }
 
