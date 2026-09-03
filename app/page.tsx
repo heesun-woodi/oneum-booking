@@ -40,10 +40,13 @@ interface Booking {
   start_time: string
   end_time: string
   space: string
-  member_type: string
+  // member_type/phone 은 서버 컬럼 화이트리스트(MEMBER_BOOKING_COLUMNS)가 응답에 싣지 않는
+  // 필드라 항상 있는 값이 아니다 — 옵셔널로 둔다.
+  member_type?: string
   household?: string
-  name: string
-  phone: string
+  // 공개 달력(PUBLIC_CALENDAR_COLUMNS)은 세대원이 아닌 뷰어에게 name 을 싣지 않는다.
+  name?: string
+  phone?: string
   status: string
   amount: number
 }
@@ -157,9 +160,12 @@ export default function Home() {
 
   // ===== 예약 데이터 로드 (DB에서) =====
 
+  // userSession.userId 가 deps 에 있어야 한다 — 예약자 이름을 실을지는 이제 서버가 뷰어 id 로 판정하므로,
+  // 로그인이 늦게 복원되는 첫 렌더에서 익명으로 읽은 목록이 그대로 남으면 세대원에게도 '예약됨'만 보인다.
   useEffect(() => {
     loadBookings()
-  }, [currentMonth, selectedSpace])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentMonth, selectedSpace, userSession.userId])
 
   useEffect(() => {
     async function loadSettingsData() {
@@ -216,7 +222,7 @@ export default function Home() {
     const year = currentMonth.getFullYear()
     const month = currentMonth.getMonth() + 1
     console.log('📥 예약 데이터 로드 중...')
-    const result = await getBookings(year, month, selectedSpace)
+    const result = await getBookings(year, month, selectedSpace, userSession.userId)
     if (result.success) {
       setBookingsData(result.data)
       console.log('✅ 예약 데이터 로드 완료:', result.data.length, '건')

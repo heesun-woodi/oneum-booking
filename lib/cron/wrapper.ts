@@ -2,12 +2,14 @@
  * 크론 작업 로깅 래퍼
  */
 
-import { supabase } from '../supabase'
+import { createServiceRoleClient } from '../supabase/server'
 
 export async function withCronLogging<T>(
   jobName: string,
   handler: () => Promise<T>
 ): Promise<T> {
+  const supabase = await createServiceRoleClient()
+
   // 작업 시작 로그
   const { data: log, error: logError } = await supabase
     .from('cron_job_logs')

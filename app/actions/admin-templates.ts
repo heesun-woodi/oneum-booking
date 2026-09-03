@@ -1,6 +1,7 @@
 'use server'
 
-import { createClient, createServiceRoleClient } from '@/lib/supabase/server'
+import { createServiceRoleClient } from '@/lib/supabase/server'
+import { assertAdmin } from '@/lib/admin-guard'
 import { sendSMS, sendAuto } from '@/lib/solapi'
 
 // ===== 타입 정의 =====
@@ -34,7 +35,10 @@ export async function getMessageTemplates(
   category?: string
 ): Promise<ActionResult<MessageTemplate[]>> {
   try {
-    const supabase = await createClient()
+    const auth = await assertAdmin()
+    if (!auth.ok) return { success: false, error: auth.error }
+
+    const supabase = await createServiceRoleClient()
     
     let query = supabase
       .from('message_templates')
@@ -60,40 +64,16 @@ export async function getMessageTemplates(
 }
 
 /**
- * 특정 템플릿 조회 (type_code 기준)
- */
-export async function getTemplateByCode(
-  typeCode: string
-): Promise<ActionResult<MessageTemplate>> {
-  try {
-    const supabase = await createClient()
-    
-    const { data, error } = await supabase
-      .from('message_templates')
-      .select('*')
-      .eq('type_code', typeCode)
-      .single()
-    
-    if (error) {
-      console.error('Get template by code error:', error)
-      return { success: false, error: error.message }
-    }
-    
-    return { success: true, data }
-  } catch (error: any) {
-    console.error('Get template by code error:', error)
-    return { success: false, error: error.message }
-  }
-}
-
-/**
  * 특정 템플릿 조회 (ID 기준)
  */
 export async function getTemplateById(
   id: string
 ): Promise<ActionResult<MessageTemplate>> {
   try {
-    const supabase = await createClient()
+    const auth = await assertAdmin()
+    if (!auth.ok) return { success: false, error: auth.error }
+
+    const supabase = await createServiceRoleClient()
     
     const { data, error } = await supabase
       .from('message_templates')
@@ -113,34 +93,6 @@ export async function getTemplateById(
   }
 }
 
-/**
- * 런타임용: 활성화된 템플릿 조회 (발송 로직에서 사용)
- */
-export async function getActiveTemplate(
-  typeCode: string
-): Promise<MessageTemplate | null> {
-  try {
-    const supabase = await createClient()
-    
-    const { data, error } = await supabase
-      .from('message_templates')
-      .select('*')
-      .eq('type_code', typeCode)
-      .eq('is_active', true)
-      .single()
-    
-    if (error || !data) {
-      console.warn(`Active template not found: ${typeCode}`)
-      return null
-    }
-    
-    return data
-  } catch (error: any) {
-    console.error('Get active template error:', error)
-    return null
-  }
-}
-
 // ===== 생성 함수 =====
 
 /**
@@ -157,7 +109,10 @@ export async function createTemplate(template: {
   variables: string[]
 }): Promise<ActionResult<MessageTemplate>> {
   try {
-    const supabase = await createClient()
+    const auth = await assertAdmin()
+    if (!auth.ok) return { success: false, error: auth.error }
+
+    const supabase = await createServiceRoleClient()
     
     // 1. type_code 형식 검증
     const typeCodeRegex = /^\d+-\d+$/
@@ -235,7 +190,10 @@ export async function updateTemplate(
   }>
 ): Promise<ActionResult> {
   try {
-    const supabase = await createClient()
+    const auth = await assertAdmin()
+    if (!auth.ok) return { success: false, error: auth.error }
+
+    const supabase = await createServiceRoleClient()
     
     const { error } = await supabase
       .from('message_templates')
@@ -271,7 +229,10 @@ export async function toggleTemplateActive(
  */
 export async function deleteTemplate(id: string): Promise<ActionResult> {
   try {
-    const supabase = await createClient()
+    const auth = await assertAdmin()
+    if (!auth.ok) return { success: false, error: auth.error }
+
+    const supabase = await createServiceRoleClient()
     
     const { error } = await supabase
       .from('message_templates')
@@ -426,6 +387,9 @@ export async function sendTestMessage(
   testPhone: string,
 ): Promise<ActionResult<{ messageId?: string; preview: string }>> {
   try {
+    const auth = await assertAdmin()
+    if (!auth.ok) return { success: false, error: auth.error }
+
     // 1. 템플릿 조회
     const result = await getTemplateById(templateId)
     if (!result.success || !result.data) {

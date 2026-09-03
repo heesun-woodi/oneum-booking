@@ -1,7 +1,8 @@
 'use server'
 
-import { createClient, createServiceRoleClient } from '@/lib/supabase/server'
+import { createServiceRoleClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { assertAdmin } from '@/lib/admin-guard'
 
 // ===== 타입 정의 =====
 export interface SpacePhoto {
@@ -70,8 +71,8 @@ function sanitizeFilename(filename: string): string {
 // ===== 1. 공간별 사진 목록 조회 =====
 export async function getSpacePhotos(space: 'nolter' | 'soundroom'): Promise<SpacePhotoResult> {
   try {
-    const supabase = await createClient()
-    
+    const supabase = await createServiceRoleClient()
+
     const { data, error } = await supabase
       .from('space_photos')
       .select('*')
@@ -106,8 +107,11 @@ export async function getSpacePhotos(space: 'nolter' | 'soundroom'): Promise<Spa
 // ===== 2. 사진 업로드 =====
 export async function uploadSpacePhoto(formData: FormData): Promise<UploadPhotoResult> {
   try {
+    const auth = await assertAdmin()
+    if (!auth.ok) return { success: false, error: auth.error }
+
     const supabase = await createServiceRoleClient()
-    
+
     // FormData 파싱
     const file = formData.get('file') as File
     const space = formData.get('space') as 'nolter' | 'soundroom'
@@ -226,8 +230,11 @@ export async function uploadSpacePhoto(formData: FormData): Promise<UploadPhotoR
 // ===== 3. 사진 교체 =====
 export async function replaceSpacePhoto(photoId: string, formData: FormData): Promise<UploadPhotoResult> {
   try {
+    const auth = await assertAdmin()
+    if (!auth.ok) return { success: false, error: auth.error }
+
     const supabase = await createServiceRoleClient()
-    
+
     // 기존 사진 정보 조회
     const { data: existing, error: fetchError } = await supabase
       .from('space_photos')
@@ -326,8 +333,11 @@ export async function replaceSpacePhoto(photoId: string, formData: FormData): Pr
 // ===== 4. 사진 삭제 =====
 export async function deleteSpacePhoto(photoId: string): Promise<ActionResult> {
   try {
+    const auth = await assertAdmin()
+    if (!auth.ok) return { success: false, error: auth.error }
+
     const supabase = await createServiceRoleClient()
-    
+
     // 기존 사진 정보 조회
     const { data: existing, error: fetchError } = await supabase
       .from('space_photos')
@@ -370,42 +380,6 @@ export async function deleteSpacePhoto(photoId: string): Promise<ActionResult> {
     return { 
       success: false, 
       error: error instanceof Error ? error.message : '삭제 실패' 
-    }
-  }
-}
-
-// ===== 5. 사진 순서 변경 (Phase 2) =====
-export async function updatePhotoOrder(space: 'nolter' | 'soundroom', orderedIds: string[]): Promise<ActionResult> {
-  try {
-    const supabase = await createClient()
-    
-    // 각 사진의 display_order 업데이트
-    const updates = orderedIds.map((id, index) => 
-      supabase
-        .from('space_photos')
-        .update({ display_order: index })
-        .eq('id', id)
-        .eq('space', space)
-    )
-    
-    const results = await Promise.all(updates)
-    const hasError = results.some(r => r.error)
-    
-    if (hasError) {
-      console.error('Some updates failed:', results.filter(r => r.error))
-      return { success: false, error: '순서 변경 중 오류 발생' }
-    }
-    
-    // 캐시 무효화
-    revalidatePath('/')
-    revalidatePath('/admin/settings')
-    
-    return { success: true }
-  } catch (error) {
-    console.error('Exception in updatePhotoOrder:', error)
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : '순서 변경 실패' 
     }
   }
 }

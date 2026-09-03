@@ -1,12 +1,11 @@
 'use server'
 
-import { createClient, createServiceRoleClient } from '@/lib/supabase/server'
+import { createServiceRoleClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { describeCharge } from '@/lib/booking-policy'
 // 과금 계산과 생성은 공개 예약과 같은 코어를 쓴다 (요금 규칙이 갈라지지 않게).
 import { createBookingCore, previewBookingCharge } from '@/lib/booking/create-core'
-import { cookies } from 'next/headers'
-import { ADMIN_SESSION_COOKIE, verifyAdminSessionToken } from '@/lib/admin-session'
+import { assertAdmin } from '@/lib/admin-guard'
 import { getKstNow } from '@/lib/date-kst'
 
 export async function getAdminBookings(options: {
@@ -19,7 +18,10 @@ export async function getAdminBookings(options: {
   offset?: number
 } = {}) {
   try {
-    const supabase = await createClient()
+    const auth = await assertAdmin()
+    if (!auth.ok) return { success: false, error: auth.error, bookings: [], total: 0 }
+
+    const supabase = await createServiceRoleClient()
     
     let query = supabase
       .from('bookings')
@@ -79,7 +81,10 @@ export async function getTodayBookings() {
 
 export async function cancelBookingAdmin(bookingId: string, reason?: string) {
   try {
-    const supabase = await createClient()
+    const auth = await assertAdmin()
+    if (!auth.ok) return { success: false, error: auth.error }
+
+    const supabase = await createServiceRoleClient()
 
     const { data: booking, error: checkError } = await supabase
       .from('bookings')
@@ -147,38 +152,6 @@ export async function cancelBookingAdmin(bookingId: string, reason?: string) {
 //   - 확정 문자 미발송 (이미 지난 사용분이라 안내할 것이 없다)
 //   - created_by_admin / admin_note 로 '누가 왜 넣었는지' 기록
 // =====================================================
-
-/**
- * 서버측 관리자 확인.
- *
- * 신원은 반드시 httpOnly 서명 쿠키에서 읽는다. 클라이언트가 보낸 id 를 믿으면 안 된다 —
- * getBookings() 가 anon 키로 bookings 를 select('*') 해 공개 달력에 내려보내므로,
- * 관리자가 개인 예약을 한 번이라도 하면 그 행의 user_id 로 관리자 UUID 가 공개된다.
- * 그 값을 인자로 받던 구조에서는 공개 데이터만으로 이 검사를 통과할 수 있었다.
- *
- * 쿠키는 '누구인지'만 말해주므로, 실제 권한은 호출 시점에 DB 에서 다시 읽는다
- * (권한이 회수된 관리자의 쿠키가 만료 전까지 남아 있을 수 있다).
- */
-async function assertAdmin(): Promise<{ ok: true; adminId: string } | { ok: false; error: string }> {
-  const adminId = verifyAdminSessionToken(cookies().get(ADMIN_SESSION_COOKIE)?.value)
-  if (!adminId) {
-    return { ok: false, error: '관리자 인증이 만료되었습니다. 다시 로그인해주세요.' }
-  }
-
-  const supabase = await createServiceRoleClient()
-  const { data, error } = await supabase
-    .from('users')
-    .select('id, is_admin, status, deleted_at')
-    .eq('id', adminId)
-    .maybeSingle()
-
-  if (error) throw error
-  if (!data || !data.is_admin || data.status !== 'approved' || data.deleted_at) {
-    return { ok: false, error: '관리자 권한이 없습니다.' }
-  }
-
-  return { ok: true, adminId }
-}
 
 /** 소급 등록 대상 회원 검색 (이름 또는 전화번호 부분 일치) */
 export async function searchBookingUsers(query: string) {
