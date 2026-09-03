@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
-import { adminSignOut } from '@/app/actions/auth'
+import { adminSignOut, checkAdminSession } from '@/app/actions/auth'
 
 interface AdminSession {
   id: string
@@ -44,8 +44,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       return
     }
     
-    setAdmin(adminData)
-    setLoading(false)
+    // localStorage 는 만료 개념이 없다. 서버 쿠키(12시간)가 끊겼는지 물어보지 않으면
+    // 화면은 그대로 열린 채 액션만 하나씩 "인증이 만료되었습니다" 로 실패한다.
+    // 실제 권한 판정은 어차피 서버가 매 호출 다시 하므로, 여기서는 UX 만 맞춘다.
+    checkAdminSession().then(result => {
+      if (!result.ok) {
+        localStorage.removeItem('adminSession')
+        router.push('/admin/login')
+        return
+      }
+      setAdmin(adminData)
+      setLoading(false)
+    })
   }, [pathname, router])
   
   const handleLogout = async () => {

@@ -1,11 +1,15 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { createServiceRoleClient } from '@/lib/supabase/server'
+import { assertAdmin } from '@/lib/admin-guard'
 
 // 📊 월별 예약 통계
 export async function getMonthlyBookingStats(year: number, month: number) {
   try {
-    const supabase = await createClient()
+    const auth = await assertAdmin()
+    if (!auth.ok) return { success: false, error: auth.error, stats: null }
+
+    const supabase = await createServiceRoleClient()
     
     const startDate = `${year}-${String(month).padStart(2, '0')}-01`
     const lastDay = new Date(year, month, 0).getDate()
@@ -57,7 +61,10 @@ export async function getMonthlyBookingStats(year: number, month: number) {
 // 🏠 세대별 이용 현황
 export async function getHouseholdUsageStats(month?: string) {
   try {
-    const supabase = await createClient()
+    const auth = await assertAdmin()
+    if (!auth.ok) return { success: false, error: auth.error, households: [] }
+
+    const supabase = await createServiceRoleClient()
     
     let query = supabase
       .from('bookings')
@@ -116,7 +123,10 @@ export async function getHouseholdUsageStats(month?: string) {
 // 📍 공간별 인기 시간대
 export async function getSpaceTimeStats(space: 'nolter' | 'soundroom', month?: string) {
   try {
-    const supabase = await createClient()
+    const auth = await assertAdmin()
+    if (!auth.ok) return { success: false, error: auth.error, timeStats: [] }
+
+    const supabase = await createServiceRoleClient()
     
     let query = supabase
       .from('bookings')
@@ -169,7 +179,10 @@ export async function getSpaceTimeStats(space: 'nolter' | 'soundroom', month?: s
 // 📉 취소율 분석 (월별)
 export async function getCancellationStats(year: number) {
   try {
-    const supabase = await createClient()
+    const auth = await assertAdmin()
+    if (!auth.ok) return { success: false, error: auth.error, cancellationStats: [] }
+
+    const supabase = await createServiceRoleClient()
     
     const startDate = `${year}-01-01`
     const endDate = `${year}-12-31`

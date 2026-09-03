@@ -13,6 +13,7 @@ import {
   adminSessionCookieOptions,
   createAdminSessionToken,
 } from '@/lib/admin-session'
+import { assertAdmin } from '@/lib/admin-guard'
 
 export async function signup(data: {
   household: string
@@ -165,6 +166,18 @@ export async function adminLogin(data: {
     console.error('Admin login error:', err)
     return { success: false, error: '로그인 중 오류가 발생했습니다.' }
   }
+}
+
+/**
+ * 관리자 화면 진입 시 서버 쿠키 세션이 아직 유효한지 확인한다.
+ *
+ * localStorage 의 adminSession 은 만료 개념이 없어서, 쿠키(12시간)가 끊긴 뒤에도
+ * 화면은 그대로 열리고 액션만 하나씩 실패하는 상태가 된다. layout 이 진입 시
+ * 한 번 물어 그 어긋남을 없앤다.
+ */
+export async function checkAdminSession() {
+  const auth = await assertAdmin()
+  return auth.ok ? { ok: true as const } : { ok: false as const, error: auth.error }
 }
 
 /** 관리자 세션 쿠키 파기. localStorage 만 지우면 서버 쪽 신원은 살아 있다. */

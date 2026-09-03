@@ -1,6 +1,7 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { createServiceRoleClient } from '@/lib/supabase/server'
+import { assertAdmin } from '@/lib/admin-guard'
 
 export async function getNotificationLogs(options: {
   messageType?: string
@@ -11,7 +12,10 @@ export async function getNotificationLogs(options: {
   offset?: number
 } = {}) {
   try {
-    const supabase = await createClient()
+    const auth = await assertAdmin()
+    if (!auth.ok) return { success: false, error: auth.error, logs: [], total: 0 }
+
+    const supabase = await createServiceRoleClient()
     
     let query = supabase
       .from('notification_logs')
@@ -57,7 +61,10 @@ export async function getNotificationLogs(options: {
 
 export async function getNotificationStats(month?: string) {
   try {
-    const supabase = await createClient()
+    const auth = await assertAdmin()
+    if (!auth.ok) return { success: false, error: auth.error, stats: null }
+
+    const supabase = await createServiceRoleClient()
     
     let query = supabase
       .from('notification_logs')

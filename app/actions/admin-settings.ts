@@ -1,6 +1,7 @@
 'use server'
 
-import { createClient, createServiceRoleClient } from '@/lib/supabase/server'
+import { createServiceRoleClient } from '@/lib/supabase/server'
+import { assertAdmin } from '@/lib/admin-guard'
 import { revalidatePath } from 'next/cache'
 
 // ===== 타입 정의 =====
@@ -83,7 +84,7 @@ const defaultGeneralRules: GeneralRules = {
 
 // ===== 공간 정보 조회 (DB) =====
 export async function getSpaceInfo(): Promise<{ success: boolean; spaces: SpaceInfo[]; error?: string }> {
-  const supabase = await createClient()
+  const supabase = await createServiceRoleClient()
   
   const { data, error } = await supabase
     .from('site_settings')
@@ -120,6 +121,9 @@ export async function getSpaceInfo(): Promise<{ success: boolean; spaces: SpaceI
 
 // ===== 공간 정보 저장 (DB) =====
 export async function updateSpaceInfo(spaces: SpaceInfo[]): Promise<{ success: boolean; error?: string }> {
+  const auth = await assertAdmin()
+  if (!auth.ok) return { success: false, error: auth.error }
+
   const supabase = await createServiceRoleClient()
   
   // 배열을 객체로 변환 (nolter, soundroom 키 사용)
@@ -164,7 +168,7 @@ export async function updateSpaceInfo(spaces: SpaceInfo[]): Promise<{ success: b
 
 // ===== 이용 규칙 조회 (DB) =====
 export async function getGeneralRules(): Promise<{ success: boolean; rules: GeneralRules; error?: string }> {
-  const supabase = await createClient()
+  const supabase = await createServiceRoleClient()
   
   const { data, error } = await supabase
     .from('site_settings')
@@ -188,6 +192,9 @@ export async function getGeneralRules(): Promise<{ success: boolean; rules: Gene
 
 // ===== 이용 규칙 저장 (DB) =====
 export async function updateGeneralRules(rules: GeneralRules): Promise<{ success: boolean; error?: string }> {
+  const auth = await assertAdmin()
+  if (!auth.ok) return { success: false, error: auth.error }
+
   const supabase = await createServiceRoleClient()
   
   const value = JSON.stringify(rules)

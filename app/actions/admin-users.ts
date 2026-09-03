@@ -4,10 +4,14 @@
 // anon 키는 NEXT_PUBLIC_ 이라 브라우저에 공개되므로, users(password_hash 포함)에
 // anon 접근 경로를 남겨두면 RLS 를 켤 수 없다.
 import { createServiceRoleClient } from '@/lib/supabase/server'
+import { assertAdmin } from '@/lib/admin-guard'
 import { sendNotification } from '@/lib/notifications/sender'
 
 export async function getSignupRequests(status: 'pending' | 'approved' | 'rejected' = 'pending') {
   try {
+    const auth = await assertAdmin()
+    if (!auth.ok) return { success: false, error: auth.error, users: [] }
+
     const supabase = await createServiceRoleClient()
     
     const { data, error } = await supabase
@@ -28,8 +32,12 @@ export async function getSignupRequests(status: 'pending' | 'approved' | 'reject
   }
 }
 
-export async function approveSignup(userId: string, adminId: string) {
+export async function approveSignup(userId: string) {
   try {
+    const auth = await assertAdmin()
+    if (!auth.ok) return { success: false, error: auth.error }
+    const adminId = auth.adminId
+
     const supabase = await createServiceRoleClient()
     
     // 사용자 정보 조회
@@ -95,8 +103,11 @@ export async function approveSignup(userId: string, adminId: string) {
   }
 }
 
-export async function rejectSignup(userId: string, adminId: string, reason: string) {
+export async function rejectSignup(userId: string, reason: string) {
   try {
+    const auth = await assertAdmin()
+    if (!auth.ok) return { success: false, error: auth.error }
+
     const supabase = await createServiceRoleClient()
     
     // 사용자 정보 조회
@@ -151,6 +162,9 @@ export async function rejectSignup(userId: string, adminId: string, reason: stri
  */
 export async function setAdminRole(userId: string, isAdmin: boolean) {
   try {
+    const auth = await assertAdmin()
+    if (!auth.ok) return { success: false, error: auth.error }
+
     const supabase = await createServiceRoleClient()
     
     // 사용자가 승인된 상태인지 확인
@@ -198,6 +212,9 @@ export async function setAdminRole(userId: string, isAdmin: boolean) {
  */
 export async function updateUser(userId: string, data: { name?: string; phone?: string }) {
   try {
+    const auth = await assertAdmin()
+    if (!auth.ok) return { success: false, error: auth.error }
+
     const supabase = await createServiceRoleClient()
     
     // 입력 검증
@@ -265,15 +282,17 @@ export async function updateUser(userId: string, data: { name?: string; phone?: 
 /**
  * 승인된 사용자 삭제 (Soft Delete)
  * @param userId - 사용자 ID
- * @param currentUserId - 현재 로그인한 관리자 ID (자기 자신 삭제 방지)
  * @returns 성공 여부
  */
-export async function deleteUser(userId: string, currentUserId: string) {
+export async function deleteUser(userId: string) {
   try {
+    const auth = await assertAdmin()
+    if (!auth.ok) return { success: false, error: auth.error }
+
     const supabase = await createServiceRoleClient()
     
     // 자기 자신 삭제 방지
-    if (userId === currentUserId) {
+    if (userId === auth.adminId) {
       return { success: false, error: '자기 자신은 삭제할 수 없습니다.' }
     }
     
@@ -347,6 +366,9 @@ export async function deleteUser(userId: string, currentUserId: string) {
  */
 export async function resetPassword(userId: string, newPassword: string) {
   try {
+    const auth = await assertAdmin()
+    if (!auth.ok) return { success: false, error: auth.error }
+
     const supabase = await createServiceRoleClient()
     const bcrypt = require('bcryptjs')
     

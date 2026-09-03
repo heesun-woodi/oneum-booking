@@ -55,7 +55,7 @@ export default function AdminUsersPage() {
     }
     if (!confirm('이 사용자를 승인하시겠습니까?')) return
     
-    const result = await approveSignup(userId, admin.id)
+    const result = await approveSignup(userId)
     if (result.success) {
       alert('승인되었습니다.')
       loadUsers()
@@ -73,7 +73,7 @@ export default function AdminUsersPage() {
     const reason = prompt('거부 사유를 입력하세요:')
     if (reason === null) return
     
-    const result = await rejectSignup(userId, admin.id, reason)
+    const result = await rejectSignup(userId, reason)
     if (result.success) {
       alert('거부되었습니다.')
       loadUsers()
@@ -133,7 +133,7 @@ export default function AdminUsersPage() {
     
     if (!confirm(`정말 ${userName}님을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`)) return
     
-    const result = await deleteUser(userId, admin.id)
+    const result = await deleteUser(userId)
     if (result.success) {
       alert(result.message)
       loadUsers()

@@ -1,6 +1,7 @@
 'use server'
 
 import { createServiceRoleClient } from '@/lib/supabase/server'
+import { assertAdmin } from '@/lib/admin-guard'
 import { revalidatePath } from 'next/cache'
 import { sendNotification } from '@/lib/notifications/sender'
 
@@ -39,6 +40,9 @@ export async function getAllPrepaidPurchases(): Promise<{
   purchases: AdminPrepaidPurchase[]
   error?: string
 }> {
+  const auth = await assertAdmin()
+  if (!auth.ok) return { success: false, purchases: [], error: auth.error }
+
   const supabase = await createServiceRoleClient()
 
   const { data, error } = await supabase
@@ -62,6 +66,9 @@ export async function confirmPrepaidPayment(purchaseId: string): Promise<{
   success: boolean
   error?: string
 }> {
+  const auth = await assertAdmin()
+  if (!auth.ok) return { success: false, error: auth.error }
+
   const supabase = await createServiceRoleClient()
 
   const { data: purchase, error: fetchError } = await supabase
@@ -144,6 +151,9 @@ export async function getPrepaidUsages(purchaseId: string): Promise<{
   usages: PrepaidUsage[]
   error?: string
 }> {
+  const auth = await assertAdmin()
+  if (!auth.ok) return { success: false, usages: [], error: auth.error }
+
   const supabase = await createServiceRoleClient()
 
   const { data, error } = await supabase
@@ -168,6 +178,9 @@ export async function approvePrepaidRefund(purchaseId: string): Promise<{
   refundAmount?: number
   error?: string
 }> {
+  const auth = await assertAdmin()
+  if (!auth.ok) return { success: false, error: auth.error }
+
   const supabase = await createServiceRoleClient()
 
   const { data: purchase, error: fetchError } = await supabase
