@@ -89,6 +89,7 @@ export default function AdminInquiryPage() {
               <div className="flex items-start justify-between mb-3">
                 <div>
                   <span className="font-medium text-gray-800">{inquiry.name}</span>
+                  {/* 관리자 세션(쿠키)으로 호출하면 서버가 원본 번호를 준다. 공개 페이지는 마스킹된 값을 받는다. */}
                   <span className="text-gray-400 text-sm ml-2">{inquiry.phone}</span>
                   <span className="text-gray-400 text-xs ml-2">{formatDate(inquiry.created_at)}</span>
                 </div>

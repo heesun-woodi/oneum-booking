@@ -63,7 +63,7 @@ lib/
   notifications/sender.ts, templates.ts
   cron/jobs.ts, wrapper.ts
   types/prepaid.ts
-supabase/migrations/    # SQL migration files (001–036)
+supabase/migrations/    # SQL migration files (001–035; 036 planned)
 ```
 
 ### Data Flow

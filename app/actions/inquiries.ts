@@ -58,8 +58,15 @@ export async function getInquiries() {
       .order('created_at', { ascending: false })
 
     if (error) throw error
-    // 공개 페이지(/inquiry)와 관리자 페이지가 함께 쓰므로, 브라우저로 원본 번호가
-    // 나가지 않도록 서버에서 마스킹해 반환한다.
+
+    // 공개 페이지(/inquiry)와 관리자 페이지가 같은 함수를 쓴다.
+    // 종전에는 원본 번호를 그대로 내려보내고 브라우저에서만 가렸다 — 응답 자체에
+    // 원본이 실렸으므로 보호가 아니었다. 그래서 마스킹을 서버로 옮겼는데,
+    // 관리자는 문의자에게 직접 연락해야 하는 경우가 있어 원본이 필요하다.
+    // 그 판단은 클라이언트가 주장할 수 없어야 하므로 쿠키 세션으로만 가른다.
+    const auth = await assertAdmin()
+    if (auth.ok) return { success: true, data: data ?? [] }
+
     return { success: true, data: (data ?? []).map(row => ({ ...row, phone: maskPhone(row.phone) })) }
   } catch (error: any) {
     return { success: false, error: error.message, data: [] }

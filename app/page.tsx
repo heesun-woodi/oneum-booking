@@ -44,7 +44,8 @@ interface Booking {
   // 필드라 항상 있는 값이 아니다 — 옵셔널로 둔다.
   member_type?: string
   household?: string
-  name: string
+  // 공개 달력(PUBLIC_CALENDAR_COLUMNS)은 세대원이 아닌 뷰어에게 name 을 싣지 않는다.
+  name?: string
   phone?: string
   status: string
   amount: number
