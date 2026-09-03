@@ -506,7 +506,33 @@ export default function Home() {
   }
 
   // ===== 시간 선택 핸들러 (다중 선택) =====
-  
+
+  /** 정렬된 슬롯 배열이 30분 간격으로 끊김 없이 이어지는가 */
+  const isContiguous = (times: string[]): boolean =>
+    times.every((t, i) => i === 0 || timeToMinutes(t) === timeToMinutes(times[i - 1]) + 30)
+
+  /**
+   * 끊긴 선택에서 가장 긴 연속 구간만 남긴다 (길이가 같으면 이른 쪽).
+   * 예약 한 건은 연속 구간 하나로만 저장되므로, 어중간하게 끊긴 선택을 들고 있으면
+   * 서버가 거절하거나 사이 시간대가 통째로 잠긴다.
+   */
+  const longestContiguousRun = (times: string[]): string[] => {
+    let best: string[] = []
+    let run: string[] = []
+
+    for (const t of times) {
+      if (run.length === 0 || timeToMinutes(t) === timeToMinutes(run[run.length - 1]) + 30) {
+        run.push(t)
+      } else {
+        run = [t]
+      }
+      if (run.length > best.length) best = [...run]
+    }
+
+    return best
+  }
+
+
   const handleTimeToggle = (time: string) => {
     // 다음 30분 슬롯 계산
     const [h, m] = time.split(':').map(Number)
@@ -522,13 +548,19 @@ export default function Home() {
     setSelectedTimes(prev => {
       if (prev.includes(time)) {
         // 선택 취소: 클릭한 슬롯 + 이전/다음 30분 슬롯 모두 제거 (페어 처리)
-        return prev.filter(t => t !== time && t !== nextTime && t !== prevTime).sort()
-      } else {
-        // 선택: 클릭한 슬롯 + 다음 30분 슬롯 함께 추가
-        const toAdd = [time]
-        if (!prev.includes(nextTime)) toAdd.push(nextTime)
-        return [...prev, ...toAdd].sort()
+        // 가운데를 해제하면 양쪽이 끊겨 남으므로 연속 구간 하나만 남긴다.
+        return longestContiguousRun(
+          prev.filter(t => t !== time && t !== nextTime && t !== prevTime).sort()
+        )
       }
+
+      // 선택: 클릭한 슬롯 + 다음 30분 슬롯 함께 추가
+      const merged = Array.from(new Set([...prev, time, nextTime])).sort()
+
+      // 한 건의 예약은 [start, end) 구간 하나로 저장된다. 떨어진 슬롯을 함께 고르면
+      // 14:00 과 20:00 이 '14:00~20:30 2시간'으로 저장돼 그 사이가 통째로 잠긴다.
+      // 그래서 기존 선택과 이어지지 않는 슬롯을 누르면 거기서부터 새로 고르게 한다.
+      return isContiguous(merged) ? merged : [time, nextTime]
     })
   }
 
@@ -642,7 +674,9 @@ export default function Home() {
         // 그것까지 지우면 사용자가 처음부터 다시 골라야 한다.
         const fresh = await loadBookings()
         const taken = getBookedTimesForDate(selectedDate as number, fresh)
-        const survivors = selectedTimes.filter(t => !(t in taken))
+        // 가운데 슬롯만 뺏기면 남은 선택이 끊긴다. 그대로 두면 재시도가 무조건 실패하므로
+        // (한 건은 연속 구간 하나로만 저장된다) 이어지는 구간 하나만 남긴다.
+        const survivors = longestContiguousRun(selectedTimes.filter(t => !(t in taken)).sort())
         setSelectedTimes(survivors)
 
         alert(

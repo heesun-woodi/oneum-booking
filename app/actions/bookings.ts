@@ -8,19 +8,15 @@ import {
   BookingCharge,
   LEGACY_NOLTER_FREE_COUNT_PER_MONTH,
   PolicyVersion,
-  PrepaidLike,
   RESIDENT_NOLTER_FREE_HOURS_PER_MONTH,
-  computeBookingCharge,
   describeCharge,
-  freeHoursAllowance,
   monthRangeOf,
   resolvePolicyVersion,
-  resolveUserKind,
   round1,
-  slotsToHours,
-  usesPrepaidHours,
 } from '@/lib/booking-policy'
-import { getKstNow, timeToMinutes } from '@/lib/date-kst'
+// 조회 → 과금 계산 → RPC 생성 파이프라인은 관리자 소급 등록과 공용이다.
+import { createBookingCore } from '@/lib/booking/create-core'
+import { getKstNow } from '@/lib/date-kst'
 
 export interface CreateBookingInput {
   bookingDate: string        // YYYY-MM-DD
@@ -39,11 +35,11 @@ export interface CreateBookingInput {
 export async function createBooking(input: CreateBookingInput) {
   try {
     console.log('🚀 Creating booking:', input)
-    
+
     // ⭐ 날짜 검증 (서버 사이드)
     // 기준 시각은 반드시 KST 다. 예전에는 new Date() 를 썼는데 Vercel 이 UTC 라
     // KST 00:00~09:00 사이에는 서버가 보는 '오늘'이 아직 어제여서 당일 차단이 새고 있었다.
-    // 당일 예약 가능 여부는 사용자 종류에 따라 갈리므로 아래 resolveUserKind 뒤에서 판정한다.
+    // 당일 예약 가능 여부는 사용자 종류에 따라 갈리므로 아래 guards 안에서 판정한다.
     const kstNow = getKstNow()
 
     if (!Array.isArray(input.times) || input.times.length === 0) {
@@ -55,6 +51,7 @@ export async function createBooking(input: CreateBookingInput) {
     }
 
     // 과거 날짜 예약 차단 (모든 사용자 공통)
+    // 이미 지나간 사용분의 사후 기록은 관리자 소급 등록(createBookingAdmin)이 담당한다.
     if (input.bookingDate < kstNow.dateStr) {
       console.log(`⛔ 과거 날짜 예약 차단: ${input.bookingDate} (KST 오늘: ${kstNow.dateStr})`)
       return {
@@ -67,340 +64,89 @@ export async function createBooking(input: CreateBookingInput) {
     if (input.memberType === 'non-member' && !input.consentGiven) {
       return { success: false, error: '개인정보 수집·이용에 동의해 주세요.' }
     }
-    
-    // 시간대 파싱
-    // input.times 는 신뢰할 수 없는 클라이언트 입력이라 정렬이 보장되지 않는다.
-    // 정렬하지 않으면 ['15:00','14:00'] 같은 입력이 end_time < start_time 인 행을 만들고,
-    // 그런 행은 달력의 슬롯 전개 루프에 걸리지 않아 예약이 통째로 안 보이게 된다.
-    // ('HH:MM' 는 제로패딩이라 문자열 정렬 = 시간순)
-    const times = [...input.times].sort()
-    const requestedMinutes = times.map(timeToMinutes)
-    if (requestedMinutes.some(m => !Number.isFinite(m))) {
-      return { success: false, error: '시간 형식이 올바르지 않습니다.' }
-    }
 
-    const startTime = times[0]
-    // endTime = 마지막 슬롯의 종료 시간 (마지막 슬롯 + 30분)
-    const endMinutes = requestedMinutes[requestedMinutes.length - 1] + 30
-    const endTime = `${String(Math.floor(endMinutes / 60)).padStart(2, '0')}:${String(endMinutes % 60).padStart(2, '0')}`
-
-    // 전화번호 정규화 (숫자만 저장)
-    const normalizedPhone = input.phone.replace(/[^0-9]/g, '')
-
-    // ===== 1. 사용자 종류 확정 =====
-    // input.isResident / input.household 는 localStorage 세션에서 오는 값이다.
-    // 무료 시간이 걸린 판정이므로 DB에 저장된 값으로 다시 확인한다.
+    const isSameDayBooking = input.bookingDate === kstNow.dateStr
     const serviceSupabase = await createServiceRoleClient()
 
-    let isResident = false
-    let household: string | null = null
-
-    if (input.userId) {
-      const { data: user, error: userError } = await serviceSupabase
-        .from('users')
-        .select('id, is_resident, household')
-        .eq('id', input.userId)
-        .maybeSingle()
-
-      if (userError) throw userError
-      if (!user) {
-        return { success: false, error: '사용자 정보를 확인할 수 없습니다. 다시 로그인해주세요.' }
-      }
-
-      isResident = !!user.is_resident
-      household = (user.household ?? '').trim() || null
-    }
-
-    const userKind = resolveUserKind({ userId: input.userId, isResident, household })
-    // member_type='member' 는 이 시스템에서 '온음 세대원'을 뜻한다 (로그인 회원 일반이 아니다).
-    const memberType: 'member' | 'non-member' = userKind === 'resident' ? 'member' : 'non-member'
-    const requestedHours = slotsToHours(times.length)
-    // 정책은 신청 시점이 아니라 '사용일' 기준으로 갈린다 (v2 = 2026-08-01 사용분부터).
-    const policyVersion = resolvePolicyVersion(input.bookingDate)
-
-    console.log('👤 예약 사용자 타입 해석', {
-      userId: input.userId,
-      isLoggedIn: input.isLoggedIn,
-      isResident,
-      household,
-      space: input.space,
-      requestedHours,
-      resolvedUserKind: userKind,
-      policyVersion,
-    })
-
-    // ===== 1-2. 당일 예약 검증 =====
-    // 온음 세대원만 당일 예약이 가능하고, 그것도 아직 시작하지 않은 시간대에 한한다.
-    // 세션(localStorage)의 isResident 는 위조될 수 있으므로 DB에서 다시 읽은 userKind 로 판정한다.
-    const isSameDayBooking = input.bookingDate === kstNow.dateStr
-    if (isSameDayBooking) {
-      if (userKind !== 'resident') {
-        // 문구는 종전과 동일하게 유지한다 — 비세대원에게 세대원 혜택을 노출하지 않는다.
-        console.log(`⛔ 당일 예약 차단(비세대원): ${input.bookingDate} / ${userKind}`)
-        return {
-          success: false,
-          error: '당일 예약은 불가능합니다. 최소 1일 전에 예약해주세요.'
-        }
-      }
-
-      // times 는 위에서 정렬해 뒀으므로 첫 원소가 가장 이른 슬롯이다.
-      if (requestedMinutes[0] <= kstNow.minutes) {
-        console.log(`⛔ 당일 예약 차단(지난 시간대): ${times.join(',')} / 현재 ${kstNow.hhmm}`)
-        return {
-          success: false,
-          error: `이미 시작된 시간대는 예약할 수 없습니다. 현재 시각 ${kstNow.hhmm} 이후 시간대를 선택해주세요.`
-        }
-      }
-    }
-
-    // 당일 예약은 결제가 필요한 순간 라이프사이클이 깨진다.
-    // autoCancelUnpaid(lib/cron/jobs.ts)가 booking_date <= 오늘 인 미입금 건을 매일 00:00 KST 에
-    // 취소하는데, 당일 예약은 그 시점이 '사용 후'다. 결과적으로 이미 쓴 세션이 조용히 취소되고
-    // 무료 시간은 세대 한도로 반환되며(migrations/031: status <> 'cancelled') 매출 기록도 사라진다.
-    // 그래서 당일은 무료/선불권으로 전액 커버되는 예약만 받는다.
-    // charge 는 아래에서 두 번 계산될 수 있으므로(무료시간 경합 재시도) 두 지점 모두에서 검사한다.
-    const rejectIfSameDayPaid = (c: BookingCharge) => {
-      if (!isSameDayBooking || c.amount <= 0) return null
-      console.log(`⛔ 당일 예약 차단(유료): ${input.bookingDate} / ${c.amount}원`)
-      return {
-        success: false as const,
-        error: '당일 예약은 무료 시간 또는 선불권으로 이용 가능한 범위에서만 가능합니다. 결제가 필요한 예약은 하루 전까지 신청해주세요.',
-      }
-    }
-
-    // ===== 2. 세대 무료 사용량 조회 (놀터 + 세대원일 때만) =====
-    // 한도는 신청 시점이 아니라 '사용일(booking_date)이 속한 달' 기준으로 판정한다.
-    let freeHoursUsedThisMonth = 0
-    let legacyNolterBookingCount = 0
-    if (userKind === 'resident' && input.space === 'nolter' && household) {
-      if (policyVersion === 'v2') {
-        const { monthStart } = monthRangeOf(input.bookingDate)
-        const { data: usedData, error: usedError } = await serviceSupabase.rpc(
-          'get_household_free_hours',
-          { p_household: household, p_month: monthStart }
-        )
-        if (usedError) throw usedError
-        freeHoursUsedThisMonth = round1(Number(usedData ?? 0))
-      } else {
-        legacyNolterBookingCount = await countHouseholdNolterBookings(
-          serviceSupabase,
-          household,
-          input.bookingDate
-        )
-      }
-    }
-
-    // ===== 3. 선불권 조회 =====
-    // 무료로 전부 커버되면 조회조차 하지 않는다.
-    // (세대원이 방음실을 예약할 때 선불권이 소진되던 문제를 막는다)
-    // v1의 세대원 놀터 예약은 무료 아니면 정액 10,000원이라 선불권이 개입하지 않는다.
-    const allowance = freeHoursAllowance(userKind, input.space)
-    const freeHoursLeft =
-      allowance === Infinity ? Infinity : Math.max(0, round1(allowance - freeHoursUsedThisMonth))
-    const canUsePrepaid = usesPrepaidHours(policyVersion, userKind, input.space)
-
-    let prepaidPurchases: PrepaidLike[] = []
-    if (input.userId && canUsePrepaid && requestedHours > freeHoursLeft) {
-      const { data: purchases, error: purchasesError } = await serviceSupabase
-        .from('prepaid_purchases')
-        .select('id, remaining_hours, expires_at, status')
-        .eq('user_id', input.userId)
-        .eq('status', 'paid')
-        .gt('remaining_hours', 0)
-        .gt('expires_at', new Date().toISOString())
-        .order('expires_at', { ascending: true })
-
-      if (purchasesError) throw purchasesError
-      prepaidPurchases = (purchases ?? []) as PrepaidLike[]
-
-      console.log('🎫 사용 가능한 선불권', {
-        userId: input.userId,
-        purchaseCount: prepaidPurchases.length,
-      })
-    }
-
-    // ===== 4. 과금 계산 (무료 → 선불권 → 현금) =====
-    let charge = computeBookingCharge({
-      userKind,
-      space: input.space,
-      bookingDate: input.bookingDate,
-      requestedHours,
-      freeHoursUsedThisMonth,
-      legacyNolterBookingCount,
-      prepaidPurchases,
-    })
-
-    console.log('💰 과금 계산 결과', { ...charge, breakdown: describeCharge(charge) })
-
-    const sameDayPaidRejection = rejectIfSameDayPaid(charge)
-    if (sameDayPaidRejection) return sameDayPaidRejection
-
-    // ===== 5. 예약 생성 (RPC 단일 경로) =====
-    let rpcResult = await createBookingViaRpc({
+    // 조회 → 과금 계산 → RPC 생성은 관리자 소급 등록과 공용이다 (lib/booking/create-core.ts).
+    // 이 경로에만 있는 판단(당일 차단)은 guards 로 주입한다.
+    const result = await createBookingCore({
       serviceSupabase,
-      input,
-      charge,
-      memberType,
-      household,
-      startTime,
-      endTime,
-      normalizedPhone,
+      input: {
+        bookingDate: input.bookingDate,
+        times: input.times,
+        space: input.space,
+        name: input.name,
+        phone: input.phone,
+        userId: input.userId,
+      },
+      guards: {
+        // ===== 당일 예약 검증 =====
+        // 온음 세대원만 당일 예약이 가능하고, 그것도 아직 시작하지 않은 시간대에 한한다.
+        // 세션(localStorage)의 isResident 는 위조될 수 있으므로 DB에서 다시 읽은 userKind 로 판정한다.
+        afterActorResolved: ({ actor, slots }) => {
+          console.log('👤 예약 사용자 타입 해석', {
+            userId: input.userId,
+            isLoggedIn: input.isLoggedIn,
+            isResident: actor.isResident,
+            household: actor.household,
+            space: input.space,
+            requestedHours: slots.requestedHours,
+            resolvedUserKind: actor.userKind,
+            policyVersion: actor.policyVersion,
+          })
+
+          if (!isSameDayBooking) return null
+
+          if (actor.userKind !== 'resident') {
+            // 문구는 종전과 동일하게 유지한다 — 비세대원에게 세대원 혜택을 노출하지 않는다.
+            console.log(`⛔ 당일 예약 차단(비세대원): ${input.bookingDate} / ${actor.userKind}`)
+            return '당일 예약은 불가능합니다. 최소 1일 전에 예약해주세요.'
+          }
+
+          // times 는 코어에서 정렬해 두므로 첫 원소가 가장 이른 슬롯이다.
+          if (slots.requestedMinutes[0] <= kstNow.minutes) {
+            console.log(`⛔ 당일 예약 차단(지난 시간대): ${slots.times.join(',')} / 현재 ${kstNow.hhmm}`)
+            return `이미 시작된 시간대는 예약할 수 없습니다. 현재 시각 ${kstNow.hhmm} 이후 시간대를 선택해주세요.`
+          }
+
+          return null
+        },
+
+        // 당일 예약은 결제가 필요한 순간 라이프사이클이 깨진다.
+        // autoCancelUnpaid(lib/cron/jobs.ts)가 booking_date <= 오늘 인 미입금 건을 매일 00:00 KST 에
+        // 취소하는데, 당일 예약은 그 시점이 '사용 후'다. 결과적으로 이미 쓴 세션이 조용히 취소되고
+        // 무료 시간은 세대 한도로 반환되며(migrations/031: status <> 'cancelled') 매출 기록도 사라진다.
+        // 그래서 당일은 무료/선불권으로 전액 커버되는 예약만 받는다.
+        // 무료시간 경합으로 재계산되면 이 콜백이 다시 호출되므로 두 지점 모두에서 검사된다.
+        afterCharge: ({ charge }) => {
+          console.log('💰 과금 계산 결과', { ...charge, breakdown: describeCharge(charge) })
+
+          if (!isSameDayBooking || charge.amount <= 0) return null
+          console.log(`⛔ 당일 예약 차단(유료): ${input.bookingDate} / ${charge.amount}원`)
+          return '당일 예약은 무료 시간 또는 선불권으로 이용 가능한 범위에서만 가능합니다. 결제가 필요한 예약은 하루 전까지 신청해주세요.'
+        },
+      },
     })
 
-    if (!rpcResult?.success && rpcResult?.code === 'FREE_HOURS_EXCEEDED') {
-      // 같은 세대의 동시 예약으로 무료 시간이 방금 줄었다.
-      // 서버가 알려준 실측값으로 재계산해 딱 한 번만 재시도한다.
-      console.warn('⚠️ 무료 시간 경합 감지, 재계산 후 1회 재시도', rpcResult)
-      charge = computeBookingCharge({
-        userKind,
-        space: input.space,
-        bookingDate: input.bookingDate,
-        requestedHours,
-        freeHoursUsedThisMonth: round1(Number(rpcResult.freeHoursUsed ?? 0)),
-        legacyNolterBookingCount,
-        prepaidPurchases,
-      })
-      // 같은 세대의 동시 예약으로 무료 시간이 줄면서 방금 유료로 바뀌었을 수 있다.
-      // 첫 RPC 는 이미 실패해 행이 생기지 않았으므로 여기서 반환해도 안전하다.
-      const retryRejection = rejectIfSameDayPaid(charge)
-      if (retryRejection) return retryRejection
-
-      rpcResult = await createBookingViaRpc({
-        serviceSupabase,
-        input,
-        charge,
-        memberType,
-        household,
-        startTime,
-        endTime,
-        normalizedPhone,
-      })
-    }
-
-    if (!rpcResult?.success) {
-      console.error('❌ 예약 생성 실패:', rpcResult)
-
-      // SLOT_TAKEN 은 '내 화면이 낡았다'는 뜻이다. 달력을 다시 읽지 않으면 사용자는
-      // 여전히 빈 슬롯을 보며 같은 시도를 반복하게 되므로, code 를 그대로 올려보내
+    if (!result.success) {
+      console.error('❌ 예약 생성 실패:', result)
+      // SLOT_TAKEN 은 '내 화면이 낡았다'는 뜻이다. code 를 그대로 올려보내
       // 클라이언트가 목록을 갱신하고 선택을 비울 수 있게 한다.
-      const message =
-        rpcResult?.code === 'SLOT_TAKEN'
-          ? rpcResult.error || '이미 예약된 시간대입니다.'
-          : rpcResult?.code === 'FREE_HOURS_EXCEEDED'
-            ? '세대 무료 시간이 방금 소진되었습니다. 새로고침 후 다시 시도해주세요.'
-            : rpcResult?.error || '예약 처리 중 오류가 발생했습니다.'
-
-      return { success: false, error: message, code: rpcResult?.code }
+      return { success: false, error: result.error, code: result.code }
     }
 
-    // ===== 6. 생성된 예약 조회 + 알림 =====
-    const { data, error: fetchError } = await serviceSupabase
-      .from('bookings')
-      .select('*')
-      .eq('id', rpcResult.bookingId)
-      .single()
+    console.log('✅ Booking created:', result.booking)
 
-    if (fetchError) throw fetchError
-
-    console.log('✅ Booking created:', data)
-
-    await sendBookingNotifications(data, input, normalizedPhone, charge)
+    await sendBookingNotifications(result.booking, input, result.normalizedPhone!, result.charge!)
 
     // 캘린더 갱신
     revalidatePath('/')
 
-    return { success: true, data }
+    return { success: true, data: result.booking }
   } catch (error: any) {
     console.error('❌ Create booking error:', error)
     return { success: false, error: error.message }
-  }
-}
-
-/**
- * [v1 전용] 세대의 해당 월 놀터 예약 '건수' (취소 제외).
- *
- * 종전 규정은 이용 시간이 아니라 예약 건수로 무료 3회를 판정했다.
- * 2026-08-01 이후 사용분에는 쓰이지 않는다.
- */
-async function countHouseholdNolterBookings(
-  serviceSupabase: any,
-  household: string,
-  bookingDate: string
-): Promise<number> {
-  const { monthStart, nextMonthStart } = monthRangeOf(bookingDate)
-
-  const { count, error } = await serviceSupabase
-    .from('bookings')
-    .select('*', { count: 'exact', head: true })
-    .eq('household', household)
-    .eq('space', 'nolter')
-    .neq('status', 'cancelled')
-    .gte('booking_date', monthStart)
-    .lt('booking_date', nextMonthStart)
-
-  if (error) throw error
-  return count ?? 0
-}
-
-interface CreateBookingRpcArgs {
-  serviceSupabase: any
-  input: CreateBookingInput
-  charge: BookingCharge
-  memberType: 'member' | 'non-member'
-  household: string | null
-  startTime: string
-  endTime: string
-  normalizedPhone: string
-}
-
-/**
- * 모든 예약이 지나가는 단일 생성 경로.
- *
- * RPC 안에서 무료 한도 검증 → 예약 INSERT → 선불권 차감이 한 트랜잭션으로 처리된다.
- * status / payment_status 는 RPC가 amount > 0 으로 판정한다.
- */
-async function createBookingViaRpc({
-  serviceSupabase,
-  input,
-  charge,
-  memberType,
-  household,
-  startTime,
-  endTime,
-  normalizedPhone,
-}: CreateBookingRpcArgs) {
-  const { data, error } = await serviceSupabase.rpc('create_booking_with_prepaid', {
-    p_booking_data: {
-      bookingDate: input.bookingDate,
-      startTime,
-      endTime,
-      space: input.space,
-      memberType,
-      household: household ?? '',
-      name: input.name,
-      phone: normalizedPhone,
-      userId: input.userId || '',
-      // 방음실 무제한 무료와 v1(건수제)은 20시간 원장을 소진하지 않으므로 0이 들어간다.
-      freeHoursUsed: charge.freeHoursUsedLedger,
-      freeHoursLimit: RESIDENT_NOLTER_FREE_HOURS_PER_MONTH,
-      prepaidHoursUsed: charge.prepaidHours,
-      regularHours: charge.regularHours,
-      paymentMethod: charge.paymentMethod,
-      amount: charge.amount,
-      piiConsentGiven: memberType === 'non-member',
-    },
-    p_deduction_plan: charge.deductionPlan,
-  })
-
-  if (error) throw error
-  return data as {
-    success: boolean
-    bookingId?: string
-    code?: string
-    error?: string
-    freeHoursUsed?: number
-    freeHoursLimit?: number
-    takenSlots?: string
   }
 }
 
