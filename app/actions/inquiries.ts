@@ -1,8 +1,9 @@
 'use server'
 
-import { supabase } from '@/lib/supabase'
 import { createServiceRoleClient } from '@/lib/supabase/server'
 import { sendNotification } from '@/lib/notifications/sender'
+import { maskPhone } from '@/lib/notifications/templates'
+import { assertAdmin } from '@/lib/admin-guard'
 
 export async function createInquiry(data: {
   name: string
@@ -12,6 +13,7 @@ export async function createInquiry(data: {
 }) {
   try {
     const normalizedPhone = data.phone.replace(/[^0-9]/g, '')
+    const supabase = await createServiceRoleClient()
 
     const { data: inquiry, error } = await supabase
       .from('inquiries')
@@ -49,13 +51,16 @@ export async function createInquiry(data: {
 
 export async function getInquiries() {
   try {
+    const supabase = await createServiceRoleClient()
     const { data, error } = await supabase
       .from('inquiries')
       .select('id, name, phone, content, answer, answered_at, created_at')
       .order('created_at', { ascending: false })
 
     if (error) throw error
-    return { success: true, data: data || [] }
+    // 공개 페이지(/inquiry)와 관리자 페이지가 함께 쓰므로, 브라우저로 원본 번호가
+    // 나가지 않도록 서버에서 마스킹해 반환한다.
+    return { success: true, data: (data ?? []).map(row => ({ ...row, phone: maskPhone(row.phone) })) }
   } catch (error: any) {
     return { success: false, error: error.message, data: [] }
   }
@@ -63,6 +68,9 @@ export async function getInquiries() {
 
 export async function answerInquiry(inquiryId: string, answer: string) {
   try {
+    const auth = await assertAdmin()
+    if (!auth.ok) return { success: false, error: auth.error }
+
     const adminClient = await createServiceRoleClient()
 
     // 문의자 정보 조회
@@ -103,6 +111,9 @@ export async function answerInquiry(inquiryId: string, answer: string) {
 
 export async function deleteInquiry(inquiryId: string) {
   try {
+    const auth = await assertAdmin()
+    if (!auth.ok) return { success: false, error: auth.error }
+
     const adminClient = await createServiceRoleClient()
     const { error } = await adminClient
       .from('inquiries')

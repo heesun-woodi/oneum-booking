@@ -1,7 +1,6 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
-import { revalidatePath } from 'next/cache'
+import { createServiceRoleClient } from '@/lib/supabase/server'
 
 // ===== 타입 정의 =====
 
@@ -33,8 +32,8 @@ export interface GeneralRules {
 // ===== 공간 정보 =====
 
 export async function getSpacesInfo(): Promise<{ success: boolean; data?: SpacesInfo; error?: string }> {
-  const supabase = await createClient()
-  
+  const supabase = await createServiceRoleClient()
+
   const { data, error } = await supabase
     .from('site_settings')
     .select('value')
@@ -59,35 +58,11 @@ export async function getSpacesInfo(): Promise<{ success: boolean; data?: Spaces
   }
 }
 
-export async function updateSpacesInfo(spacesInfo: SpacesInfo): Promise<{ success: boolean; error?: string }> {
-  const supabase = await createClient()
-  
-  const { error } = await supabase
-    .from('site_settings')
-    .upsert({
-      key: 'spaces_info',
-      value: JSON.stringify(spacesInfo),
-      updated_at: new Date().toISOString()
-    }, {
-      onConflict: 'key'
-    })
-
-  if (error) {
-    console.error('Failed to update spaces info:', error)
-    return { success: false, error: error.message }
-  }
-
-  revalidatePath('/')
-  revalidatePath('/admin/settings')
-  
-  return { success: true }
-}
-
 // ===== 이용 규칙 =====
 
 export async function getGeneralRulesFromDB(): Promise<{ success: boolean; data?: GeneralRules; error?: string }> {
-  const supabase = await createClient()
-  
+  const supabase = await createServiceRoleClient()
+
   const { data, error } = await supabase
     .from('site_settings')
     .select('value')
@@ -109,30 +84,6 @@ export async function getGeneralRulesFromDB(): Promise<{ success: boolean; data?
     console.error('Failed to parse general rules:', e)
     return { success: true, data: getDefaultGeneralRules() }
   }
-}
-
-export async function updateGeneralRules(rules: GeneralRules): Promise<{ success: boolean; error?: string }> {
-  const supabase = await createClient()
-  
-  const { error } = await supabase
-    .from('site_settings')
-    .upsert({
-      key: 'general_rules',
-      value: JSON.stringify(rules),
-      updated_at: new Date().toISOString()
-    }, {
-      onConflict: 'key'
-    })
-
-  if (error) {
-    console.error('Failed to update general rules:', error)
-    return { success: false, error: error.message }
-  }
-
-  revalidatePath('/')
-  revalidatePath('/admin/settings')
-  
-  return { success: true }
 }
 
 // ===== 기본값 =====

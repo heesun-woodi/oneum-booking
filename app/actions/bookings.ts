@@ -223,9 +223,15 @@ export async function getBookings(
 
     console.log('📅 Fetching bookings:', { year, month, space, startDate, endDate, showNames })
 
+    // postgrest-js 는 select() 인자가 문자열 리터럴 타입이면 컴파일 타임에 파싱해 결과 타입을
+    // 만든다. 삼항식이 만드는 두 리터럴 타입의 합집합은 이 파서가 못 풀어 빌드가 깨지므로,
+    // 여기서는 결과 타입을 명시적으로 any 로 지정해 컴파일 타임 파싱을 우회한다
+    // (아래 return 문의 화이트리스트 자체가 응답 컬럼을 통제하므로 런타임 동작·보안은 동일).
+    const selectColumns: string = showNames ? `${PUBLIC_CALENDAR_COLUMNS}, name` : PUBLIC_CALENDAR_COLUMNS
+
     const { data, error } = await supabase
       .from('bookings')
-      .select(showNames ? `${PUBLIC_CALENDAR_COLUMNS}, name` : PUBLIC_CALENDAR_COLUMNS)
+      .select<string, any>(selectColumns)
       .eq('space', space)
       .gte('booking_date', startDate)
       .lte('booking_date', endDate)

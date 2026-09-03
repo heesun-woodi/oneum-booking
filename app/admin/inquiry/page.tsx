@@ -13,12 +13,6 @@ interface Inquiry {
   created_at: string
 }
 
-function maskPhone(phone: string): string {
-  const n = phone.replace(/[^0-9]/g, '')
-  if (n.length === 11) return n.replace(/(\d{3})(\d{4})(\d{4})/, '$1-****-$3')
-  return phone
-}
-
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr)
   return d.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })
@@ -95,7 +89,7 @@ export default function AdminInquiryPage() {
               <div className="flex items-start justify-between mb-3">
                 <div>
                   <span className="font-medium text-gray-800">{inquiry.name}</span>
-                  <span className="text-gray-400 text-sm ml-2">{maskPhone(inquiry.phone)}</span>
+                  <span className="text-gray-400 text-sm ml-2">{inquiry.phone}</span>
                   <span className="text-gray-400 text-xs ml-2">{formatDate(inquiry.created_at)}</span>
                 </div>
                 <button

@@ -40,10 +40,12 @@ interface Booking {
   start_time: string
   end_time: string
   space: string
-  member_type: string
+  // member_type/phone 은 서버 컬럼 화이트리스트(MEMBER_BOOKING_COLUMNS)가 응답에 싣지 않는
+  // 필드라 항상 있는 값이 아니다 — 옵셔널로 둔다.
+  member_type?: string
   household?: string
   name: string
-  phone: string
+  phone?: string
   status: string
   amount: number
 }

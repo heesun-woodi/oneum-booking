@@ -53,8 +53,7 @@ app/
     PrepaidPurchaseModal.tsx
     space-gallery/      # SpaceGallery, GallerySlide, GalleryNav, Lightbox
 lib/
-  supabase.ts           # Browser client
-  supabase/server.ts    # createClient() and createServiceRoleClient()
+  supabase/server.ts    # createServiceRoleClient() — 유일한 Supabase 클라이언트
   auth.ts
   solapi.ts             # SMS via SOLAPI (replaces deprecated lib/aligo.ts)
   phone-utils.ts
@@ -64,17 +63,18 @@ lib/
   notifications/sender.ts, templates.ts
   cron/jobs.ts, wrapper.ts
   types/prepaid.ts
-supabase/migrations/    # SQL migration files (001–031)
+supabase/migrations/    # SQL migration files (001–036)
 ```
 
 ### Data Flow
 
 All user-facing data mutations go through **Server Actions** (`app/actions/`), not API routes. API routes are used only for prepaid REST endpoints and cron jobs.
 
-The Supabase client pattern:
-- `lib/supabase.ts` — browser/client components
-- `lib/supabase/server.ts` → `createClient()` — server actions (respects RLS)
-- `lib/supabase/server.ts` → `createServiceRoleClient()` — admin operations that bypass RLS (server-only)
+The Supabase client pattern — **single client, no exceptions**:
+- `lib/supabase/server.ts` → `createServiceRoleClient()` is the only Supabase client in the codebase. There is no anon/browser client and no `createClient()`. The anon key is `NEXT_PUBLIC_` (a public value shipped in the browser bundle), and this app uses custom auth — not Supabase Auth — so an anon client would never carry any user context anyway. Migration `036` revokes anon's `public` schema grants entirely.
+- `service_role` bypasses RLS, so authorization is entirely the code's responsibility, not the database's:
+  - Admin-only actions call `assertAdmin()` (`lib/admin-guard.ts`), which re-checks the caller's admin status in the DB on every call (identity comes from an httpOnly signed cookie, not a client-supplied id — see Authentication below).
+  - Public-facing actions must never `select('*')`; they read through an explicit column whitelist (`PUBLIC_CALENDAR_COLUMNS`, `MEMBER_BOOKING_COLUMNS` in `app/actions/bookings.ts`) so sensitive columns (`phone`, `user_id`, `household`, `admin_note`, …) never reach a response that doesn't need them.
 
 ### Prepaid Ticket System (Phase 6.5)
 
@@ -113,6 +113,8 @@ Two policy versions coexist, selected by **`booking_date`** (the use date, never
 
 Custom auth (not Supabase Auth). Users table with `password_hash` (bcryptjs). Admin auth is separate (`app/admin/login/`). New user accounts start as `status: 'pending'` and require admin approval.
 
+Admin identity is an httpOnly HMAC-signed cookie (`lib/admin-session.ts`); `assertAdmin()` re-checks the caller's admin privileges against the DB on every call, not just on login.
+
 ### SMS Notifications
 
 SOLAPI (`lib/solapi.ts`) is the active SMS provider. `lib/aligo.ts` is deprecated. Notifications are sent on booking confirmation and prepaid refunds. Templates are stored in the `message_templates` DB table and managed via the admin UI.
@@ -127,7 +129,18 @@ Migrations live in `supabase/migrations/` and must be run manually against the S
 - `018` — prepaid payment status
 - `023` — resident policy v1: 놀터 3 free bookings/month (superseded by `031`)
 - `028`/`029` — NUMERIC(10,1) hours + RPC update
-- `031` — **current**: household 20 free hours/month (effective for `booking_date >= 2026-08-01`), `free_hours_used` ledger, quota guard in the RPC
+- `031` — household 20 free hours/month (effective for `booking_date >= 2026-08-01`), `free_hours_used` ledger, quota guard in the RPC
+- `035` — 관리자 소급 등록(`created_by_admin`/`admin_note`)
+- `036` — **현재**: public 스키마 anon 권한 전면 회수(예정) — 이 앱은 이제 anon 클라이언트를 아예 쓰지 않으므로, anon/authenticated 역할에 남아있던 테이블·RPC 권한을 전부 회수한다.
+
+**새 마이그레이션 작성 규칙**:
+- 모든 `CREATE [OR REPLACE] FUNCTION` 뒤에는 반드시 다음을 붙인다:
+  ```sql
+  REVOKE EXECUTE ON FUNCTION <sig> FROM PUBLIC, anon, authenticated;
+  GRANT EXECUTE ON FUNCTION <sig> TO service_role;
+  ```
+  `GRANT ... TO anon` / `GRANT ... TO authenticated` 는 금지 — 이 앱은 anon 클라이언트를 쓰지 않는다.
+- 새 테이블은 `ALTER TABLE ... ENABLE ROW LEVEL SECURITY`, `REVOKE ALL ON <table> FROM anon, authenticated`, `COMMENT ON TABLE` 를 세트로 붙인다. RLS 정책(`CREATE POLICY`)은 만들지 않는다 — 모든 접근이 `service_role`(RLS 우회)을 거치므로 정책은 죽은 코드가 된다.
 
 ### Key Conventions
 
