@@ -7,6 +7,12 @@ import { createServiceRoleClient } from '@/lib/supabase/server'
 import bcrypt from 'bcryptjs'
 import { sendNotification } from '@/lib/notifications/sender'
 import { solapi } from '@/lib/solapi'
+import { cookies } from 'next/headers'
+import {
+  ADMIN_SESSION_COOKIE,
+  adminSessionCookieOptions,
+  createAdminSessionToken,
+} from '@/lib/admin-session'
 
 export async function signup(data: {
   household: string
@@ -136,6 +142,15 @@ export async function adminLogin(data: {
       return { success: false, error: '비밀번호가 올바르지 않습니다.' }
     }
 
+    // 관리자 신원은 여기서 발급한 httpOnly 서명 쿠키로만 증명된다.
+    // 아래 session 은 화면 표시용일 뿐, 서버 액션의 권한 근거가 아니다
+    // (localStorage 의 id 를 믿으면 공개된 관리자 UUID 로 누구나 관리자가 된다).
+    cookies().set(
+      ADMIN_SESSION_COOKIE,
+      createAdminSessionToken(user.id),
+      adminSessionCookieOptions()
+    )
+
     return {
       success: true,
       session: {
@@ -150,6 +165,12 @@ export async function adminLogin(data: {
     console.error('Admin login error:', err)
     return { success: false, error: '로그인 중 오류가 발생했습니다.' }
   }
+}
+
+/** 관리자 세션 쿠키 파기. localStorage 만 지우면 서버 쪽 신원은 살아 있다. */
+export async function adminSignOut() {
+  cookies().delete(ADMIN_SESSION_COOKIE)
+  return { success: true }
 }
 
 export async function login(data: {
