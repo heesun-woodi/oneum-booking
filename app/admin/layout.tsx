@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
+import { adminSignOut } from '@/app/actions/auth'
 
 interface AdminSession {
   id: string
@@ -47,7 +48,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     setLoading(false)
   }, [pathname, router])
   
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    // localStorage 만 지우면 서버 쪽 관리자 쿠키가 살아 있어 액션이 계속 통과한다.
+    await adminSignOut()
     localStorage.removeItem('adminSession')
     router.push('/admin/login')
   }

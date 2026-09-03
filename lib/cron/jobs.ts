@@ -37,8 +37,26 @@ export async function autoCancelUnpaid(): Promise<{
 
   const serviceSupabase = await createServiceRoleClient()
 
+  // 지난 사용분의 관리자 소급 등록은 이 청소의 대상이 아니다.
+  // 이 크론의 목적은 '입금하지 않은 예약의 슬롯을 사용 전에 회수하는 것'인데,
+  // 소급 등록은 이미 사용이 끝난 건이라 회수할 슬롯이 없다.
+  // 걸러내지 않으면 등록한 그날 밤 00:00 에 조용히 취소되고 선불권까지 되돌아간다.
+  //
+  // 조건을 '관리자 생성'이 아니라 '지난 사용분'으로 좁힌 이유:
+  // 그냥 created_by_admin 만 보면, 실수로 오늘/미래 날짜가 들어온 유료 건이
+  // 영원히 취소되지 않아 슬롯이 무기한 잠긴다. 그런 행은 여기서 정리되어야 한다.
+  // (created_by_admin 은 마이그레이션 035 에서 추가된다. 아직 없으면 undefined 라
+  //  전부 통과해 종전 동작이 유지되므로 배포 순서에 안전하다)
+  const targets = bookings.filter(
+    (booking: any) => !(booking.created_by_admin && booking.booking_date < kstToday)
+  )
+  const skipped = bookings.length - targets.length
+  if (skipped > 0) {
+    console.log(`자동 취소 제외(관리자 소급 등록): ${skipped}건`)
+  }
+
   // 일괄 취소
-  for (const booking of bookings) {
+  for (const booking of targets) {
     // 선불권이 일부라도 차감된 예약(mixed 결제)은 반드시 RPC로 취소해야
     // prepaid_purchases.remaining_hours 가 함께 복구된다.
     if ((booking.prepaid_hours_used ?? 0) > 0) {
@@ -76,7 +94,7 @@ export async function autoCancelUnpaid(): Promise<{
     console.log(`자동 취소: ${booking.id} - ${booking.name}`)
   }
 
-  return { cancelled: bookings.length }
+  return { cancelled: targets.length }
 }
 
 /**
