@@ -1,8 +1,9 @@
 /**
  * 크론 작업 핸들러들
+ *
+ * 이 파일의 모든 Supabase 클라이언트는 service role 이다. anon 키는 공개 값이라 서버에서 쓰지 않는다(036 에서 권한 회수).
  */
 
-import { supabase } from '../supabase'
 import { createServiceRoleClient } from '../supabase/server'
 import { sendNotification } from '../notifications/sender'
 import { formatBookingList, formatPrepaidSummaryVars } from '../notifications/templates'
@@ -20,9 +21,11 @@ export async function autoCancelUnpaid(): Promise<{
     .toISOString()
     .split('T')[0]
 
+  const serviceSupabase = await createServiceRoleClient()
+
   // 사용일이 '오늘(KST) 이하'인 미입금 예약 조회 (비회원 + 놀터 유료 회원)
   // .lte로 조회해, 전날 늦게 잡아 검사 창을 놓친 건과 과거 잔여분까지 함께 정리한다.
-  const { data: bookings, error } = await supabase
+  const { data: bookings, error } = await serviceSupabase
     .from('bookings')
     .select('*')
     .eq('payment_status', 'pending')
@@ -34,8 +37,6 @@ export async function autoCancelUnpaid(): Promise<{
     console.error('미입금 예약 조회 실패:', error)
     return { cancelled: 0 }
   }
-
-  const serviceSupabase = await createServiceRoleClient()
 
   // 지난 사용분의 관리자 소급 등록은 이 청소의 대상이 아니다.
   // 이 크론의 목적은 '입금하지 않은 예약의 슬롯을 사용 전에 회수하는 것'인데,
@@ -82,7 +83,7 @@ export async function autoCancelUnpaid(): Promise<{
       continue
     }
 
-    await supabase
+    await serviceSupabase
       .from('bookings')
       .update({
         status: 'cancelled',
@@ -103,6 +104,7 @@ export async function autoCancelUnpaid(): Promise<{
 export async function dayBeforeReminder(): Promise<{
   sent: number
 }> {
+  const supabase = await createServiceRoleClient()
   const tomorrow = new Date()
   tomorrow.setDate(tomorrow.getDate() + 1)
   const tomorrowStr = tomorrow.toISOString().split('T')[0]
@@ -168,6 +170,7 @@ export async function dayBeforeReminder(): Promise<{
 export async function paymentReminder(daysUntil: number = 7): Promise<{
   sent: number
 }> {
+  const supabase = await createServiceRoleClient()
   const targetDate = new Date()
   targetDate.setDate(targetDate.getDate() + daysUntil)
   const targetDateStr = targetDate.toISOString().split('T')[0]
@@ -222,6 +225,7 @@ export async function paymentReminder(daysUntil: number = 7): Promise<{
 export async function financeAlert(): Promise<{
   sent: number
 }> {
+  const supabase = await createServiceRoleClient()
   // 내일(D+1) 미입금 예약을 재무담당자에게 알림 (자정 자동취소 직전 마지막 heads-up).
   // 당일 미입금(기존 first/follow)은 사용일 당일 00:00 자동취소로 대상이 사라져 제거함.
   const targetDate = new Date()
@@ -438,6 +442,7 @@ export async function prepaidPaymentGuide(): Promise<{ sent: number }> {
 export async function sameDayReminder(): Promise<{
   sent: number
 }> {
+  const supabase = await createServiceRoleClient()
   const now = new Date()
   const todayStr = now.toISOString().split('T')[0]
 

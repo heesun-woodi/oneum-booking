@@ -4,7 +4,6 @@
 import { normalizePhone } from '../phone-utils'
 
 import { solapi } from '../solapi'
-import { supabase } from '../supabase'
 import { createServiceRoleClient } from '../supabase/server'
 import { isPushConfigured, sendPushToUser } from '../push/server'
 import {
@@ -53,11 +52,12 @@ function applyDbTemplateVariables(content: string, variables: TemplateVariables)
 }
 
 /**
- * DB에서 활성화된 템플릿 조회 (RLS: 누구나 SELECT 가능)
+ * DB에서 활성화된 템플릿 조회
  */
 async function fetchDbTemplate(
   type: string
 ): Promise<{ title: string; content: string } | null> {
+  const supabase = await createServiceRoleClient()
   const { data, error } = await supabase
     .from('message_templates')
     .select('title, content')
@@ -92,6 +92,7 @@ export async function sendNotification(
   params: SendNotificationParams
 ): Promise<SendNotificationResult> {
   const { type, phone, variables, bookingId, userId, scheduledAt, recipientName } = params
+  const supabase = await createServiceRoleClient()
 
   try {
     // 1. 메시지 템플릿 가져오기 (DB 우선, 없으면 하드코딩 폴백)
@@ -203,76 +204,4 @@ export async function sendNotification(
       error: error.message || '알 수 없는 오류',
     }
   }
-}
-
-/**
- * 예약 발송 처리 (크론에서 호출)
- */
-export async function processScheduledNotifications(): Promise<{
-  processed: number
-  failed: number
-}> {
-  try {
-    const now = new Date()
-
-    // 발송 대기 중인 알림 조회
-    const { data: logs, error } = await supabase
-      .from('notification_logs')
-      .select('*')
-      .eq('status', 'pending')
-      .lte('scheduled_at', now.toISOString())
-      .limit(100)
-
-    if (error) throw error
-    if (!logs || logs.length === 0) return { processed: 0, failed: 0 }
-
-    let processed = 0
-    let failed = 0
-
-    for (const log of logs) {
-      // 메시지 재구성 (로그에서 변수 복원 필요 - 추후 개선)
-      // 지금은 예약 발송을 크론에서 직접 처리하므로 이 함수는 나중에 사용
-
-      processed++
-    }
-
-    return { processed, failed }
-  } catch (error) {
-    console.error('예약 발송 처리 실패:', error)
-    return { processed: 0, failed: 0 }
-  }
-}
-
-/**
- * 발송 통계
- */
-export async function getNotificationStats(startDate?: Date, endDate?: Date) {
-  const query = supabase
-    .from('notification_logs')
-    .select('status, message_type, created_at')
-
-  if (startDate) {
-    query.gte('created_at', startDate.toISOString())
-  }
-  if (endDate) {
-    query.lte('created_at', endDate.toISOString())
-  }
-
-  const { data, error } = await query
-
-  if (error) throw error
-
-  const stats = {
-    total: data?.length || 0,
-    sent: data?.filter((l: any) => l.status === 'sent').length || 0,
-    failed: data?.filter((l: any) => l.status === 'failed').length || 0,
-    pending: data?.filter((l: any) => l.status === 'pending').length || 0,
-    byType: {} as Record<string, number>,
-  }
-
-  data?.forEach((log: any) => {
-    stats.byType[log.message_type] = (stats.byType[log.message_type] || 0) + 1
-  })
-
-  return stats
 }
