@@ -28,12 +28,14 @@ interface UserSession {
   isResident?: boolean
 }
 
+// app/actions/bookings.ts 의 MEMBER_BOOKING_COLUMNS 와 1:1 로 맞춘다.
 interface Booking {
   id: string
   booking_date: string
   start_time: string
   end_time: string
   space: string
+  name: string
   status: string
   amount: number
   payment_status: string

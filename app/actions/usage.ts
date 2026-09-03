@@ -1,6 +1,6 @@
 'use server'
 
-import { supabase } from '@/lib/supabase'
+import { createServiceRoleClient } from '@/lib/supabase/server'
 
 export interface UsageCount {
   household: string
@@ -27,6 +27,7 @@ export async function getMonthlyUsage(
   error?: string
 }> {
   try {
+    const supabase = await createServiceRoleClient()
     const targetMonth = month || new Date().toISOString().substring(0, 7)
 
     // 월별 이용 횟수 조회
@@ -86,78 +87,6 @@ export async function getMonthlyUsage(
   } catch (error: any) {
     console.error('이용 횟수 조회 실패:', error)
     return { success: false, usage: [], error: error.message }
-  }
-}
-
-/**
- * 전체 세대 이용 현황 (관리자용)
- */
-export async function getAllHouseholdUsage(
-  month?: string
-): Promise<{
-  success: boolean
-  usages: UsageCount[]
-  error?: string
-}> {
-  try {
-    const targetMonth = month || new Date().toISOString().substring(0, 7)
-
-    // 전체 세대 이용 횟수 조회
-    const { data: usageData, error: usageError } = await supabase
-      .from('monthly_usage')
-      .select('*')
-      .gte('month', `${targetMonth}-01`)
-      .lt('month', `${getNextMonth(targetMonth)}-01`)
-      .order('household', { ascending: true })
-
-    if (usageError) {
-      return { success: false, usages: [], error: usageError.message }
-    }
-
-    // 당일 취소 횟수 조회
-    const { data: cancelledData, error: cancelledError } = await supabase
-      .from('cancelled_same_day')
-      .select('*')
-      .gte('month', `${targetMonth}-01`)
-      .lt('month', `${getNextMonth(targetMonth)}-01`)
-
-    if (cancelledError) {
-      return { success: false, usages: [], error: cancelledError.message }
-    }
-
-    // 결합
-    const usageMap = new Map<string, UsageCount>()
-
-    usageData?.forEach((u: any) => {
-      const key = `${u.household}-${u.space}`
-      usageMap.set(key, {
-        household: u.household,
-        space: u.space,
-        month: targetMonth,
-        count: u.usage_count,
-        cancelledSameDay: 0,
-        effectiveCount: u.usage_count,
-        bookedHours: Number(u.booked_hours ?? 0),
-        freeHours: Number(u.free_hours ?? 0),
-      })
-    })
-
-    cancelledData?.forEach((c: any) => {
-      const key = `${c.household}-${c.space}`
-      const existing = usageMap.get(key)
-      if (existing) {
-        existing.cancelledSameDay = c.cancelled_count
-        existing.effectiveCount = existing.count + c.cancelled_count
-      }
-    })
-
-    return {
-      success: true,
-      usages: Array.from(usageMap.values()),
-    }
-  } catch (error: any) {
-    console.error('전체 이용 현황 조회 실패:', error)
-    return { success: false, usages: [], error: error.message }
   }
 }
 

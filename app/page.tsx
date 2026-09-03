@@ -157,9 +157,12 @@ export default function Home() {
 
   // ===== 예약 데이터 로드 (DB에서) =====
 
+  // userSession.userId 가 deps 에 있어야 한다 — 예약자 이름을 실을지는 이제 서버가 뷰어 id 로 판정하므로,
+  // 로그인이 늦게 복원되는 첫 렌더에서 익명으로 읽은 목록이 그대로 남으면 세대원에게도 '예약됨'만 보인다.
   useEffect(() => {
     loadBookings()
-  }, [currentMonth, selectedSpace])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentMonth, selectedSpace, userSession.userId])
 
   useEffect(() => {
     async function loadSettingsData() {
@@ -216,7 +219,7 @@ export default function Home() {
     const year = currentMonth.getFullYear()
     const month = currentMonth.getMonth() + 1
     console.log('📥 예약 데이터 로드 중...')
-    const result = await getBookings(year, month, selectedSpace)
+    const result = await getBookings(year, month, selectedSpace, userSession.userId)
     if (result.success) {
       setBookingsData(result.data)
       console.log('✅ 예약 데이터 로드 완료:', result.data.length, '건')

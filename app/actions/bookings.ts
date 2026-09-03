@@ -1,6 +1,5 @@
 'use server'
 
-import { supabase } from '@/lib/supabase'
 import { createServiceRoleClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { sendNotification } from '@/lib/notifications/sender'
@@ -12,11 +11,63 @@ import {
   describeCharge,
   monthRangeOf,
   resolvePolicyVersion,
+  resolveUserKind,
   round1,
 } from '@/lib/booking-policy'
 // 조회 → 과금 계산 → RPC 생성 파이프라인은 관리자 소급 등록과 공용이다.
 import { createBookingCore } from '@/lib/booking/create-core'
 import { getKstNow } from '@/lib/date-kst'
+
+// ===== 응답 컬럼 화이트리스트 =====
+// 이 액션들은 모두 service role 로 읽는다. service role 은 RLS 를 우회하므로
+// '무엇을 응답에 싣는가'는 전적으로 여기의 select 목록이 책임진다.
+// select('*') 를 쓰면 phone / user_id / household / admin_note 까지 공개 달력으로 흘러간다.
+
+/** 공개 달력이 실제로 읽는 컬럼. 이름은 세대원에게만 조건부로 더한다. */
+const PUBLIC_CALENDAR_COLUMNS = 'booking_date, space, start_time, end_time'
+/** 회원 본인 조회(mypage·예약관리 모달)가 읽는 컬럼. phone/user_id/household/admin_note 는 싣지 않는다. */
+const MEMBER_BOOKING_COLUMNS =
+  'id, booking_date, start_time, end_time, space, name, status, amount, payment_status, prepaid_hours_used'
+
+/** 'id' 컬럼에 넣어도 PostgREST 가 22P02 로 죽지 않는 uuid 형식인지 */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/**
+ * 달력에 예약자 '이름'을 실어도 되는 뷰어인가 — 승인된 온음 세대원만 true.
+ *
+ * 지금까지 이 판정은 클라이언트(app/page.tsx 의 isMember)에만 있었는데,
+ * 그건 렌더링 분기일 뿐 보호가 아니었다. 서버가 이름을 담아 내려보내는 이상
+ * 비로그인 방문자도 네트워크 응답에서 전체 예약자 명단을 그대로 읽을 수 있었다.
+ * 그래서 '이름을 실을지'를 서버에서 결정한다.
+ *
+ * 세대원 판정 기준은 예약 과금과 동일한 resolveUserKind() 를 쓴다 (is_resident && household).
+ * 거기에 계정 상태(approved / 미삭제)만 더한다.
+ */
+async function canSeeBookerNames(
+  supabase: Awaited<ReturnType<typeof createServiceRoleClient>>,
+  viewerUserId?: string
+): Promise<boolean> {
+  // 형식이 어긋난 uuid 를 .eq('id', …) 에 넣으면 PostgREST 가 22P02 로 실패해
+  // 달력 조회 전체가 죽는다. 조용히 익명 취급한다.
+  if (!viewerUserId || !UUID_RE.test(viewerUserId)) return false
+
+  const { data, error } = await supabase
+    .from('users')
+    .select('is_resident, household, status, deleted_at')
+    .eq('id', viewerUserId)
+    .maybeSingle()
+
+  if (error || !data) return false
+  if (data.status !== 'approved' || data.deleted_at) return false
+
+  return (
+    resolveUserKind({
+      userId: viewerUserId,
+      isResident: data.is_resident,
+      household: data.household,
+    }) === 'resident'
+  )
+}
 
 export interface CreateBookingInput {
   bookingDate: string        // YYYY-MM-DD
@@ -150,18 +201,31 @@ export async function createBooking(input: CreateBookingInput) {
   }
 }
 
-export async function getBookings(year: number, month: number, space: string) {
+/**
+ * 공개 달력용 예약 조회.
+ *
+ * @param viewerUserId 로그인한 사용자의 id(선택). 승인된 세대원일 때만 예약자 이름을 함께 내려준다.
+ */
+export async function getBookings(
+  year: number,
+  month: number,
+  space: string,
+  viewerUserId?: string
+) {
   try {
+    const supabase = await createServiceRoleClient()
     const startDate = `${year}-${String(month).padStart(2, '0')}-01`
     // 해당 월의 마지막 날 계산 (Date(year, month, 0) = 이전 달의 마지막 날)
     const lastDay = new Date(year, month, 0).getDate()
     const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
-    
-    console.log('📅 Fetching bookings:', { year, month, space, startDate, endDate })
-    
+
+    const showNames = await canSeeBookerNames(supabase, viewerUserId)
+
+    console.log('📅 Fetching bookings:', { year, month, space, startDate, endDate, showNames })
+
     const { data, error } = await supabase
       .from('bookings')
-      .select('*')
+      .select(showNames ? `${PUBLIC_CALENDAR_COLUMNS}, name` : PUBLIC_CALENDAR_COLUMNS)
       .eq('space', space)
       .gte('booking_date', startDate)
       .lte('booking_date', endDate)
@@ -184,8 +248,9 @@ export async function getBookings(year: number, month: number, space: string) {
 // ===== 전화번호로 예약 조회 =====
 export async function getBookingsByPhone(phone: string) {
   try {
+    const supabase = await createServiceRoleClient()
     console.log('🔍 Fetching bookings for phone:', phone)
-    
+
     // 전화번호 정규화 (숫자만 추출)
     const normalizedPhone = phone.replace(/[^0-9]/g, '')
     
@@ -196,7 +261,7 @@ export async function getBookingsByPhone(phone: string) {
     
     const { data, error } = await supabase
       .from('bookings')
-      .select('*')
+      .select(MEMBER_BOOKING_COLUMNS)
       .eq('phone', normalizedPhone)
       .in('status', ['confirmed', 'pending'])
       .gte('booking_date', todayStr)
@@ -219,8 +284,13 @@ export async function getBookingsByPhone(phone: string) {
 export async function cancelBooking(bookingId: string) {
   try {
     console.log('🗑️ Cancelling booking:', bookingId)
-    
+
+    // 조회·업데이트·RPC 를 하나의 service role 클라이언트로 통일한다.
+    // (아래 선불권 복구 RPC 가 service role 을 요구하는데, 예전엔 조회/업데이트만 anon 이었다)
+    const supabase = await createServiceRoleClient()
+
     // 예약 존재 여부 확인
+    // 여기의 booking 은 알림 문구·분기용 내부 값이고 응답으로 돌려주지 않으므로 '*' 그대로 둔다.
     const { data: booking, error: checkError } = await supabase
       .from('bookings')
       .select('*')
@@ -242,8 +312,7 @@ export async function cancelBooking(bookingId: string) {
       // ⚠️ 반드시 service role 로 호출할 것. anon 키로 호출하면 prepaid_purchases/prepaid_usages
       //    RLS(auth.uid() 기반 — 이 앱은 커스텀 인증이라 항상 NULL)에 걸려 복구 UPDATE/DELETE 가
       //    에러 없이 0건 처리되고, 예약만 취소된 채 선불권 시간이 영구 유실된다.
-      const serviceSupabase = await createServiceRoleClient()
-      const { data: rpcData, error: rpcError } = await serviceSupabase
+      const { data: rpcData, error: rpcError } = await supabase
         .rpc('cancel_booking_restore_prepaid', { p_booking_id: bookingId })
 
       if (rpcError) {
@@ -330,13 +399,14 @@ export async function cancelBooking(bookingId: string) {
 // ===== 세대별 예약 조회 =====
 export async function getBookingsByHousehold(household: string) {
   try {
+    const supabase = await createServiceRoleClient()
     console.log('🏠 Fetching bookings by household:', household)
-    
+
     const today = new Date().toISOString().split('T')[0]
-    
+
     const { data, error } = await supabase
       .from('bookings')
-      .select('*')
+      .select(MEMBER_BOOKING_COLUMNS)
       .eq('household', household)
       .in('status', ['confirmed', 'pending'])
       .gte('booking_date', today)
@@ -357,11 +427,12 @@ export async function getBookingsByHousehold(household: string) {
 
 export async function getPastBookingsByHousehold(household: string) {
   try {
+    const supabase = await createServiceRoleClient()
     const today = new Date().toISOString().split('T')[0]
 
     const { data, error } = await supabase
       .from('bookings')
-      .select('*')
+      .select(MEMBER_BOOKING_COLUMNS)
       .eq('household', household)
       .lt('booking_date', today)
       .in('status', ['confirmed', 'completed', 'cancelled'])
@@ -378,10 +449,11 @@ export async function getPastBookingsByHousehold(household: string) {
 // ===== userId 기반 예약 조회 (비세대원용) =====
 export async function getBookingsByUserId(userId: string) {
   try {
+    const supabase = await createServiceRoleClient()
     const today = new Date().toISOString().split('T')[0]
     const { data, error } = await supabase
       .from('bookings')
-      .select('*')
+      .select(MEMBER_BOOKING_COLUMNS)
       .eq('user_id', userId)
       .in('status', ['confirmed', 'pending'])
       .gte('booking_date', today)
@@ -395,10 +467,11 @@ export async function getBookingsByUserId(userId: string) {
 
 export async function getPastBookingsByUserId(userId: string) {
   try {
+    const supabase = await createServiceRoleClient()
     const today = new Date().toISOString().split('T')[0]
     const { data, error } = await supabase
       .from('bookings')
-      .select('*')
+      .select(MEMBER_BOOKING_COLUMNS)
       .eq('user_id', userId)
       .lt('booking_date', today)
       .in('status', ['confirmed', 'completed', 'cancelled'])
@@ -439,6 +512,7 @@ export async function getHouseholdNolterQuota(
   household: string,
   targetMonth?: string
 ): Promise<HouseholdNolterQuota> {
+  const supabase = await createServiceRoleClient()
   const base = targetMonth ?? new Date().toISOString().substring(0, 7)
   const { monthStart, nextMonthStart } = monthRangeOf(base)
   const policyVersion = resolvePolicyVersion(monthStart)
@@ -481,7 +555,8 @@ export async function getHouseholdNolterQuota(
     // v1: 건수 기준
     const { count, error } = await supabase
       .from('bookings')
-      .select('*', { count: 'exact', head: true })
+      // head:true 라 행은 돌아오지 않지만, 이 파일에 select('*') 를 남기지 않기 위해 id 만 센다.
+      .select('id', { count: 'exact', head: true })
       .eq('household', normalized)
       .eq('space', 'nolter')
       .neq('status', 'cancelled')
