@@ -2,18 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * 이 앱은 라이트 테마 전용이다. 모든 면이 bg-white / bg-gray-50 으로 하드코딩돼 있고
+ * 다크 변형이 하나도 없다. 그래서 prefers-color-scheme: dark 로 body color 만
+ * 흰색으로 뒤집으면 Tailwind preflight 가 input/textarea/select 에 걸어둔
+ * `color: inherit` 때문에 '흰 배경 + 흰 글씨' 입력창이 된다.
+ * (2026-11 문의 게시판 제보: 타이핑한 글자가 안 보이는데 제출은 되는 증상)
+ * color-scheme: light 는 날짜 선택기·셀렉트 같은 네이티브 컨트롤까지 라이트로 고정한다.
+ */
 :root {
+  color-scheme: light;
   --foreground-rgb: 0, 0, 0;
   --background-start-rgb: 214, 219, 220;
   --background-end-rgb: 255, 255, 255;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --foreground-rgb: 255, 255, 255;
-    --background-start-rgb: 0, 0, 0;
-    --background-end-rgb: 0, 0, 0;
-  }
 }
 
 body {
