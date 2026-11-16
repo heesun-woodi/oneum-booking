@@ -76,7 +76,10 @@ export default function MyPage() {
   const [nolterQuota, setNolterQuota] = useState<HouseholdNolterQuota | null>(null)
   const [usageMonth, setUsageMonth] = useState(() => new Date().toISOString().substring(0, 7))
   const [usageLoading, setUsageLoading] = useState(false)
-  const [loading, setLoading] = useState(true)
+  // 데이터 로딩은 '화면 전체'가 아니라 '탭 콘텐츠'만 가린다.
+  // 세션은 localStorage 에서 즉시 읽히므로 헤더·프로필·한도 카드는 네트워크 없이 바로 그린다.
+  const [dataLoading, setDataLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   useEffect(() => {
     const saved = localStorage.getItem('oneumSession')
@@ -98,18 +101,28 @@ export default function MyPage() {
   }, [session]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadAll(s: UserSession) {
-    setLoading(true)
+    setDataLoading(true)
+    setLoadError(null)
     // 선불권은 항상 phone으로 직접 조회 (Server Action, 캐시 문제 없음)
     const prepaidPromise = s.phone
       ? getPrepaidByPhone(s.phone).then(result => { if (result.success) setPrepaidPurchases(result.data) })
       : Promise.resolve()
 
-    await Promise.all([
+    // allSettled 여야 한다. Promise.all 이면 서버 액션 한 건만 reject 돼도
+    // (모바일 네트워크 끊김, 배포 직후 사라진 액션 ID, 함수 타임아웃) 아래 줄이
+    // 영영 실행되지 않아 새로고침 전까지 '로딩 중...' 에서 멈춘다.
+    const results = await Promise.allSettled([
       loadBookings(s),
       prepaidPromise,
       s.household?.trim() ? loadUsage(s.household, usageMonth) : Promise.resolve(),
     ])
-    setLoading(false)
+
+    const failed = results.filter(r => r.status === 'rejected')
+    if (failed.length > 0) {
+      console.error('❌ 마이페이지 로드 실패:', failed.map(r => (r as PromiseRejectedResult).reason))
+      setLoadError('일부 정보를 불러오지 못했습니다. 네트워크 상태를 확인한 뒤 다시 시도해 주세요.')
+    }
+    setDataLoading(false)
   }
 
   async function loadBookings(s: UserSession) {
@@ -150,12 +163,18 @@ export default function MyPage() {
     const d = new Date(y, m - 1 + delta, 1)
     const next = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
     setUsageMonth(next)
-    if (session?.household?.trim()) loadUsage(session.household, next)
+    if (session?.household?.trim()) {
+      loadUsage(session.household, next).catch(() => {
+        setLoadError('이용 현황을 불러오지 못했습니다. 다시 시도해 주세요.')
+      })
+    }
   }
 
   const activePrepaid = prepaidPurchases.find((p) => p.status === 'paid')
 
-  if (loading || !session) {
+  // 세션은 localStorage 동기 읽기라 이 분기는 첫 렌더 한 번만 스친다.
+  // 데이터를 기다리는 동안에는 더 이상 화면 전체를 막지 않는다.
+  if (!session) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <p className="text-gray-500">로딩 중...</p>
@@ -177,6 +196,20 @@ export default function MyPage() {
       </header>
 
       <div className="max-w-2xl mx-auto px-4 py-6">
+        {/* 로드 실패 안내 — 조용히 빈 화면으로 두지 않는다 */}
+        {loadError && (
+          <div className="mb-6 flex items-start justify-between gap-3 rounded-2xl border border-red-200 bg-red-50 p-4">
+            <p className="text-sm text-red-700">{loadError}</p>
+            <button
+              onClick={() => loadAll(session)}
+              disabled={dataLoading}
+              className="shrink-0 rounded-lg border border-red-300 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50"
+            >
+              {dataLoading ? '불러오는 중...' : '다시 시도'}
+            </button>
+          </div>
+        )}
+
         {/* 프로필 카드 */}
         <div className="bg-white rounded-2xl shadow-sm p-5 mb-6">
           <div className="flex items-center gap-4">
@@ -329,7 +362,13 @@ export default function MyPage() {
           ))}
         </div>
 
-        {/* 탭 콘텐츠 */}
+        {/* 탭 콘텐츠 — 아직 못 받아온 상태를 '내역 없음'으로 보여주지 않는다 */}
+        {dataLoading ? (
+          <div className="bg-white rounded-2xl shadow-sm p-10 text-center text-gray-400">
+            불러오는 중...
+          </div>
+        ) : (
+        <>
         {tab === 'upcoming' && (
           <BookingList
             bookings={upcomingBookings}
@@ -355,6 +394,8 @@ export default function MyPage() {
             userId={session.userId}
             onRefresh={() => session.phone && getPrepaidByPhone(session.phone).then(r => { if (r.success) setPrepaidPurchases(r.data) })}
           />
+        )}
+        </>
         )}
       </div>
     </div>
